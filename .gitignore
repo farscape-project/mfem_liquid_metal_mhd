@@ -1,0 +1,10 @@
+# Directories
+data
+backups
+old
+
+makefile
+remove.sh
+
+# Executables
+01_current_solve
