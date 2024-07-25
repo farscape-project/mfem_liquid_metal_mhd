@@ -32,7 +32,6 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   //const char *mesh_file = "../data/star.mesh";
    const char *mesh_file = "./square.msh";
    int order = 1;
    bool pa = false;
@@ -124,6 +123,7 @@ int main(int argc, char *argv[])
    //    (J,phi) and the linear forms (fform, gform).
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
+   x = 0.0;
 
    LinearForm *fform(new LinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
    J_boundary.MakeRef(R_space, x.GetBlock(0), 0);
    VectorFunctionCoefficient J_coeff(dim, current_bc);
    J_boundary.ProjectCoefficient(J_coeff);
+  
 
    /*GridFunction phi_boundary;
    phi_boundary.MakeRef(W_space, x.GetBlock(1), 0);
@@ -179,7 +180,8 @@ int main(int argc, char *argv[])
 
 
    MixedBilinearForm *bBilForm(new MixedBilinearForm(R_space, W_space));
-   bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   ConstantCoefficient m_one(-1.0);
+   bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator(m_one));
    bBilForm->Assemble();
    // Dirichlet BC.
    bBilForm->EliminateTrialDofs(ess_bdr, J_boundary, rhs.GetBlock(1));
@@ -192,7 +194,7 @@ int main(int argc, char *argv[])
 
    SparseMatrix &M(aBilForm->SpMat());
    SparseMatrix &B(bBilForm->SpMat());
-   B *= -1.;
+   //B *= -1.;
    Bt = new TransposeOperator(&B);
 
    darcyOp.SetBlock(0,0, &M);
@@ -255,7 +257,7 @@ int main(int argc, char *argv[])
    solver.SetOperator(darcyOp);
    solver.SetPreconditioner(darcyPrec);
    solver.SetPrintLevel(1);
-   x = 0.0;
+   
    solver.Mult(rhs, x);
    if (device.IsEnabled()) { x.HostRead(); }
    chrono.Stop();
@@ -334,8 +336,13 @@ int main(int argc, char *argv[])
 
 void fFun(const Vector & x, Vector & f)
 {
-   f = 0.0;
+   if (x.Size() == 2)
+   {
+      f(0) = 0.0;
+      f(1) = 0.0;
+   }
 }
+
 
 real_t gFun(const Vector & x)
 {
@@ -345,7 +352,7 @@ real_t gFun(const Vector & x)
 void current_bc(const Vector & x, Vector & u)
 {
    
-   u(0) = -1.0;
+   u(0) = 1.0;
    u(1) = 0.0;
  
 }
