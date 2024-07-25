@@ -168,7 +168,6 @@ int main(int argc, char *argv[])
    //     a(\vec{x},\vec{y}) = \int_\Omega \vec{x} \cdot \vec{y} d\Omega,
    //     b(x,\vec{y})   = -\int_\Omega \div y x d\Omega.
 
-   
 
    BilinearForm *aBilForm(new BilinearForm(R_space));
    aBilForm->AddDomainIntegrator(new VectorFEMassIntegrator(one));
@@ -281,6 +280,7 @@ int main(int argc, char *argv[])
    J.MakeRef(R_space, x.GetBlock(0), 0);
    phi.MakeRef(W_space, x.GetBlock(1), 0);
 
+   
    // 13. Save data in the ParaView format
    ParaViewDataCollection paraview_dc("current_solve", mesh);
    paraview_dc.SetPrefixPath("data");
@@ -292,6 +292,23 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("current density",&J);
    paraview_dc.RegisterField("electric scalar potential",&phi);
    paraview_dc.Save();
+
+   // 13. Save the mesh and the solution. This output can be viewed later using
+   //     GLVis: "glvis -m square.mesh -g sol_u.gf" or "glvis -m ex5.mesh -g
+   //     sol_p.gf".
+   {
+      ofstream mesh_ofs("data/square.mesh");
+      mesh_ofs.precision(8);
+      mesh->Print(mesh_ofs);
+
+      ofstream J_ofs("data/sol_J.gf");
+      J_ofs.precision(8);
+      J.Save(J_ofs);
+
+      ofstream phi_ofs("data/sol_phi.gf");
+      phi_ofs.precision(8);
+      phi.Save(phi_ofs);
+   }
 
    // 14. Free the used memory.
    delete fform;
