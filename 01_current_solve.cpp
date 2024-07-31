@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the coefficients and rhs of the PDE.
    ConstantCoefficient one(1.0);
+   ConstantCoefficient neg_one(-1.0);
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient gcoeff(gFun);
 
@@ -142,9 +143,9 @@ int main(int argc, char *argv[])
    // Choose tagged boundaries in square.msh to apply condition to.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    ess_bdr = 0;
-   ess_bdr[0] = 0;   // Top boundary
-   ess_bdr[1] = 0;   // Right boundary
-   ess_bdr[2] = 0;   // Bottom boundary
+   ess_bdr[0] = 1;   // Top boundary
+   ess_bdr[1] = 1;   // Right boundary
+   ess_bdr[2] = 1;   // Bottom boundary
    ess_bdr[3] = 1;   // Left boundary
 
    // Project current boundary conditions defined in current_bc to grid function.
@@ -154,11 +155,11 @@ int main(int argc, char *argv[])
    J_boundary.ProjectCoefficient(J_coeff);
   
 
-   /*GridFunction phi_boundary;
+   GridFunction phi_boundary;
    phi_boundary.MakeRef(W_space, x.GetBlock(1), 0);
    FunctionCoefficient phi_coeff(voltage_bc);
    phi_boundary.ProjectCoefficient(phi_coeff);
-   */
+   
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -180,8 +181,7 @@ int main(int argc, char *argv[])
 
 
    MixedBilinearForm *bBilForm(new MixedBilinearForm(R_space, W_space));
-   ConstantCoefficient m_one(-1.0);
-   bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator(m_one));
+   bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator(neg_one));
    bBilForm->Assemble();
    // Dirichlet BC.
    bBilForm->EliminateTrialDofs(ess_bdr, J_boundary, rhs.GetBlock(1));
@@ -351,17 +351,23 @@ real_t gFun(const Vector & x)
 
 void current_bc(const Vector & x, Vector & u)
 {
-   
+   real_t xi(x(0));
+   real_t yi(x(1));
+
    u(0) = 1.0;
+   u(0) = sqrt(sqrt(sin(0.5*yi)));
+   //u(0) = 1.0 / (1.0 + exp(-10.0 * (xi - 0.5))) * (1.0 - 1.0 / (1.0 + exp(-10.0 * (xi - (2*3.14159 - 0.5)))));
    u(1) = 0.0;
  
 }
 
 real_t voltage_bc(const Vector & x)
 {
-   
-   return 1.0;
- 
+   real_t xi(x(0));
+   real_t yi(x(1));
+
+   //return 1.0;
+   return cos(0.5*xi);
 }
 
 /*void current_bc(const Vector & x, Vector & u)
