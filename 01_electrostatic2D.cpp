@@ -1,8 +1,8 @@
 //
-// Compile with: make 03_current_solve
+// Compile with: make 01_electrostatic2D
 //
-// Sample run:   03_current_solve
-//               03_current_solve -m square.msh
+// Sample run:   01_electrostatic2D
+//               01_electrostatic2D -m square.msh
 //
 // Description:  This example code solves a simple 2D/3D system of equations
 //               for current density J and electric scalar potential phi
@@ -10,7 +10,9 @@
 //                                 k*J + grad phi = f,
 //                                 - div J        = g,
 //
-//               for k = 1, and f = g = 0.
+//               for k = 1, f = (0, -1), and g = 0 with insulating boundary 
+//               conditions on left and right walls and conductiong boundary
+//               conditions on top and bottom.
 //
 
 #include "mfem.hpp"
@@ -24,7 +26,7 @@ using namespace mfem;
 // Define the forcing terms / boundary conditions.
 void fFun(const Vector & x, Vector & f);
 real_t gFun(const Vector & x);
-void current_bc(const Vector & x, Vector & u);
+void current_dirichlet_bc(const Vector & x, Vector & u);
 real_t voltage_bc(const Vector & x);
 
 int main(int argc, char *argv[])
@@ -32,7 +34,8 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "./square.msh";
+   //const char *mesh_file = "./mesh/square_-1_to_1.msh";
+   const char *mesh_file = "./mesh/square_0_to_1.msh";
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -129,6 +132,7 @@ int main(int argc, char *argv[])
    LinearForm *fform(new LinearForm);
    fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+   //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(currentNeumannBC));
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
@@ -140,18 +144,26 @@ int main(int argc, char *argv[])
 
    // 8a. Create non-zero Dirichlet boundary condition.
 
-   // Choose tagged boundaries in square.msh to apply condition to.
-   Array<int> ess_bdr(mesh->bdr_attributes.Max());
-   ess_bdr = 0;
-   ess_bdr[0] = 1;   // Top boundary
-   ess_bdr[1] = 1;   // Right boundary
-   ess_bdr[2] = 1;   // Bottom boundary
-   ess_bdr[3] = 1;   // Left boundary
+   // Choose tagged boundaries in cuboid.msh to apply condition to.
+   Array<int> ess_bdr_lr(mesh->bdr_attributes.Max());
+   ess_bdr_lr = 0;
+   ess_bdr_lr[0] = 0;   // Top boundary
+   ess_bdr_lr[1] = 1;   // Right boundary
+   ess_bdr_lr[2] = 0;   // Bottom boundary
+   ess_bdr_lr[3] = 1;   // Left boundary
+
+   Array<int> ess_bdr_tb(mesh->bdr_attributes.Max());
+   ess_bdr_tb = 0;
+   ess_bdr_tb[0] = 1;   // Top boundary
+   ess_bdr_tb[1] = 0;   // Right boundary
+   ess_bdr_tb[2] = 1;   // Bottom boundary
+   ess_bdr_tb[3] = 0;   // Left boundary
+
 
    // Project current boundary conditions defined in current_bc to grid function.
    GridFunction J_boundary;
    J_boundary.MakeRef(R_space, x.GetBlock(0), 0);
-   VectorFunctionCoefficient J_coeff(dim, current_bc);
+   VectorFunctionCoefficient J_coeff(dim, current_dirichlet_bc);
    J_boundary.ProjectCoefficient(J_coeff);
   
 
@@ -174,9 +186,9 @@ int main(int argc, char *argv[])
    BilinearForm *aBilForm(new BilinearForm(R_space));
    aBilForm->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    aBilForm->Assemble();
-   // Dirichlet BC.
-   aBilForm->EliminateEssentialBC(ess_bdr, J_boundary, rhs.GetBlock(0));
-   //aBilForm->EliminateEssentialBC(ess_bdr, phi_boundary, rhs.GetBlock(0));
+   // Dirichlet BC.s
+   aBilForm->EliminateEssentialBC(ess_bdr_lr, J_boundary, rhs.GetBlock(0));
+   aBilForm->EliminateEssentialBC(ess_bdr_tb, phi_boundary, rhs.GetBlock(0));
    aBilForm->Finalize();
 
 
@@ -184,8 +196,8 @@ int main(int argc, char *argv[])
    bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator(neg_one));
    bBilForm->Assemble();
    // Dirichlet BC.
-   bBilForm->EliminateTrialDofs(ess_bdr, J_boundary, rhs.GetBlock(1));
-   //bBilForm->EliminateTrialDofs(ess_bdr, phi_boundary, rhs.GetBlock(1));
+   bBilForm->EliminateTrialDofs(ess_bdr_lr, J_boundary, rhs.GetBlock(1));
+   bBilForm->EliminateTrialDofs(ess_bdr_tb, phi_boundary, rhs.GetBlock(1));
    bBilForm->Finalize();
 
    BlockOperator darcyOp(block_offsets);
@@ -245,7 +257,7 @@ int main(int argc, char *argv[])
    // 11. Solve the linear system with MINRES.
    //     Check the norm of the unpreconditioned residual.
    int maxIter(10000);
-   real_t rtol(1.e-6);
+   real_t rtol(1.e-8);
    real_t atol(1.e-10);
 
    chrono.Clear();
@@ -336,60 +348,32 @@ int main(int argc, char *argv[])
 
 void fFun(const Vector & x, Vector & f)
 {
-   if (x.Size() == 2)
+   
+   f(0) = 0.0;
+   f(1) = -1.0;
+
+   if (x.Size() == 3)
    {
-      f(0) = 0.0;
-      f(1) = 0.0;
+      f(2) = 0.0;
    }
 }
-
 
 real_t gFun(const Vector & x)
 {
    return 0;
 }
 
-void current_bc(const Vector & x, Vector & u)
+void current_dirichlet_bc(const Vector & x, Vector & u)
 {
    real_t xi(x(0));
    real_t yi(x(1));
 
-   u(0) = 1.0;
-   u(0) = sqrt(sqrt(sin(0.5*yi)));
-   //u(0) = 1.0 / (1.0 + exp(-10.0 * (xi - 0.5))) * (1.0 - 1.0 / (1.0 + exp(-10.0 * (xi - (2*3.14159 - 0.5)))));
+   u(0) = 0.0;
    u(1) = 0.0;
  
 }
 
 real_t voltage_bc(const Vector & x)
 {
-   real_t xi(x(0));
-   real_t yi(x(1));
-
-   //return 1.0;
-   return cos(0.5*xi);
+   return 0.0;
 }
-
-/*void current_bc(const Vector & x, Vector & u)
-{
-
-   real_t xi(x(0));
-   real_t yi(x(1));
-
-   if (x.Size() == 2)
-   {
-      // Zero outside of left boundary.
-      if (xi > 0.1)
-      { 
-         u(0) = 0.0;
-         u(1) = 0.0;
-      }
-      // One on left boundary.
-      else 
-      {
-         u(0) = -1.0;
-         u(1) = 0.0;
-      }
-   }
-   
-}*/
