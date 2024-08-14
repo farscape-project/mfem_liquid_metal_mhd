@@ -7,4 +7,5 @@ makefile
 remove.sh
 
 # Executables
-01_current_solve
+01_electrostatic2D
+
