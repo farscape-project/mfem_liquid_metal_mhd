@@ -1,8 +1,8 @@
 //
-// Compile with: make 01_electrostatic2D
+// Compile with: make 02_electrostatic3DwithUcrossB
 //
-// Sample run:   01_electrostatic2D
-//               01_electrostatic2D -m square.msh
+// Sample run:   02_electrostatic2DwithUcrossB
+//               02_electrostatic2DwithUcrossB -m cuboid.msh
 //
 // Description:  This example code solves a simple 2D/3D system of equations
 //               for current density J and electric scalar potential phi
@@ -10,15 +10,10 @@
 //                                 k*J + grad phi = f,
 //                                 - div J        = g,
 //
-//               for k = 1, f = (0, -1), and g = 0 with insulating boundary 
+//               for k = 1, f = 0, and g = 0 with insulating boundary 
 //               conditions on left and right walls and conductiong boundary
 //               conditions on top and bottom.
 //
-
-// Double check what natural boundary conditions are doing...
-// L2 space - can't set value on phi??
-
-// Think about...
 
 #include "mfem.hpp"
 #include <fstream>
@@ -39,8 +34,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   //const char *mesh_file = "./mesh/square_-1_to_1.msh";
-   const char *mesh_file = "./mesh/square_0_to_1.msh";
+   const char *mesh_file = "./mesh/cuboid.msh";
    int order = 1;
    bool pa = false;
    const char *device_config = "cpu";
@@ -79,15 +73,17 @@ int main(int argc, char *argv[])
    if (dim < 2 || dim > 3)
    {
       mfem::mfem_error("Mesh dimension must be 2 or 3.");
+      
    }
-
+   std::cout << "Mesh dimension is " << dim << std::endl;
+   
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
    {
       int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      ref_levels = 2;
+      ref_levels = 1;
 
       std::cout << "ref_levels = " << ref_levels << std::endl;
       for (int l = 0; l < ref_levels; l++)
@@ -135,14 +131,14 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0); // Should this be rhs.GetBlock(1)???
+   fform->Update(R_space, rhs.GetBlock(0), 0);
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(currentNeumannBC));
    fform->Assemble();
    fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0); // Should this be rhs.GetBlock(2)???
+   gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform->Assemble();
    gform->SyncAliasMemory(rhs);
@@ -152,17 +148,21 @@ int main(int argc, char *argv[])
    // Choose tagged boundaries in cuboid.msh to apply condition to.
    Array<int> ess_bdr_lr(mesh->bdr_attributes.Max());
    ess_bdr_lr = 0;
-   ess_bdr_lr[0] = 0;   // Top boundary
+   ess_bdr_lr[0] = 0;   // Front boundary
    ess_bdr_lr[1] = 1;   // Right boundary
-   ess_bdr_lr[2] = 0;   // Bottom boundary
+   ess_bdr_lr[2] = 0;   // Top boundary
    ess_bdr_lr[3] = 1;   // Left boundary
+   ess_bdr_lr[4] = 0;   // Bottom boundary
+   ess_bdr_lr[5] = 0;   // Back boundary
 
    Array<int> ess_bdr_tb(mesh->bdr_attributes.Max());
    ess_bdr_tb = 0;
-   ess_bdr_tb[0] = 1;   // Top boundary
+   ess_bdr_tb[0] = 0;   // Front boundary
    ess_bdr_tb[1] = 0;   // Right boundary
-   ess_bdr_tb[2] = 1;   // Bottom boundary
+   ess_bdr_tb[2] = 1;   // Top boundary
    ess_bdr_tb[3] = 0;   // Left boundary
+   ess_bdr_tb[4] = 1;   // Bottom boundary
+   ess_bdr_tb[5] = 0;   // Back boundary
 
 
    // Project current boundary conditions defined in current_bc to grid function.
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient J_coeff(dim, current_dirichlet_bc);
    J_boundary.ProjectCoefficient(J_coeff);
   
-   // L2 space, therefore no bcs to apply!
+
    GridFunction phi_boundary;
    phi_boundary.MakeRef(W_space, x.GetBlock(1), 0);
    FunctionCoefficient phi_coeff(voltage_bc);
@@ -373,7 +373,6 @@ void current_dirichlet_bc(const Vector & x, Vector & u)
    //real_t xi(x(0));
    //real_t yi(x(1));
 
-   // Check why this works... Should just be a constant value...
    u(0) = 0.0;
    u(1) = 0.0;
  

@@ -9,4 +9,5 @@ The script `01_electrostatic2D.cpp` solves the following equations
 \displaylines{k \vec{J} + \nabla \phi = \vec{f}, \\
 - \nabla \cdot \vec{J} = g,}
 ```
-for variables current density $J$ and electric scalar potential $\phi$ and coefficient $k = 1$ with functions $\vec{f} = (0,-1)$ and $g = 0$.
+for variables current density $J$ and electric scalar potential $\phi$ and coefficient $k = 1$ with functions $\vec{f} = (0,-1)$ and $g = 0$ with insulating boundary conditions on left and right walls and conductiong boundary conditions on top and bottom..
+

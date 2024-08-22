@@ -6,6 +6,8 @@ old
 makefile
 remove.sh
 
+*.dSYM
+
 # Executables
 01_electrostatic2D
 
