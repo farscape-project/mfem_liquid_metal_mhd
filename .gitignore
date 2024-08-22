@@ -10,4 +10,4 @@ remove.sh
 
 # Executables
 01_electrostatic2D
-
+02_electrostatic3DwithUcrossB
