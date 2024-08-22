@@ -1,4 +1,4 @@
-# mfem_liquid_metal_mhd
+# Liquid Metal MHD in MFEM
 
 Repository for a liquid metal MHD code in MFEM - one of the FARSCAPE4 WP4.2 deliverables.
 
