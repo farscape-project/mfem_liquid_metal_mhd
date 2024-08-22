@@ -12,7 +12,7 @@ The script `01_electrostatic2D.cpp` solves the following equations
 for variables current density $J$ and electric scalar potential $\phi$ and coefficient $k = 1$ with functions $\vec{f} = (0,-1)$ and $g = 0$ with insulating boundary conditions on left and right walls and conducting boundary conditions on top and bottom.
 
 
-## Electrostatics with u x B
+## Electrostatics with $u \times B$
 
 The script `02_electrostatic2DwithUcrossB.cpp` solves the following equations
 ```math
