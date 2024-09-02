@@ -31,9 +31,9 @@ using namespace mfem;
 // Define the forcing terms / boundary conditions.
 void fFun(const Vector & x, Vector & f);
 real_t gFun(const Vector & x);
-void current_dirichlet_bc(const Vector & x, Vector & u);
-real_t current_dirichlet_bc_test(const Vector & x);
-real_t voltage_bc(const Vector & x);
+void current_dirichlet_dbc(const Vector & x, Vector & u);
+real_t phi_dbc(const Vector & x);
+
 
 int main(int argc, char *argv[])
 {
@@ -125,6 +125,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient neg_one(-1.0);
    VectorFunctionCoefficient fcoeff(dim, fFun);
    FunctionCoefficient gcoeff(gFun);
+   FunctionCoefficient phi_dbc_coeff(phi_dbc);
 
    // 8. Allocate memory (x, rhs) for the solution and the right hand
    //    side.  Define the GridFunction J,phi for the finite element solution and
@@ -135,22 +136,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
    x = 0.0;
 
-   LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0); // Should this be rhs.GetBlock(1)???  No, this is correct.
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(currentNeumannBC));
-   fform->Assemble();
-   fform->SyncAliasMemory(rhs);
-
-   LinearForm *gform(new LinearForm);
-   gform->Update(W_space, rhs.GetBlock(1), 0); // Should this be rhs.GetBlock(2)???
-   gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
-   gform->Assemble();
-   gform->SyncAliasMemory(rhs);
-
-   // 8a. Create non-zero Dirichlet boundary condition.
-
-   // Choose tagged boundaries in cuboid.msh to apply condition to.
+   // Choose tagged boundaries in .msh file to apply condition to.
    Array<int> ess_bdr_lr(mesh->bdr_attributes.Max());
    ess_bdr_lr = 0;
    ess_bdr_lr[0] = 0;   // Top boundary
@@ -158,26 +144,32 @@ int main(int argc, char *argv[])
    ess_bdr_lr[2] = 0;   // Bottom boundary
    ess_bdr_lr[3] = 1;   // Left boundary
 
-   Array<int> ess_bdr_tb(mesh->bdr_attributes.Max());
-   ess_bdr_tb = 0;
-   ess_bdr_tb[0] = 1;   // Top boundary
-   ess_bdr_tb[1] = 0;   // Right boundary
-   ess_bdr_tb[2] = 1;   // Bottom boundary
-   ess_bdr_tb[3] = 0;   // Left boundary
+   Array<int> bdr_marker_tb(mesh->bdr_attributes.Max());
+   bdr_marker_tb = 0;
+   bdr_marker_tb[0] = 1;   // Top boundary
+   bdr_marker_tb[1] = 0;   // Right boundary
+   bdr_marker_tb[2] = 1;   // Bottom boundary
+   bdr_marker_tb[3] = 0;   // Left boundary
 
+   LinearForm *fform(new LinearForm);
+   fform->Update(R_space, rhs.GetBlock(0), 0);
+   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+   // Dirichlet BC for phi.
+   fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(phi_dbc_coeff), bdr_marker_tb);
+   fform->Assemble();
+   fform->SyncAliasMemory(rhs);
+
+   LinearForm *gform(new LinearForm);
+   gform->Update(W_space, rhs.GetBlock(1), 0); 
+   gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   gform->Assemble();
+   gform->SyncAliasMemory(rhs);
 
    // Project current boundary conditions defined in current_bc to grid function.
    GridFunction J_boundary;
    J_boundary.MakeRef(R_space, x.GetBlock(0), 0);
-   VectorFunctionCoefficient J_coeff(dim, current_dirichlet_bc);
-   //FunctionCoefficient J_coeff(current_dirichlet_bc_test);
+   VectorFunctionCoefficient J_coeff(dim, current_dirichlet_dbc);
    J_boundary.ProjectCoefficient(J_coeff);
-  
-   // L2 space, therefore no bcs to apply!
-   GridFunction phi_boundary;
-   phi_boundary.MakeRef(W_space, x.GetBlock(1), 0);
-   FunctionCoefficient phi_coeff(voltage_bc);
-   phi_boundary.ProjectCoefficient(phi_coeff);
    
 
    // 9. Assemble the finite element matrices for the Darcy operator
@@ -193,18 +185,16 @@ int main(int argc, char *argv[])
    BilinearForm *aBilForm(new BilinearForm(R_space));
    aBilForm->AddDomainIntegrator(new VectorFEMassIntegrator(one));
    aBilForm->Assemble();
-   // Dirichlet BC.s
+   // Dirichlet BC for J.n.
    aBilForm->EliminateEssentialBC(ess_bdr_lr, J_boundary, rhs.GetBlock(0));
-   //aBilForm->EliminateEssentialBC(ess_bdr_tb, phi_boundary, rhs.GetBlock(0));
    aBilForm->Finalize();
 
 
    MixedBilinearForm *bBilForm(new MixedBilinearForm(R_space, W_space));
    bBilForm->AddDomainIntegrator(new VectorFEDivergenceIntegrator(neg_one));
    bBilForm->Assemble();
-   // Dirichlet BC.
+   // Dirichlet BC for J.n.
    bBilForm->EliminateTrialDofs(ess_bdr_lr, J_boundary, rhs.GetBlock(1));
-   //bBilForm->EliminateTrialDofs(ess_bdr_tb, phi_boundary, rhs.GetBlock(1));
    bBilForm->Finalize();
 
    BlockOperator darcyOp(block_offsets);
@@ -213,7 +203,6 @@ int main(int argc, char *argv[])
 
    SparseMatrix &M(aBilForm->SpMat());
    SparseMatrix &B(bBilForm->SpMat());
-   //B *= -1.;
    Bt = new TransposeOperator(&B);
 
    darcyOp.SetBlock(0,0, &M);
@@ -370,7 +359,7 @@ real_t gFun(const Vector & x)
    return 0;
 }
 
-void current_dirichlet_bc(const Vector & x, Vector & u)
+void current_dirichlet_dbc(const Vector & x, Vector & u)
 {
    //real_t xi(x(0));
    //real_t yi(x(1));
@@ -381,20 +370,13 @@ void current_dirichlet_bc(const Vector & x, Vector & u)
  
 }
 
-real_t current_dirichlet_bc_test(const Vector & x)
+
+real_t phi_dbc(const Vector & x)
 {
+
    //real_t xi(x(0));
    //real_t yi(x(1));
 
-   // Check why this works... Should just be a constant value...
-   //u(0) = 0.0;
-   //u(1) = 0.0;
-
-   return 0;
- 
-}
-
-real_t voltage_bc(const Vector & x)
-{
    return 0.0;
+
 }
