@@ -32,6 +32,7 @@ using namespace mfem;
 void fFun(const Vector & x, Vector & f);
 real_t gFun(const Vector & x);
 void current_dirichlet_bc(const Vector & x, Vector & u);
+real_t current_dirichlet_bc_test(const Vector & x);
 real_t voltage_bc(const Vector & x);
 
 int main(int argc, char *argv[])
@@ -99,7 +100,7 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use the
    //    Raviart-Thomas finite elements of the specified order.
    FiniteElementCollection *hdiv_coll(new RT_FECollection(order, dim));
-   FiniteElementCollection *l2_coll(new L2_FECollection(order, dim));
+   FiniteElementCollection *l2_coll(new H1_FECollection(order, dim));
 
    FiniteElementSpace *R_space = new FiniteElementSpace(mesh, hdiv_coll);
    FiniteElementSpace *W_space = new FiniteElementSpace(mesh, l2_coll);
@@ -135,7 +136,7 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    LinearForm *fform(new LinearForm);
-   fform->Update(R_space, rhs.GetBlock(0), 0); // Should this be rhs.GetBlock(1)???
+   fform->Update(R_space, rhs.GetBlock(0), 0); // Should this be rhs.GetBlock(1)???  No, this is correct.
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    //fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(currentNeumannBC));
    fform->Assemble();
@@ -169,6 +170,7 @@ int main(int argc, char *argv[])
    GridFunction J_boundary;
    J_boundary.MakeRef(R_space, x.GetBlock(0), 0);
    VectorFunctionCoefficient J_coeff(dim, current_dirichlet_bc);
+   //FunctionCoefficient J_coeff(current_dirichlet_bc_test);
    J_boundary.ProjectCoefficient(J_coeff);
   
    // L2 space, therefore no bcs to apply!
@@ -193,7 +195,7 @@ int main(int argc, char *argv[])
    aBilForm->Assemble();
    // Dirichlet BC.s
    aBilForm->EliminateEssentialBC(ess_bdr_lr, J_boundary, rhs.GetBlock(0));
-   aBilForm->EliminateEssentialBC(ess_bdr_tb, phi_boundary, rhs.GetBlock(0));
+   //aBilForm->EliminateEssentialBC(ess_bdr_tb, phi_boundary, rhs.GetBlock(0));
    aBilForm->Finalize();
 
 
@@ -202,7 +204,7 @@ int main(int argc, char *argv[])
    bBilForm->Assemble();
    // Dirichlet BC.
    bBilForm->EliminateTrialDofs(ess_bdr_lr, J_boundary, rhs.GetBlock(1));
-   bBilForm->EliminateTrialDofs(ess_bdr_tb, phi_boundary, rhs.GetBlock(1));
+   //bBilForm->EliminateTrialDofs(ess_bdr_tb, phi_boundary, rhs.GetBlock(1));
    bBilForm->Finalize();
 
    BlockOperator darcyOp(block_offsets);
@@ -355,7 +357,7 @@ void fFun(const Vector & x, Vector & f)
 {
    
    f(0) = 0.0;
-   f(1) = -1.0;
+   f(1) = 1.0;
 
    if (x.Size() == 3)
    {
@@ -376,6 +378,19 @@ void current_dirichlet_bc(const Vector & x, Vector & u)
    // Check why this works... Should just be a constant value...
    u(0) = 0.0;
    u(1) = 0.0;
+ 
+}
+
+real_t current_dirichlet_bc_test(const Vector & x)
+{
+   //real_t xi(x(0));
+   //real_t yi(x(1));
+
+   // Check why this works... Should just be a constant value...
+   //u(0) = 0.0;
+   //u(1) = 0.0;
+
+   return 0;
  
 }
 
