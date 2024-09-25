@@ -3,7 +3,7 @@ data*
 backups
 old
 
-makefile
+#makefile
 remove.sh
 
 *.dSYM
