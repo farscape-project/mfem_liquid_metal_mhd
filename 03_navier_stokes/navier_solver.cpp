@@ -17,7 +17,6 @@
 using namespace mfem;
 using namespace navier;
 
-// ...
 void CopyDBFIntegrators(ParBilinearForm *src, ParBilinearForm *dst)
 {
    Array<BilinearFormIntegrator *> *bffis = src->GetDBFI();
