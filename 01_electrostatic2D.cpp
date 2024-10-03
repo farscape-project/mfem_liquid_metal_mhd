@@ -18,8 +18,6 @@
 // Double check what natural boundary conditions are doing...
 // L2 space - can't set value on phi??
 
-// Think about...
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
