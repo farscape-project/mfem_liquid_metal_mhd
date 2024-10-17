@@ -29,6 +29,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
 
+   // Note: alpha1 must be defined negative.
    real_t alpha1(-1.0);
 
    // 1. Parse command line options.
@@ -58,8 +59,8 @@ int main(int argc, char *argv[])
    Array<int> boundary_dofs;
    fespace.GetBoundaryTrueDofs(boundary_dofs);
 
-   // 5. Define the solution x as a finite element grid function in fespace. Set
-   //    the initial guess to zero, which also sets the boundary conditions.
+   // Define the solutions xi, nu, p as finite element grid functions in fespace. Set
+   // the initial guesses to zero, which also sets the boundary conditions.
    ParGridFunction xi(&fespace);
    ParGridFunction nu(&fespace);
    ParGridFunction p(&fespace);
@@ -68,17 +69,14 @@ int main(int argc, char *argv[])
    nu = 0.0;
    p = 0.0;
 
-   // 6. Set up the linear form b(.) corresponding to the right-hand side.
+   // Set up the linear form b(.) corresponding to the right-hand side of 
+   // the pressure solve.
    ParLinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
-   // Set up the bilinear form corresponding to the operators for pressure.
-   // ******************************************************
-   // ******************************************************
-   // This needs separating out into xi and nu solves.
-   // ******************************************************
-   // ******************************************************
+   // Set up the bilinear forms corresponding to the operators for the two-part 
+   // pressure solve.
    ParBilinearForm mp(&fespace);
    mp.AddDomainIntegrator(new MassIntegrator(one));
    mp.Assemble();
@@ -87,22 +85,19 @@ int main(int argc, char *argv[])
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
 
-   // 8. Form the linear system A X = B. This includes eliminating boundary
-   //    conditions, applying AMR constraints, and other transformations.
+   // Form the linear systems for both 
+   //       M_p xi = r_p,
+   //       S_p nu = r_p. 
    HypreParMatrix Mp;
    Vector Bmp, Xi;
    mp.FormLinearSystem(boundary_dofs, xi, b, Mp, Xi, Bmp);
 
+   HypreParMatrix Sp;
+   Vector Bsp, Nu;
+   sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
 
-
-   // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
-   //GSSmoother MatMp(Mp);
-   //PCG(Mp, MatMp, Bmp, Xi, 1, 10, 1e-12, 0.0);
-
+   // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
    CGSolver M_solver(MPI_COMM_WORLD);
-   //DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be 
-                     // go to, but this works for now.
-   //HypreSolver *M_prec = new HypreBoomerAMG(Mp);
    HypreSmoother M_prec;
 
    M_solver.iterative_mode = false;
@@ -110,37 +105,15 @@ int main(int argc, char *argv[])
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(10);
    M_solver.SetPrintLevel(0);
-   M_prec.SetType(HypreSmoother::Jacobi);
+   M_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
    M_solver.Mult(Bmp,Xi);
    mp.RecoverFEMSolution(Xi, b, xi);
 
-   // How to solve this with AMG Solver?
-   //GSSmoother MatSp(Sp);
-   //PCG(Sp, MatSp, Bsp, Nu, 1, 200, 1e-12, 0.0);
 
-   /*CGSolver S_solver;
-   HypreBoomerAMG S_prec;
-
-   //HypreParMatrix *hSp = Sp.As<HypreParMatrix>();
-
-   S_solver.iterative_mode = false;
-   S_solver.SetRelTol(1e-8);
-   S_solver.SetAbsTol(0.0);
-   S_solver.SetMaxIter(10);
-   S_solver.SetPrintLevel(0);
-   S_solver.SetPreconditioner(S_prec);
-   //S_solver.SetPreconditioner(*amg);
-   S_solver.SetOperator(Sp);
-
-   S_solver.Mult(b,nu);*/
-
-   HypreParMatrix Sp;
-   Vector Bsp, Nu;
-   sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
-
+   // Solve the S_p nu = r_p system using PCG with Jacobi preconditioner.
    HypreSolver *amg = new HypreBoomerAMG(Sp);
    HyprePCG *pcg = new HyprePCG(Sp);
    pcg->SetTol(1e-12);
@@ -150,7 +123,7 @@ int main(int argc, char *argv[])
    pcg->Mult(Bsp, Nu);
    sp.RecoverFEMSolution(Nu, b, nu);
 
-
+   // Do the sum y_p = -alpha1 xi - nu.  Note: above alpha1 must be defined negative.
    p.Add(alpha1,xi);
    p.Add(-1.0,nu);
    
