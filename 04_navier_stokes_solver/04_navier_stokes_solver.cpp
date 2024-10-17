@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
    Hypre::Init();
-   
+
    // Define constants.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    // finite elements of given order.  The order for pressure must be 1 less 
    // than that of velocity.
    H1_FECollection fec(order_pressure, mesh.Dimension());
-   FiniteElementSpace fespace(&mesh, &fec);
+   ParFiniteElementSpace fespace(&mesh, &fec);
    cout << "Number of unknowns: " << fespace.GetTrueVSize() << endl;
 
    // 4. Extract the list of all the boundary DOFs. These will be marked as
