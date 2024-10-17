@@ -41,7 +41,9 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file, and refine once uniformly.
-   Mesh mesh(mesh_file);
+   Mesh serial_mesh(mesh_file);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear(); 
    mesh.UniformRefinement();
 
    // Define finite element space on mesh. Specify H1 continuous Lagrange 
