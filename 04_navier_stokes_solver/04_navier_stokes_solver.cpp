@@ -102,14 +102,16 @@ int main(int argc, char *argv[])
    CGSolver M_solver(MPI_COMM_WORLD);
    //DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be 
                      // go to, but this works for now.
-   HypreSolver *M_prec = new HypreBoomerAMG(Mp);
+   //HypreSolver *M_prec = new HypreBoomerAMG(Mp);
+   HypreSmoother M_prec;
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
    M_solver.SetAbsTol(0.0);
    M_solver.SetMaxIter(10);
    M_solver.SetPrintLevel(0);
-   M_solver.SetPreconditioner(*M_prec);
+   M_prec.SetType(HypreSmoother::Jacobi);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
    M_solver.Mult(Bmp,Xi);
