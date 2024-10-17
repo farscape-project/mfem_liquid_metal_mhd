@@ -84,9 +84,7 @@ int main(int argc, char *argv[])
    Vector Bmp, Xi;
    mp.FormLinearSystem(boundary_dofs, xi, b, Mp, Xi, Bmp);
 
-   HypreParMatrix Sp;
-   Vector Bsp, Nu;
-   sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
+
 
    // Solve the system using PCG with symmetric Gauss-Seidel preconditioner.
    //GSSmoother MatMp(Mp);
@@ -110,7 +108,7 @@ int main(int argc, char *argv[])
    //GSSmoother MatSp(Sp);
    //PCG(Sp, MatSp, Bsp, Nu, 1, 200, 1e-12, 0.0);
 
-   CGSolver S_solver;
+   /*CGSolver S_solver;
    HypreBoomerAMG S_prec;
 
    //HypreParMatrix *hSp = Sp.As<HypreParMatrix>();
@@ -124,7 +122,20 @@ int main(int argc, char *argv[])
    //S_solver.SetPreconditioner(*amg);
    S_solver.SetOperator(Sp);
 
-   S_solver.Mult(b,nu);
+   S_solver.Mult(b,nu);*/
+
+   HypreParMatrix Sp;
+   Vector Bsp, Nu;
+   sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
+   
+   HypreSolver *amg = new HypreBoomerAMG(Sp);
+   HyprePCG *pcg = new HyprePCG(Sp);
+   pcg->SetTol(1e-12);
+   pcg->SetMaxIter(200);
+   pcg->SetPrintLevel(2);
+   pcg->SetPreconditioner(*amg);
+   pcg->Mult(Bsp, Nu);
+   sp.RecoverFEMSolution(Nu, b, nu);
 
 
    p.Add(alpha1,xi);
