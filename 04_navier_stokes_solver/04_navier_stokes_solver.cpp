@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 
    // 8. Form the linear system A X = B. This includes eliminating boundary
    //    conditions, applying AMR constraints, and other transformations.
-   SparseMatrix Mp;
+   HypreParMatrix Mp;
    Vector Bmp, Xi;
    mp.FormLinearSystem(boundary_dofs, xi, b, Mp, Xi, Bmp);
 
