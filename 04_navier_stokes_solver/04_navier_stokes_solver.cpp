@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
    HypreSolver *amg = new HypreBoomerAMG(Sp);
    HyprePCG *pcg = new HyprePCG(Sp);
    pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
+   pcg->SetMaxIter(2);
    pcg->SetPrintLevel(2);
    pcg->SetPreconditioner(*amg);
    pcg->Mult(Bsp, Nu);
