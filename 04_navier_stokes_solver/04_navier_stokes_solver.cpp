@@ -60,16 +60,16 @@ int main(int argc, char *argv[])
 
    // 5. Define the solution x as a finite element grid function in fespace. Set
    //    the initial guess to zero, which also sets the boundary conditions.
-   GridFunction xi(&fespace);
-   GridFunction nu(&fespace);
-   GridFunction p(&fespace);
+   ParGridFunction xi(&fespace);
+   ParGridFunction nu(&fespace);
+   ParGridFunction p(&fespace);
 
    xi = 0.0;
    nu = 0.0;
    p = 0.0;
 
    // 6. Set up the linear form b(.) corresponding to the right-hand side.
-   LinearForm b(&fespace);
+   ParLinearForm b(&fespace);
    b.AddDomainIntegrator(new DomainLFIntegrator(one));
    b.Assemble();
 
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
    // This needs separating out into xi and nu solves.
    // ******************************************************
    // ******************************************************
-   BilinearForm mp(&fespace);
+   ParBilinearForm mp(&fespace);
    mp.AddDomainIntegrator(new MassIntegrator(one));
    mp.Assemble();
 
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
    //GSSmoother MatMp(Mp);
    //PCG(Mp, MatMp, Bmp, Xi, 1, 10, 1e-12, 0.0);
 
-   CGSolver M_solver;
+   CGSolver M_solver(MPI_COMM_WORLD);
    DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be 
                      // go to, but this works for now.
 
