@@ -93,7 +93,8 @@ int main(int argc, char *argv[])
    //PCG(Mp, MatMp, Bmp, Xi, 1, 10, 1e-12, 0.0);
 
    CGSolver M_solver;
-   DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be go to.
+   DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be 
+                     // go to, but this works for now.
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
@@ -110,11 +111,9 @@ int main(int argc, char *argv[])
    //PCG(Sp, MatSp, Bsp, Nu, 1, 200, 1e-12, 0.0);
 
    CGSolver S_solver;
-   //DSmoother S_prec;
-
-   // Not compiled on PC... Scafell Pike?
-   //HypreBoomerAMG * amg = new HypreBoomerAMG(sp);
    HypreBoomerAMG S_prec;
+
+   HypreParMatrix *hSp = Sp.As<HypreParMatrix>();
 
    S_solver.iterative_mode = false;
    S_solver.SetRelTol(1e-8);
@@ -123,7 +122,7 @@ int main(int argc, char *argv[])
    S_solver.SetPrintLevel(0);
    S_solver.SetPreconditioner(S_prec);
    //S_solver.SetPreconditioner(*amg);
-   S_solver.SetOperator(Sp);
+   S_solver.SetOperator(hSp);
 
    S_solver.Mult(b,nu);
 
