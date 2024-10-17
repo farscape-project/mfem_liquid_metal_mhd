@@ -6,6 +6,8 @@ old
 03_navier_stokes/3dfoc/*
 03_navier_stokes/turbchan/*
 
+04_navier_stokes_solver/data/*
+
 # Simulation files
 03_navier_stokes/run_mfem.sh
 03_navier_stokes/*.e
