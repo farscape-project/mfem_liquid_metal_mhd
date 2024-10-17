@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
    CGSolver S_solver;
    HypreBoomerAMG S_prec;
 
-   HypreParMatrix *hSp = Sp.As<HypreParMatrix>();
+   //HypreParMatrix *hSp = Sp.As<HypreParMatrix>();
 
    S_solver.iterative_mode = false;
    S_solver.SetRelTol(1e-8);
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
    S_solver.SetPrintLevel(0);
    S_solver.SetPreconditioner(S_prec);
    //S_solver.SetPreconditioner(*amg);
-   S_solver.SetOperator(hSp);
+   S_solver.SetOperator(Sp);
 
    S_solver.Mult(b,nu);
 
