@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
    CGSolver M_solver(MPI_COMM_WORLD);
    //DSmoother M_prec; // Diagonal preconditioner.  Jacobi from PetsC would be 
                      // go to, but this works for now.
-   HypreSolver *M_prec = new HypreBoomerAMG(Sp);
+   HypreSolver *M_prec = new HypreBoomerAMG(Mp);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
