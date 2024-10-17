@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
    Vector Bmp, Xi;
    mp.FormLinearSystem(boundary_dofs, xi, b, Mp, Xi, Bmp);
 
-   SparseMatrix Sp;
+   HypreParMatrix Sp;
    Vector Bsp, Nu;
    sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
 
