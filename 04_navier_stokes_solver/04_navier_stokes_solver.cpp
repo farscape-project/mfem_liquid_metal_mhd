@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
    mp.AddDomainIntegrator(new MassIntegrator(one));
    mp.Assemble();
 
-   BilinearForm sp(&fespace);
+   ParBilinearForm sp(&fespace);
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
 
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
    HypreParMatrix Sp;
    Vector Bsp, Nu;
    sp.FormLinearSystem(boundary_dofs, nu, b, Sp, Nu, Bsp);
-   
+
    HypreSolver *amg = new HypreBoomerAMG(Sp);
    HyprePCG *pcg = new HyprePCG(Sp);
    pcg->SetTol(1e-12);
