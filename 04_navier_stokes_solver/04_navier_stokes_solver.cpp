@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
    // Define the solutions xi, nu, p as grid functions for pressure. 
    ParGridFunction xi(&pressure_fespace);
    ParGridFunction nu(&pressure_fespace);
-   ParGridFunction p(&pressure_fespace);
+   ParGridFunction yp(&pressure_fespace);
 
    // Define the solution for velocity.
    ParGridFunction yu(&velocity_fespace);
@@ -253,14 +253,14 @@ int main(int argc, char *argv[])
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
-   
+
    // Export pressure data.
    paraview_dc.RegisterField("xi",&xi);
    paraview_dc.RegisterField("nu",&nu);
    paraview_dc.RegisterField("p",&yp);
 
    // Export velocity data.
-   paraview_dc.RegisterField("yu",&u);
+   paraview_dc.RegisterField("u",&yu);
 
    paraview_dc.Save();
 
