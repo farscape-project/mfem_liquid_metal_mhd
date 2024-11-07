@@ -32,7 +32,6 @@ int main(int argc, char *argv[])
    // Note: alpha1 must be defined negative.
    real_t alpha1(-1.0);
 
-
    // Parse command line options.
    string mesh_file = "../mesh/square.msh";
    int order_pressure = 1;
@@ -41,7 +40,6 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&order_pressure, "-o", "--order", "Finite element polynomial degree");
    args.ParseCheck();
 
 
@@ -93,13 +91,13 @@ int main(int argc, char *argv[])
    ParGridFunction p(&pressure_fespace);
 
    // Define the solution for velocity.
-   ParGridFunction u(&velocity_fespace);
+   ParGridFunction yu(&velocity_fespace);
 
    // Set initial guesses to zero.  This also sets BCs.
    xi = 0.0;
    nu = 0.0;
-   p = 0.0;
-   u = 0.0;
+   yp = 0.0;
+   yu = 0.0;
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -112,14 +110,15 @@ int main(int argc, char *argv[])
    // each solve.
    // ----------------------------------------------------------------------------
    // Set up rhs for pressure solve.
-   ParLinearForm bp(&pressure_fespace);
-   bp.AddDomainIntegrator(new DomainLFIntegrator(one));
-   bp.Assemble();
+   ParLinearForm rp(&pressure_fespace);
+   rp.AddDomainIntegrator(new DomainLFIntegrator(one));
+   rp.Assemble();
 
    // Set up rhs for velocity solve.
-   ParLinearForm bu(&pressure_fespace);
-   bu.AddDomainIntegrator(new DomainLFIntegrator(one)); //FIXME
-   bu.Assemble();
+   ParLinearForm ru(&velocity_fespace);
+   ru.AddDomainIntegrator(new DomainLFIntegrator(one)); //FIXME
+   
+   ru.Assemble();
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -142,12 +141,17 @@ int main(int argc, char *argv[])
 
    // Bilinear forms for the velocity solve.
    ParBilinearForm fk(&velocity_fespace);
-   fk.AddDomainIntegrator(new MassIntegrator(one));  //FIXME
+   // Integrator for (v, v').
+   fk.AddDomainIntegrator(new MassIntegrator(one));
+   // Integrator for A_AL(v, v').
+   fk.AddDomainIntegrator(new DiffusionIntegrator(one));
+   // Integrator for O(u_n, v, v').
+   fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
    fk.Assemble();
 
-   ParBilinearForm b(&velocity_fespace);
-   b.AddDomainIntegrator(new MassIntegrator(one));  //FIXME
-   b.Assemble();
+   //ParBilinearForm b(&velocity_fespace);
+   //b.AddDomainIntegrator(new MassIntegrator(one));  //FIXME
+   //b.Assemble();
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -158,17 +162,20 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    // Form the linear systems for both 
-   //       M_p xi = r_p,
+   //       M_p xi = r_p, and
    //       S_p nu = r_p. 
    HypreParMatrix Mp;
-   Vector Bmp, Xi;
-   mp.FormLinearSystem(boundary_dofs, xi, bp, Mp, Xi, Bmp);
+   Vector Rp_m, Xi;
+   mp.FormLinearSystem(boundary_dofs, xi, rp, Mp, Xi, Rp_m);
 
    HypreParMatrix Sp;
-   Vector Bsp, Nu;
-   sp.FormLinearSystem(boundary_dofs, nu, bp, Sp, Nu, Bsp);
+   Vector Rp_s, Nu;
+   sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
 
-   // How to set up linear system for velocity...
+   // Form the linear system for F_k y_u = r_u
+   HypreParMatrix Fk;
+   Vector Ru, Yu;
+   fk.FormLinearSystem(boundary_dofs, yu, ru, Fk, Yu, Ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -192,24 +199,43 @@ int main(int argc, char *argv[])
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
-   M_solver.Mult(Bmp,Xi);
-   mp.RecoverFEMSolution(Xi, bp, xi);
+   M_solver.Mult(Rp_m,Xi);
+   mp.RecoverFEMSolution(Xi, rp, xi);
 
 
    // Solve the S_p nu = r_p system using PCG with Jacobi preconditioner.
    HypreSolver *amg = new HypreBoomerAMG(Sp);
    HyprePCG *pcg = new HyprePCG(Sp);
+
    pcg->SetTol(1e-12);
    pcg->SetMaxIter(200);
    pcg->SetPrintLevel(2);
    pcg->SetPreconditioner(*amg);
-   pcg->Mult(Bsp, Nu);
-   sp.RecoverFEMSolution(Nu, bp, nu);
+   pcg->Mult(Rp_s, Nu);
+   sp.RecoverFEMSolution(Nu, rp, nu);
 
    // Do the sum y_p = -alpha1 xi - nu.  Note: above alpha1 must be defined negative.
-   p.Add(alpha1,xi);
-   p.Add(-1.0,nu);
+   yp.Add(alpha1,xi);
+   yp.Add(-1.0,nu);
    
+
+   // Solve the F_k y_u = r_u system.
+   CGSolver F_solver(MPI_COMM_WORLD);
+   HypreSmoother F_prec;
+
+   F_solver.iterative_mode = false;
+   F_solver.SetRelTol(1e-8);
+   F_solver.SetAbsTol(0.0);
+   F_solver.SetMaxIter(10);
+   F_solver.SetPrintLevel(0);
+   F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
+   F_solver.SetPreconditioner(F_prec);
+   F_solver.SetOperator(Fk);
+
+   F_solver.Mult(Ru,Yu);
+   fk.RecoverFEMSolution(Yu, ru, yu);
+
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -220,7 +246,6 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // Save data in the ParaView format
    // ----------------------------------------------------------------------------
-   // Export pressure data.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
    paraview_dc.SetPrefixPath("data");
    paraview_dc.SetLevelsOfDetail(order_pressure);
@@ -228,10 +253,17 @@ int main(int argc, char *argv[])
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
    paraview_dc.SetTime(0.0); // set the time
+   
+   // Export pressure data.
    paraview_dc.RegisterField("xi",&xi);
    paraview_dc.RegisterField("nu",&nu);
-   paraview_dc.RegisterField("p",&p);
+   paraview_dc.RegisterField("p",&yp);
+
+   // Export velocity data.
+   paraview_dc.RegisterField("yu",&u);
+
    paraview_dc.Save();
+
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
