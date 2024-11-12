@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
    fk.AddDomainIntegrator(new DiffusionIntegrator(one));
    // Integrator for O(u_n, v, v').
    fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
-   fk.Assemble();
+   //fk.Assemble();
 
   // ParNonlinearForm fk_non(&velocity_fespace);
    //fk_non.AddDomainIntegrator(new MassIntegrator(one));
