@@ -150,8 +150,10 @@ int main(int argc, char *argv[])
    fk.Assemble();
 
    ParNonlinearForm fk_non(&velocity_fespace);
+   fk_non.AddDomainIntegrator(new MassIntegrator(one));
+   fk_non.AddDomainIntegrator(new DiffusionIntegrator(one));
    fk_non.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(yu)); // To try with yu here.
-   fk_non.Assemble();
+   //fk_non.Assemble();
 
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MassIntegrator(one));  //FIXME
