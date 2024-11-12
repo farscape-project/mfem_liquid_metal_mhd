@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new DiffusionIntegrator(one));
    // Integrator for O(u_n, v, v').
-   fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(yu,one)); // To try with yu here.
+   fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(yu)); // To try with yu here.
    fk.Assemble();
 
    //ParBilinearForm b(&velocity_fespace);
