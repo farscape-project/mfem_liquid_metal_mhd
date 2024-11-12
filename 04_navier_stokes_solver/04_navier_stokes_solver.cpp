@@ -140,19 +140,19 @@ int main(int argc, char *argv[])
    sp.Assemble();
 
    // Bilinear forms for the velocity solve.
-   ParBilinearForm fk(&velocity_fespace);
+   ParNonlinearForm fk(&velocity_fespace);
    // Integrator for (v, v').
    fk.AddDomainIntegrator(new MassIntegrator(one));
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new DiffusionIntegrator(one));
    // Integrator for O(u_n, v, v').
-   //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(yu)); // To try with yu here.
+   fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
    fk.Assemble();
 
-   ParNonlinearForm fk_non(&velocity_fespace);
-   fk_non.AddDomainIntegrator(new MassIntegrator(one));
-   fk_non.AddDomainIntegrator(new DiffusionIntegrator(one));
-   fk_non.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one)); // 
+  // ParNonlinearForm fk_non(&velocity_fespace);
+   //fk_non.AddDomainIntegrator(new MassIntegrator(one));
+   //fk_non.AddDomainIntegrator(new DiffusionIntegrator(one));
+   //fk_non.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one)); // 
    //fk_non.Assemble();
 
    //ParBilinearForm b(&velocity_fespace);
