@@ -261,6 +261,8 @@ int main(int argc, char *argv[])
    newton.SetPrintLevel(1);
    newton.SetRelTol(1e-10);
    newton.SetMaxIter(20);
+   F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
+   newton.SetPreconditioner(F_prec);
 
    newton.Mult(Ru, Yu);
    yu.Distribute(Yu);
