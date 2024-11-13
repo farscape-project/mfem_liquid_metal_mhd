@@ -179,10 +179,23 @@ int main(int argc, char *argv[])
    sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
 
    // Form the linear system for F_k y_u = r_u
-   HypreParMatrix Fk;
-   Vector Ru, Yu;
-   fk.FormLinearSystem(boundary_dofs, yu, ru, Fk, Yu, Ru);
+   //HypreParMatrix Fk;
+   //Vector Ru, Yu;
+   //fk.FormLinearSystem(boundary_dofs, yu, ru, Fk, Yu, Ru);
 
+   //Vector X(fespace.GetTrueVSize()), B(fespace.GetTrueVSize());
+   //x.GetTrueDofs(X);
+   //b.ParallelAssemble(B);
+   //n.SetEssentialBC(ess_bdr, &B);
+
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
+
+   Vector Yu(fespace.GetTrueVSize()), Ru(fespace.GetTrueVSize());
+   yu.GetTrueDofs(Yu);
+   ru.ParallelAssemble(Ru);
+   fk.SetEssentialBC(ess_bdr, &ru);
+   
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -226,21 +239,31 @@ int main(int argc, char *argv[])
    
 
    // Solve the F_k y_u = r_u system.
+   //CGSolver F_solver(MPI_COMM_WORLD);
+   //HypreSmoother F_prec;
+
+   //F_solver.iterative_mode = false;
+   //F_solver.SetRelTol(1e-8);
+   //F_solver.SetAbsTol(0.0);
+   //F_solver.SetMaxIter(10);
+   //F_solver.SetPrintLevel(0);
+   //F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
+   //F_solver.SetPreconditioner(F_prec);
+   //F_solver.SetOperator(Fk);
+
+   //F_solver.Mult(Ru,Yu);
+   //fk.RecoverFEMSolution(Yu, ru, yu);
+
    CGSolver F_solver(MPI_COMM_WORLD);
-   HypreSmoother F_prec;
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetOperator(fk);
+   newton.SetSolver(F_solver);
+   newton.SetPrintLevel(1);
+   newton.SetRelTol(1e-10);
+   newton.SetMaxIter(20);
 
-   F_solver.iterative_mode = false;
-   F_solver.SetRelTol(1e-8);
-   F_solver.SetAbsTol(0.0);
-   F_solver.SetMaxIter(10);
-   F_solver.SetPrintLevel(0);
-   F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
-   F_solver.SetPreconditioner(F_prec);
-   F_solver.SetOperator(Fk);
-
-   F_solver.Mult(Ru,Yu);
-   fk.RecoverFEMSolution(Yu, ru, yu);
-
+   newton.Mult(Ru, Yu);
+   yu.Distribute(Yu);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
