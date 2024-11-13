@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
 
-   Vector Yu(fespace.GetTrueVSize()), Ru(fespace.GetTrueVSize());
+   Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
    fk.SetEssentialBC(ess_bdr, &ru);
