@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
 
    // Solve the F_k y_u = r_u system.
    //CGSolver F_solver(MPI_COMM_WORLD);
-   //HypreSmoother F_prec;
+   HypreSmoother F_prec;
 
    //F_solver.iterative_mode = false;
    //F_solver.SetRelTol(1e-8);
