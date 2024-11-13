@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(10);
+   M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
    M_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
    M_solver.SetPreconditioner(M_prec);
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
    newton.SetSolver(F_solver);
    newton.SetPrintLevel(1);
    newton.SetRelTol(1e-10);
-   newton.SetMaxIter(20);
+   newton.SetMaxIter(200);
    F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
    newton.SetPreconditioner(F_prec);
 
