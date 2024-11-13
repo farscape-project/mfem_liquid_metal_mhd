@@ -147,17 +147,7 @@ int main(int argc, char *argv[])
    fk.AddDomainIntegrator(new DiffusionIntegrator(one));
    // Integrator for O(u_n, v, v').
    fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
-   //fk.Assemble();
 
-  // ParNonlinearForm fk_non(&velocity_fespace);
-   //fk_non.AddDomainIntegrator(new MassIntegrator(one));
-   //fk_non.AddDomainIntegrator(new DiffusionIntegrator(one));
-   //fk_non.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one)); // 
-   //fk_non.Assemble();
-
-   //ParBilinearForm b(&velocity_fespace);
-   //b.AddDomainIntegrator(new MassIntegrator(one));  //FIXME
-   //b.Assemble();
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -178,16 +168,7 @@ int main(int argc, char *argv[])
    Vector Rp_s, Nu;
    sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
 
-   // Form the linear system for F_k y_u = r_u
-   //HypreParMatrix Fk;
-   //Vector Ru, Yu;
-   //fk.FormLinearSystem(boundary_dofs, yu, ru, Fk, Yu, Ru);
-
-   //Vector X(fespace.GetTrueVSize()), B(fespace.GetTrueVSize());
-   //x.GetTrueDofs(X);
-   //b.ParallelAssemble(B);
-   //n.SetEssentialBC(ess_bdr, &B);
-
+   // Temporary location for velocity boundary conditions.
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
 
@@ -238,32 +219,20 @@ int main(int argc, char *argv[])
    yp.Add(-1.0,nu);
    
 
-   // Solve the F_k y_u = r_u system.
-   //CGSolver F_solver(MPI_COMM_WORLD);
-   HypreSmoother F_prec;
-
-   //F_solver.iterative_mode = false;
-   //F_solver.SetRelTol(1e-8);
-   //F_solver.SetAbsTol(0.0);
-   //F_solver.SetMaxIter(10);
-   //F_solver.SetPrintLevel(0);
-   //F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
-   //F_solver.SetPreconditioner(F_prec);
-   //F_solver.SetOperator(Fk);
-
-   //F_solver.Mult(Ru,Yu);
-   //fk.RecoverFEMSolution(Yu, ru, yu);
-
+   // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
    NewtonSolver newton(MPI_COMM_WORLD);
+   HypreSmoother F_prec;
+
    newton.SetOperator(fk);
    newton.SetSolver(F_solver);
    newton.SetPrintLevel(1);
    newton.SetRelTol(1e-10);
    newton.SetMaxIter(200);
-   F_prec.SetType(HypreSmoother::Jacobi); // Works for now, but check if diagonal...
+   F_prec.SetType(HypreSmoother::Jacobi); // Check preconditioner...
    newton.SetPreconditioner(F_prec);
 
+   // Solve nonlinear system.
    newton.Mult(Ru, Yu);
    yu.Distribute(Yu);
 
