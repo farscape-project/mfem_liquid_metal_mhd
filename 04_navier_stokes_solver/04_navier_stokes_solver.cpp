@@ -77,7 +77,9 @@ int main(int argc, char *argv[])
    Array<int> boundary_dofs;
    pressure_fespace.GetBoundaryTrueDofs(boundary_dofs);
 
-
+   // Temporary location for velocity boundary conditions.
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0;
 
    // ----------------------------------------------------------------------------
    // Initialise solutions.
@@ -168,10 +170,7 @@ int main(int argc, char *argv[])
    Vector Rp_s, Nu;
    sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
 
-   // Temporary location for velocity boundary conditions.
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   ess_bdr = 0;
-
+   // Set up nonlinear system for F_k y_u = r_u.
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
@@ -229,7 +228,7 @@ int main(int argc, char *argv[])
    newton.SetPrintLevel(1);
    newton.SetRelTol(1e-10);
    newton.SetMaxIter(200);
-   F_prec.SetType(HypreSmoother::Jacobi); // Check preconditioner...
+   F_prec.SetType(HypreSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
