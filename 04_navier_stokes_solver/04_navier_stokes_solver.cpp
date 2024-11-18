@@ -30,7 +30,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
 
    // Note: alpha1 must be defined negative.
-   real_t alpha1(-1.0);
+   real_t alpha1(-1.0);  // alpha1 = alpha + 1/Re.  alpha = 1 (default).
+   // kappa = ...
 
    // Parse command line options.
    string mesh_file = "../mesh/square.msh";
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
    // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, mesh.Dimension());
-   ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec);
+   ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, mesh.Dimension());
    cout << "Number of unknowns: " << velocity_fespace.GetTrueVSize() << endl;
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -113,12 +114,12 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // Set up rhs for pressure solve.
    ParLinearForm rp(&pressure_fespace);
-   rp.AddDomainIntegrator(new DomainLFIntegrator(one));
+   rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new DomainLFIntegrator(one)); //FIXME
+   ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    
    ru.Assemble();
    // ----------------------------------------------------------------------------
