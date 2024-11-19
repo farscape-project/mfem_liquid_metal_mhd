@@ -119,12 +119,12 @@ int main(int argc, char *argv[])
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
-   
+   //ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
+   ru.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one))
    ru.Assemble();
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
-
+   
    
 
    // ----------------------------------------------------------------------------
@@ -151,6 +151,11 @@ int main(int argc, char *argv[])
    // Integrator for O(u_n, v, v').
    fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
+   // Set up B^T yp part of velocity system.
+   //ParBilinearForm b(&velocity_fespace);
+   //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
+   //b.Assemble();
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -172,11 +177,14 @@ int main(int argc, char *argv[])
    sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
 
    // Set up nonlinear system for F_k y_u = r_u.
-   Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
-   yu.GetTrueDofs(Yu);
-   ru.ParallelAssemble(Ru);
-   fk.SetEssentialBC(ess_bdr, &ru);
+   //Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
+   //yu.GetTrueDofs(Yu);
+   //ru.ParallelAssemble(Ru);
+   //fk.SetEssentialBC(ess_bdr, &ru);
    
+
+
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -218,6 +226,16 @@ int main(int argc, char *argv[])
    yp.Add(alpha1,xi);
    yp.Add(-1.0,nu);
    
+
+   // Do multiplication for B^T y_p.
+   const SparseMatrix* rm = velocity_fespace.GetRestrictionMatrix();
+   rm->MultTranspose(yp, ru);
+
+   // Set up nonlinear system for F_k y_u = r_u.
+   Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
+   yu.GetTrueDofs(Yu);
+   rm.ParallelAssemble(Ru);
+   fk.SetEssentialBC(ess_bdr, &rm);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
