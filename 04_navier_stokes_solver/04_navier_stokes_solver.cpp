@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    rp.Assemble();
 
    // Set up rhs for velocity solve.
-   ParLinearForm ru(&velocity_fespace);
+   ParBilinearForm ru(&velocity_fespace);
    //ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one))
    ru.Assemble();
