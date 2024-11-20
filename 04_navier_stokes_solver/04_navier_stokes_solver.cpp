@@ -118,10 +118,14 @@ int main(int argc, char *argv[])
    rp.Assemble();
 
    // Set up rhs for velocity solve.
-   ParBilinearForm ru(&velocity_fespace);
-   //ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
-   ru.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one))
+   ParBilinearForm ru(&pressure_fespace);
+   ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.Assemble();
+
+   ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
+   b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one))
+   b.Assemble();
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    
@@ -182,9 +186,15 @@ int main(int argc, char *argv[])
    //ru.ParallelAssemble(Ru);
    //fk.SetEssentialBC(ess_bdr, &ru);
    
+   // Set up linear calculation for B^T y_p.
+   HypreParMatrix B;
+   Vector Brhs, BTyp(velocity_fespace.GetTrueVSize());
+   b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
 
+   B.multTranspose(Brhs,BTyp);
 
-
+   ru.Add(1.0,BTyp);
+   
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -228,14 +238,14 @@ int main(int argc, char *argv[])
    
 
    // Do multiplication for B^T y_p.
-   const SparseMatrix* rm = velocity_fespace.GetRestrictionMatrix();
-   rm->MultTranspose(yp, ru);
+   //const SparseMatrix* rm = velocity_fespace.GetRestrictionMatrix();
+   //rm->MultTranspose(yp, ru);
 
-   // Set up nonlinear system for F_k y_u = r_u.
+   // Set up nonlinear system for F_k y_u = r_u (where r_u is B^T yp).
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    yu.GetTrueDofs(Yu);
-   rm.ParallelAssemble(Ru);
-   fk.SetEssentialBC(ess_bdr, &rm);
+   ru.ParallelAssemble(Ru);
+   fk.SetEssentialBC(ess_bdr, &ru);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
