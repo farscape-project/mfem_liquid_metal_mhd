@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
    rp.Assemble();
 
    // Set up rhs for velocity solve.
-   ParBilinearForm ru(&pressure_fespace);
+   ParLinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.Assemble();
 
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    Vector Brhs, BTyp(velocity_fespace.GetTrueVSize());
    b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
 
-   B.multTranspose(Brhs,BTyp);
+   B.MultTranspose(Brhs,BTyp);
 
    ru.Add(1.0,BTyp);
 

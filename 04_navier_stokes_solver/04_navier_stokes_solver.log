@@ -1,0 +1,94 @@
+Options used:
+   --mesh ../mesh/square.msh
+Number of unknowns: 357
+Number of unknowns: 2722
+
+
+ Num MPI tasks = 1
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 3
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+
+ No. of levels of aggressive coarsening: 1
+
+ Interpolation on agg. levels= multipass interpolation
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = extended+i interpolation
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0     357     2365  0.019     4    8     6.6  -8.882e-16   2.366e+00
+  1      28      162  0.207     3    7     5.8  -3.553e-15   4.306e+00
+  2       9       75  0.926     7    9     8.3   7.240e-01   5.082e+00
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0   357 x 28      0    3   1.1   1.458e-01   1.000e+00   0.000e+00   1.000e+00
+  1    28 x 9       1    4   3.3   3.164e-02   4.132e-01   4.161e-01   1.000e+00
+
+
+     Complexity:    grid = 1.103641
+                operator = 1.100211
+                memory = 1.297674
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:      8    8     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+=============================================
+Setup phase times:
+=============================================
+PCG Setup:
+  wall clock time = 0.002445 seconds
+  wall MFLOPS     = 0.000000
+  cpu clock time  = 0.000000 seconds
+  cpu MFLOPS      = 0.000000
+
+<C*b,b>: 0.000000e+00
+=============================================
+Solve phase times:
+=============================================
+PCG Solve:
+  wall clock time = 0.000080 seconds
+  wall MFLOPS     = 0.000000
+  cpu clock time  = 0.000000 seconds
+  cpu MFLOPS      = 0.000000
+
+PCG Iterations = 0
+Final PCG Relative Residual Norm = 0
+Newton iteration  0 : ||r|| = -nan
