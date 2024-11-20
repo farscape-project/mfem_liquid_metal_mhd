@@ -72,15 +72,29 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
 
 
+   // Define boundary markers.
+   Array<int> boundary_marker; 
+   boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
+   boundary_marker_pressure = 0; // Assume no boundaries are essential
+
+   boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
+   boundary_marker_velocity = 0; // Assume no boundaries are essential
+
+   Array<int> pressure_ess_tdof, velocity_ess_tdof;
+   pressure_fespace.GetEssentialTrueDofs(boundary_marker, pressure_ess_tdof);
+   velocity_fespace.GetEssentialTrueDofs(boundary_marker, velocity_ess_tdof);
 
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
-   Array<int> boundary_dofs;
-   pressure_fespace.GetBoundaryTrueDofs(boundary_dofs);
+   //Array<int> boundary_dofs;
+   //pressure_fespace.GetBoundaryTrueDofs(boundary_dofs);
+   //boundary_marker.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
 
    // Temporary location for velocity boundary conditions.
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
+
+   velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
 
    // ----------------------------------------------------------------------------
    // Initialise solutions.
@@ -104,6 +118,7 @@ int main(int argc, char *argv[])
    yp = 0.0;
    yu = 0.0;
    bTyp = 0.0;
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -191,9 +206,9 @@ int main(int argc, char *argv[])
    
    // Set up linear calculation for B^T y_p.
    HypreParMatrix B;
-   Vector Brhs, BTyp(velocity_fespace.GetTrueVSize());
+   Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
-   b.FormRectangularSystemMatrix(yp, bTyp, B);
+   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
    B.MultTranspose(Brhs,BTyp);
 
