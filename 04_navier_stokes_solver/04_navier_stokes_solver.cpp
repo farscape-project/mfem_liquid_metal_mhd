@@ -81,8 +81,8 @@ int main(int argc, char *argv[])
    boundary_marker_velocity = 0; // Assume no boundaries are essential
 
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
-   pressure_fespace.GetEssentialTrueDofs(boundary_marker, pressure_ess_tdof);
-   velocity_fespace.GetEssentialTrueDofs(boundary_marker, velocity_ess_tdof);
+   pressure_fespace.GetEssentialTrueDofs(boundary_marker_pressure, pressure_ess_tdof);
+   velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
@@ -91,10 +91,10 @@ int main(int argc, char *argv[])
    //boundary_marker.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
 
    // Temporary location for velocity boundary conditions.
-   Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   ess_bdr = 0;
+   //Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   //ess_bdr = 0;
 
-   velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
+   //velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
 
    // ----------------------------------------------------------------------------
    // Initialise solutions.
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
    ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.Assemble();
 
-   ParMixedBilinearForm b(&pressure_fespace,&velocity_fespace);
+   ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    b.Assemble();
 
@@ -192,11 +192,11 @@ int main(int argc, char *argv[])
    //       S_p nu = r_p. 
    HypreParMatrix Mp;
    Vector Rp_m, Xi;
-   mp.FormLinearSystem(boundary_dofs, xi, rp, Mp, Xi, Rp_m);
+   mp.FormLinearSystem(boundary_marker_pressure, xi, rp, Mp, Xi, Rp_m);
 
    HypreParMatrix Sp;
    Vector Rp_s, Nu;
-   sp.FormLinearSystem(boundary_dofs, nu, rp, Sp, Nu, Rp_s);
+   sp.FormLinearSystem(boundary_marker_pressure, nu, rp, Sp, Nu, Rp_s);
 
    // Set up nonlinear system for F_k y_u = r_u.
    //Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
-   fk.SetEssentialBC(ess_bdr, &ru);
+   fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);

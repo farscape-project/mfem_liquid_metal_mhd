@@ -1018,3 +1018,63 @@ PS:
 
 Read file <stdout.MFEM.e> for stderr output of this job.
 
+Sender: LSF System <lsfadmin@sqg5e38.bullx>
+Subject: Job 15144574: <MFEM> in cluster <scafell-pike> Exited
+
+Job <MFEM> was submitted from host <hcxlogin2> by user <ddw96-sht09> in cluster <fairthorpe> at Wed Nov 20 14:44:03 2024
+Job was executed on host(s) <sqg5e38.bullx>, in queue <SKL>, as user <ddw96-sht09> in cluster <scafell-pike> at Wed Nov 20 14:44:03 2024
+</lustre/scafellpike/local/HT04544/sht09/ddw96-sht09> was used as the home directory.
+</lustre/scafellpike/local/HT04544/sht09/ddw96-sht09/mfem-4.7/mfem_liquid_metal_mhd/04_navier_stokes_solver> was used as the working directory.
+Started at Wed Nov 20 14:44:03 2024
+Terminated at Wed Nov 20 14:44:14 2024
+Results reported at Wed Nov 20 14:44:14 2024
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+
+# Pick queue to submit to.
+#BSUB -q scafellpikeSKL
+# Name of job.
+#BSUB -J MFEM
+# Log and error file outputs.
+#BSUB -o stdout.MFEM.o
+#BSUB -e stdout.MFEM.e
+# Enforcing the number of cores per node.
+#BSUB -R "span[ptile=1]"
+# Number of cores required.
+#BSUB -n 1
+# Wallclock time hh:mm
+#BSUB -W 01:00
+
+module load use.scafellpike StdEnv gcc intel/2023.0 mpi/latest
+
+mpirun -np 1 ./04_navier_stokes_solver &> 04_navier_stokes_solver.log
+
+
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   3.00 sec.
+    Max Memory :                                 1 MB
+    Average Memory :                             0.33 MB
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              3
+    Max Threads :                                3
+    Run time :                                   4 sec.
+    Turnaround time :                            11 sec.
+
+The output (if any) follows:
+
+
+
+PS:
+
+Read file <stdout.MFEM.e> for stderr output of this job.
+

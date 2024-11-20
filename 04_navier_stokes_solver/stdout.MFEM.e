@@ -576,3 +576,36 @@ While processing the following module(s):
     ---------------  ---------------
     gcc/4.9.4        /lustre/scafellpike/local/apps/Modules/modulefiles/production/gcc/4.9.4
 
+	cluster $HCCLUSTER: scafellpike
+	group $HCGROUP: sht09
+	user $HCUSER: ddw96-sht09
+	project $HCPROJECT: 
+	base path $HCBASE: /lustre/scafellpike/local//sht09/ddw96-sht09
+	path to CDS $HCCDS: /gpfs/cds/local//sht09/ddw96-sht09
+	cluster $HCCLUSTER: scafellpike
+	group $HCGROUP: sht09
+	user $HCUSER: ddw96-sht09
+	project $HCPROJECT: 
+	base path $HCBASE: /lustre/scafellpike/local//sht09/ddw96-sht09
+	path to CDS $HCCDS: /gpfs/cds/local//sht09/ddw96-sht09
+	cluster $HCCLUSTER: scafellpike
+	group $HCGROUP: sht09
+	user $HCUSER: ddw96-sht09
+	project $HCPROJECT: 
+	base path $HCBASE: /lustre/scafellpike/local//sht09/ddw96-sht09
+	path to CDS $HCCDS: /gpfs/cds/local//sht09/ddw96-sht09
+	cluster $HCCLUSTER: scafellpike
+	group $HCGROUP: sht09
+	user $HCUSER: ddw96-sht09
+	project $HCPROJECT: 
+	base path $HCBASE: /lustre/scafellpike/local//sht09/ddw96-sht09
+	path to CDS $HCCDS: /gpfs/cds/local//sht09/ddw96-sht09
+Lmod has detected the following error: Cannot load module "gcc/4.9.4" because
+these module(s) are loaded:
+   intel
+
+While processing the following module(s):
+    Module fullname  Module Filename
+    ---------------  ---------------
+    gcc/4.9.4        /lustre/scafellpike/local/apps/Modules/modulefiles/production/gcc/4.9.4
+
