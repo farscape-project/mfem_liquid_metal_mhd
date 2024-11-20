@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 
 
    // Define boundary markers.
-   Array<int> boundary_marker; 
+   Array<int> boundary_marker_pressure, boundary_marker_velocity; 
    boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    boundary_marker_pressure = 0; // Assume no boundaries are essential
 
