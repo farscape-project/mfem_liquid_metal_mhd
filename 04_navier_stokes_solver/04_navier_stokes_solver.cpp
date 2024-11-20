@@ -95,12 +95,15 @@ int main(int argc, char *argv[])
 
    // Define the solution for velocity.
    ParGridFunction yu(&velocity_fespace);
+   // Solution for B^T * y_p.
+   ParGridFunction bTyp(&velocity_fespace);
 
    // Set initial guesses to zero.  This also sets BCs.
    xi = 0.0;
    nu = 0.0;
    yp = 0.0;
    yu = 0.0;
+   bTyp = 0.0;
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -122,7 +125,7 @@ int main(int argc, char *argv[])
    ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.Assemble();
 
-   ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
+   ParMixedBilinearForm b(&pressure_fespace,&velocity_fespace);
    b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    b.Assemble();
 
@@ -189,7 +192,8 @@ int main(int argc, char *argv[])
    // Set up linear calculation for B^T y_p.
    HypreParMatrix B;
    Vector Brhs, BTyp(velocity_fespace.GetTrueVSize());
-   b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
+   //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
+   b.FormRectangularSystemMatrix(yp, bTyp, B);
 
    B.MultTranspose(Brhs,BTyp);
 
