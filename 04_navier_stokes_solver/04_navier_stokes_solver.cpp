@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(one));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(oneVector));
    cout << "Before assembling, ru size: " << ru.Size() << endl;
    ru.Assemble();
 
