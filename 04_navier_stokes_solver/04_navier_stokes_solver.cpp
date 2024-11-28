@@ -29,6 +29,8 @@ int main(int argc, char *argv[])
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
 
+   
+
    // Note: alpha1 must be defined negative.
    real_t alpha1(-1.0);  // alpha1 = alpha + 1/Re.  alpha = 1 (default).
    // kappa = ...
@@ -50,6 +52,13 @@ int main(int argc, char *argv[])
    serial_mesh.Clear(); 
    mesh.UniformRefinement();
 
+   // Define vector coefficient based on mesh dimension.
+   Vector constantVector(mesh.Dimension());
+   constantVector(0) = 1.0;
+   constantVector(1) = 1.0;
+   constantVector(2) = 1.0;
+
+   VectorConstantCoefficient oneVector(constantVector);
 
 
    // ----------------------------------------------------------------------------
@@ -141,7 +150,7 @@ int main(int argc, char *argv[])
    ru.Assemble();
 
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
-   b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(one));
+   b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
    b.Assemble();
 
    // ----------------------------------------------------------------------------
