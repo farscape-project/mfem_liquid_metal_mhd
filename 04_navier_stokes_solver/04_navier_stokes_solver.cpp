@@ -322,6 +322,7 @@ int main(int argc, char *argv[])
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
+   cout << "F_k operator size: " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
    newton.Mult(Ru, Yu);
