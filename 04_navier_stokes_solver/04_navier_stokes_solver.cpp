@@ -56,6 +56,8 @@ int main(int argc, char *argv[])
    for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 1.0;}
    VectorConstantCoefficient oneVector(constantVector);
 
+   for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 0.0;}
+   VectorConstantCoefficient zeroVector(constantVector);
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
@@ -148,7 +150,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   cout << "Print statement 1" << endl;
+   
    
 
    // ----------------------------------------------------------------------------
@@ -162,12 +164,11 @@ int main(int argc, char *argv[])
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
 
-   cout << "Print statement 2" << endl;
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(oneVector));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zeroVector));
    cout << "Before assembling, ru size: " << ru.Size() << endl;
    ru.Assemble();
 
@@ -249,9 +250,16 @@ int main(int argc, char *argv[])
    HypreParMatrix B;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
+
+   cout << "Print statement 1" << endl;
+
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
+   cout << "Print statement 2" << endl;
+
    B.MultTranspose(Brhs,BTyp);
+
+   cout << "Print statement 3" << endl;
 
    ru.Add(1.0,BTyp);
 
