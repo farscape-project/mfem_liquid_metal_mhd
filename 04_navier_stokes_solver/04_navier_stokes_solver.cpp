@@ -163,13 +163,13 @@ int main(int argc, char *argv[])
    rp.Assemble();
 
    cout << "Print statement 2" << endl;
+   cout << "Pressure vector size (rp): " << rp.Size() << endl;
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
+   ru.AddDomainIntegrator(new DomainLFIntegrator(one));
    ru.Assemble();
 
-   cout << "Pressure vector size (rp): " << rp.Size() << endl;
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
    cout << endl;
 
