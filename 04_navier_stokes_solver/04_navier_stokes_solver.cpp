@@ -212,8 +212,7 @@ int main(int argc, char *argv[])
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    //b.Assemble();
-
-   fk.SetEssentialBC(velocity_ess_tdof, &ru);
+   
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -250,6 +249,8 @@ int main(int argc, char *argv[])
    B.MultTranspose(Brhs,BTyp);
 
    ru.Add(1.0,BTyp);
+
+   fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
