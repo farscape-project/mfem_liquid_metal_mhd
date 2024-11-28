@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    //b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
-   b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
+   b.AddDomainIntegrator(new VectorDivergenceIntegrator(one));
    b.Assemble();
 
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
