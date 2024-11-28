@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
    cout << "Mesh dimension: " << mesh.Dimension() << endl;
    cout << endl;
 
-   ParMixedBilinearForm b(&pressure_fespace,&velocity_fespace);
+   ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    //b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
    b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    b.Assemble();
