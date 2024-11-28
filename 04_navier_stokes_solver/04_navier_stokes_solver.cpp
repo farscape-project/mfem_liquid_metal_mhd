@@ -21,15 +21,14 @@ int main(int argc, char *argv[])
 
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
+   //int num_procs = Mpi::WorldSize();
+   //int myid = Mpi::WorldRank();
    Hypre::Init();
 
    // Define constants.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
 
-   
 
    // Note: alpha1 must be defined negative.
    real_t alpha1(-1.0);  // alpha1 = alpha + 1/Re.  alpha = 1 (default).
@@ -76,6 +75,9 @@ int main(int argc, char *argv[])
    cout << "Number of unknowns: " << velocity_fespace.GetTrueVSize() << endl;
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
+
+   cout << "Pressure DoFs: " << pressure_fespace.GetTrueVSize() << endl;
+   cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
 
 
    // Define boundary markers.
