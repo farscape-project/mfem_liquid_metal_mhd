@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    //b.Assemble();
 
-   
+   fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
