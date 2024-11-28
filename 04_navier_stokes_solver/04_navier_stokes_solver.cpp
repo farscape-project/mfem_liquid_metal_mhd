@@ -171,7 +171,6 @@ int main(int argc, char *argv[])
    cout << endl;
 
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
-   //b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
    b.AddDomainIntegrator(new VectorDivergenceIntegrator(one));
    b.Assemble();
 
@@ -242,22 +241,13 @@ int main(int argc, char *argv[])
    //ru.ParallelAssemble(Ru);
    //fk.SetEssentialBC(ess_bdr, &ru);
    
-   cout << "Print statement 0" << endl;
-
    // Set up linear calculation for B^T y_p.
    HypreParMatrix B;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
-
-   cout << "Print statement 1" << endl;
-
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
-   cout << "Print statement 2" << endl;
-
    B.MultTranspose(Brhs,BTyp);
-
-   cout << "Print statement 3" << endl;
 
    ru.Add(1.0,BTyp);
 
@@ -332,7 +322,11 @@ int main(int argc, char *argv[])
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
+   cout << "Ru size: " << Ru.Size() << endl;
+   cout << "Yu size: " << Yu.Size() << endl;
    newton.Mult(Ru, Yu);
+   cout << "Mult completed." << endl;
+
    yu.Distribute(Yu);
 
    // ----------------------------------------------------------------------------
