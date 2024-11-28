@@ -84,10 +84,16 @@ int main(int argc, char *argv[])
    // Define boundary markers.
    Array<int> boundary_marker_pressure, boundary_marker_velocity; 
    boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-   boundary_marker_pressure = 1; // Assume no boundaries are essential
+   boundary_marker_pressure(0) = 1; // Assume no boundaries are essential
+   boundary_marker_pressure(1) = 0; // Assume no boundaries are essential
+   boundary_marker_pressure(2) = 0; // Assume no boundaries are essential
+   boundary_marker_pressure(3) = 0; // Assume no boundaries are essential
 
    boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
-   boundary_marker_velocity = 1; // Assume no boundaries are essential
+   boundary_marker_velocity(0) = 0; // Assume no boundaries are essential
+   boundary_marker_velocity(1) = 0; // Assume no boundaries are essential
+   boundary_marker_velocity(2) = 1; // Assume no boundaries are essential
+   boundary_marker_velocity(3) = 0; // Assume no boundaries are essential
 
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(boundary_marker_pressure, pressure_ess_tdof);
