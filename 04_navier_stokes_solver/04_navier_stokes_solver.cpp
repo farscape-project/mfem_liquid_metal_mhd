@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    }
    cout << endl;
 
-   cout << "Essential DoFs for velocity boundary conditions (" << velocity_ess_tdof.Size() << "): ";
+   cout << "Essential DoFs for velocity boundary conditions (size: " << velocity_ess_tdof.Size() << "): ";
    for (int i = 0; i < velocity_ess_tdof.Size(); i++) {
       cout << velocity_ess_tdof[i] << " ";
    }
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new DomainLFIntegrator(one));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(one));
    cout << "Before assembling, ru size: " << ru.Size() << endl;
    ru.Assemble();
 
