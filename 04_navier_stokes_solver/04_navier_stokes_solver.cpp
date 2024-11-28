@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
    ru.Assemble();
 
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
-   b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
+   b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(one));
    b.Assemble();
 
    // ----------------------------------------------------------------------------
