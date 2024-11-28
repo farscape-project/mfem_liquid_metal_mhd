@@ -166,6 +166,10 @@ int main(int argc, char *argv[])
    ru.AddDomainIntegrator(new DomainLFIntegrator(zero)); //FIXME
    ru.Assemble();
 
+   cout << "Pressure vector size (rp): " << rp.Size() << endl;
+   cout << "Velocity vector size (ru): " << ru.Size() << endl;
+   cout << endl;
+
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
    b.Assemble();
