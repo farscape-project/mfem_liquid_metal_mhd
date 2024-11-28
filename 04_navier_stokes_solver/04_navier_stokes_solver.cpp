@@ -148,6 +148,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
+   cout << "Print statement 1" << endl;
    
 
    // ----------------------------------------------------------------------------
@@ -160,6 +161,8 @@ int main(int argc, char *argv[])
    ParLinearForm rp(&pressure_fespace);
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
+
+   cout << "Print statement 2" << endl;
 
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
