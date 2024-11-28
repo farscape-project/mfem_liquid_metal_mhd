@@ -100,16 +100,8 @@ int main(int argc, char *argv[])
    pressure_fespace.GetEssentialTrueDofs(boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
-   cout << "Essential DoFs for pressure boundary conditions (size: " << pressure_ess_tdof.Size() << "): ";
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << " ";
-   }
-   cout << endl;
-
-   cout << "Essential DoFs for velocity boundary conditions (size: " << velocity_ess_tdof.Size() << "): ";
-   for (int i = 0; i < velocity_ess_tdof.Size(); i++) {
-      cout << velocity_ess_tdof[i] << " ";
-   }
+   cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
+   cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
 
    // Extract the list of all the boundary DOFs. These will be marked as
@@ -169,10 +161,13 @@ int main(int argc, char *argv[])
    // Set up rhs for velocity solve.
    ParLinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zeroVector));
-   cout << "Before assembling, ru size: " << ru.Size() << endl;
    ru.Assemble();
 
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
+   cout << endl;
+
+   cout << "oneVector size: " << oneVector.GetVDim() << endl;
+   cout << "Mesh dimension: " << mesh.Dimension() << endl;
    cout << endl;
 
    ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
