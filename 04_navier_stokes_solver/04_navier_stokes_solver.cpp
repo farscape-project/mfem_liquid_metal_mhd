@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
-   cout << "Velocity vector size (b): " << b.Size() << endl;
+   //cout << "Velocity vector size (b): " << b.Size() << endl;
    cout << endl;
 
    // ----------------------------------------------------------------------------
