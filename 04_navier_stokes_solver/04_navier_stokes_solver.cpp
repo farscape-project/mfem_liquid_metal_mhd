@@ -66,18 +66,18 @@ int main(int argc, char *argv[])
    // H1 continuous Lagrange finite elements of given order for pressure.
    H1_FECollection pressure_fec(order_pressure, mesh.Dimension());
    ParFiniteElementSpace pressure_fespace(&mesh, &pressure_fec);
-   cout << "Number of unknowns: " << pressure_fespace.GetTrueVSize() << endl;
 
    // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, mesh.Dimension());
    ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, mesh.Dimension());
-   cout << "Number of unknowns: " << velocity_fespace.GetTrueVSize() << endl;
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
 
    cout << "Pressure DoFs: " << pressure_fespace.GetTrueVSize() << endl;
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
+   cout << endl;
+   // ----------------------------------------------------------------------------
+   // ----------------------------------------------------------------------------
+
 
 
    // Define boundary markers.
@@ -97,6 +97,18 @@ int main(int argc, char *argv[])
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
+
+   cout << "Essential DoFs for pressure boundary conditions: ";
+   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
+      cout << pressure_ess_tdof[i] << " ";
+   }
+   cout << endl;
+
+   cout << "Essential DoFs for velocity boundary conditions: ";
+   for (int i = 0; i < velocity_ess_tdof.Size(); i++) {
+      cout << velocity_ess_tdof[i] << " ";
+   }
+   cout << endl;
 
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
@@ -158,6 +170,11 @@ int main(int argc, char *argv[])
    b.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(oneVector));
    b.Assemble();
 
+   cout << "Pressure vector size (rp): " << rp.Size() << endl;
+   cout << "Velocity vector size (ru): " << ru.Size() << endl;
+   cout << "Velocity vector size (b): " << b.Size() << endl;
+   cout << endl;
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    
@@ -191,6 +208,8 @@ int main(int argc, char *argv[])
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    //b.Assemble();
+
+   
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -231,6 +250,11 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
+   cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
+   cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
+
+   cout << "Pressure solution vector size: " << Xi.Size() << endl;
+   cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
 
 
    // ----------------------------------------------------------------------------
