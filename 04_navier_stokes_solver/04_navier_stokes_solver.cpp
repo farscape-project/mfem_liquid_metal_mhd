@@ -246,6 +246,8 @@ int main(int argc, char *argv[])
    //ru.ParallelAssemble(Ru);
    //fk.SetEssentialBC(ess_bdr, &ru);
    
+   cout << "Print statement 0" << endl;
+
    // Set up linear calculation for B^T y_p.
    HypreParMatrix B;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
