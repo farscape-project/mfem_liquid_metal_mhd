@@ -279,6 +279,13 @@ int main(int argc, char *argv[])
 
    checkpoint(8);
 
+   cout << "B Rows: " << B.NumRows() << ", B Cols: " << B.NumCols() << endl;
+
+   cout << "Brhs Size: " << Brhs.Size() << endl;
+   cout << "BTyp Size: " << BTyp.Size() << endl;
+
+
+
    B.MultTranspose(Brhs,BTyp);
 
    checkpoint(9);
