@@ -16,15 +16,15 @@
 using namespace std;
 using namespace mfem;
 
-void printout()
+void print()
 {
    std::cout << std::endl; // End the line when no arguments remain
 }
 template<typename T, typename... Args>
-void printout(const T& first, const Args&... args) {
+void print(const T& first, const Args&... args) {
    const std::string border = "********************************************************************";
     std::cout << border << std::endl;
-    printout(args...); // Recursively call with the remaining arguments
+    print(args...); // Recursively call with the remaining arguments
     std::cout << border << std::endl;
 }
 
@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
    cout << endl;
 
-   printout("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),endl,"Velocity DoFs: ",velocity_fespace.GetTrueVSize())
-   
+   print("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),endl,"Velocity DoFs: ",velocity_fespace.GetTrueVSize());
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
