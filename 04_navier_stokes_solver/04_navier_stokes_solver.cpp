@@ -279,11 +279,15 @@ int main(int argc, char *argv[])
 
    checkpoint(8);
 
+   if (B.NumRows() == 0 || B.NumCols() == 0) {
+      std::cerr << "Error: B was not properly initialized!" << std::endl;
+      return -1;
+   }
+
    cout << "B Rows: " << B.NumRows() << ", B Cols: " << B.NumCols() << endl;
 
    cout << "Brhs Size: " << Brhs.Size() << endl;
    cout << "BTyp Size: " << BTyp.Size() << endl;
-
 
 
    B.MultTranspose(Brhs,BTyp);
