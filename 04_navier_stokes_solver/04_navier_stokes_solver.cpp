@@ -21,6 +21,7 @@ void checkpoint(int num)
    cout << "**********************************************" << endl;
    cout << "**************** CHECKPOINT " << num << " ****************" << endl;
    cout << "**********************************************" << endl;
+   cout << endl;
 }
 
 int main(int argc, char *argv[])
@@ -256,9 +257,13 @@ int main(int argc, char *argv[])
    Vector Rp_m, Xi;
    mp.FormLinearSystem(boundary_marker_pressure, xi, rp, Mp, Xi, Rp_m);
 
+   checkpoint(7);
+
    HypreParMatrix Sp;
    Vector Rp_s, Nu;
    sp.FormLinearSystem(boundary_marker_pressure, nu, rp, Sp, Nu, Rp_s);
+
+   checkpoint(8);
 
    // Set up nonlinear system for F_k y_u = r_u.
    //Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
@@ -272,16 +277,22 @@ int main(int argc, char *argv[])
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
+   checkpoint(8);
+
    B.MultTranspose(Brhs,BTyp);
 
+   checkpoint(9);
+
    ru.Add(1.0,BTyp);
+
+   checkpoint(10);
 
    fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   checkpoint(7);
+   checkpoint(11);
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
 
