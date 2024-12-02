@@ -24,7 +24,11 @@ template<typename T, typename... Args>
 void print(const T& first, const Args&... args) {
    const std::string border = "********************************************************************";
     std::cout << border << std::endl;
-    print(args...); // Recursively call with the remaining arguments
+    if constexpr (std::is_same_v<T, char> && first == '\n') {
+        std::cout << std::endl; // Handle line break
+    } else {
+      print(args...); // Recursively call with the remaining arguments
+    }
     std::cout << border << std::endl;
 }
 
@@ -90,7 +94,7 @@ int main(int argc, char *argv[])
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
    cout << endl;
 
-   print("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),endl,"Velocity DoFs: ",velocity_fespace.GetTrueVSize());
+   print("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),"\n","Velocity DoFs: ",velocity_fespace.GetTrueVSize());
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
