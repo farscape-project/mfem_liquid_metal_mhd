@@ -16,20 +16,11 @@
 using namespace std;
 using namespace mfem;
 
-void print()
+void checkpoint(int num)
 {
-   std::cout << std::endl; // End the line when no arguments remain
-}
-template<typename T, typename... Args>
-void print(const T& first, const Args&... args) {
-   const std::string border = "********************************************************************";
-    std::cout << border << std::endl;
-    if constexpr (std::is_same_v<T, char> && first == '\n') {
-        std::cout << std::endl; // Handle line break
-    } else {
-      print(args...); // Recursively call with the remaining arguments
-    }
-    std::cout << border << std::endl;
+   cout << "**********************************************" << endl;
+   cout << "**************** CHECKPOINT " << num << "****************" << endl;
+   cout << "**********************************************" << endl;
 }
 
 int main(int argc, char *argv[])
@@ -90,11 +81,10 @@ int main(int argc, char *argv[])
    H1_FECollection velocity_fec(order_velocity, mesh.Dimension());
    ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, mesh.Dimension());
 
+   checkpoint(1);
    cout << "Pressure DoFs: " << pressure_fespace.GetTrueVSize() << endl;
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
    cout << endl;
-
-   print("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),"\n","Velocity DoFs: ",velocity_fespace.GetTrueVSize());
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -122,6 +112,7 @@ int main(int argc, char *argv[])
    pressure_fespace.GetEssentialTrueDofs(boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
+   checkpoint(2);
    cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
    cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
@@ -184,6 +175,7 @@ int main(int argc, char *argv[])
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
 
+   checkpoint(3);
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
 
    // Set up rhs for velocity solve.
@@ -285,6 +277,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
+   checkpoint(4);
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
 
@@ -353,6 +346,7 @@ int main(int argc, char *argv[])
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
+   checkpoint(5);
    cout << "F_k operator size: " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
