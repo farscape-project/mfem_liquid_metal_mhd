@@ -221,6 +221,8 @@ int main(int argc, char *argv[])
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
 
+   checkpoint(5);
+
    // Bilinear forms for the velocity solve.
    ParNonlinearForm fk(&velocity_fespace);
    // Integrator for (v, v').
@@ -240,6 +242,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
 
 
+   checkpoint(6);
 
 
    // ----------------------------------------------------------------------------
@@ -278,7 +281,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   checkpoint(4);
+   checkpoint();
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
 
