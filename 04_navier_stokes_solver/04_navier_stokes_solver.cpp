@@ -275,9 +275,12 @@ int main(int argc, char *argv[])
    HypreParMatrix B;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
+
+   checkpoint(9);
+
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
-   checkpoint(8);
+   checkpoint(10);
 
    if (B.NumRows() == 0 || B.NumCols() == 0) {
       std::cerr << "Error: B was not properly initialized!" << std::endl;
@@ -292,18 +295,18 @@ int main(int argc, char *argv[])
 
    B.MultTranspose(Brhs,BTyp);
 
-   checkpoint(9);
+   checkpoint(11);
 
    ru.Add(1.0,BTyp);
 
-   checkpoint(10);
+   checkpoint(12);
 
    fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   checkpoint(11);
+   checkpoint(13);
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
 
