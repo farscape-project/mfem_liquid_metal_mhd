@@ -16,6 +16,18 @@
 using namespace std;
 using namespace mfem;
 
+void printout()
+{
+   std::cout << std::endl; // End the line when no arguments remain
+}
+template<typename T, typename... Args>
+void printout(const T& first, const Args&... args) {
+   const std::string border = "********************************************************************";
+    std::cout << border << std::endl;
+    printout(args...); // Recursively call with the remaining arguments
+    std::cout << border << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -77,12 +89,18 @@ int main(int argc, char *argv[])
    cout << "Pressure DoFs: " << pressure_fespace.GetTrueVSize() << endl;
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
    cout << endl;
+
+   printout("Pressure DoFs: ",pressure_fespace.GetTrueVSize(),endl,"Velocity DoFs: ",velocity_fespace.GetTrueVSize())
+   
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
 
 
-   // Define boundary markers.
+
+   // ----------------------------------------------------------------------------
+   // Define boundaries.
+   // ----------------------------------------------------------------------------
    Array<int> boundary_marker_pressure, boundary_marker_velocity; 
    boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    boundary_marker_pressure[0] = 0; 
@@ -115,6 +133,12 @@ int main(int argc, char *argv[])
    //ess_bdr = 0;
 
    //velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
+
+   // ----------------------------------------------------------------------------
+   // ----------------------------------------------------------------------------
+
+
+
 
    // ----------------------------------------------------------------------------
    // Initialise solutions.
@@ -182,7 +206,8 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    
-   
+
+
 
    // ----------------------------------------------------------------------------
    // Bilinear/Nonlinear forms.
@@ -216,6 +241,7 @@ int main(int argc, char *argv[])
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
+
 
 
 
