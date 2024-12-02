@@ -19,7 +19,7 @@ using namespace mfem;
 void checkpoint(int num)
 {
    cout << "**********************************************" << endl;
-   cout << "**************** CHECKPOINT " << num << "****************" << endl;
+   cout << "**************** CHECKPOINT " << num << " ****************" << endl;
    cout << "**********************************************" << endl;
 }
 
@@ -203,6 +203,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    
 
+   checkpoint(4);
 
 
    // ----------------------------------------------------------------------------
@@ -346,7 +347,6 @@ int main(int argc, char *argv[])
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
-   checkpoint(5);
    cout << "F_k operator size: " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
