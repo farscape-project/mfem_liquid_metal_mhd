@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
-   fk.SetEssentialBC(velocity_ess_tdof, &ru);
+   //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
