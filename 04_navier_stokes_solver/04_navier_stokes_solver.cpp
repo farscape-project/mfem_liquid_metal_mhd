@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
    boundary_marker_pressure[3] = 0; 
 
    boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
-   boundary_marker_velocity[0] = 1; 
+   boundary_marker_velocity[0] = 0; 
    boundary_marker_velocity[1] = 0; 
    boundary_marker_velocity[2] = 0; 
    boundary_marker_velocity[3] = 0; 
@@ -114,7 +114,12 @@ int main(int argc, char *argv[])
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
    checkpoint(2);
-   cout << "Boundary attributes: " << velocity_fespace.GetMesh()->bdr_attributes << endl;
+   const Array<int> &bdr_attr = velocity_fespace.GetMesh()->bdr_attributes;
+   cout << "Boundary attributes: ";
+   for (int i = 0; i < bdr_attr.Size(); i++) {
+      cout << bdr_attr[i] << " ";
+   }
+   cout << endl; 
    cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
    cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
