@@ -279,17 +279,17 @@ int main(int argc, char *argv[])
    //fk.SetEssentialBC(ess_bdr, &ru);
    
    // Set up linear calculation for B^T y_p.
-   //HypreParMatrix B;
-   OperatorPtr opB;
+   HypreParMatrix B;
+   //OperatorPtr opB;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
 
    checkpoint(9);
 
-   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, opB);
+   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
 
-   TransposeOperator *B = NULL;
-   B = new TransposeOperator(opB.Ptr());
+   //TransposeOperator *B = NULL;
+   //B = new TransposeOperator(opB.Ptr());
 
    checkpoint(10);
 
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
    //cout << "BTyp Size: " << BTyp.Size() << endl;
 
 
-   B->MultTranspose(Brhs,BTyp);
+   B.MultTranspose(Brhs,BTyp);
 
    checkpoint(11);
 
