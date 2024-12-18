@@ -284,7 +284,7 @@ int main(int argc, char *argv[])
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, opB);
 
    TransposeOperator *B = NULL;
-   B = new TransposeOperator(opB.ptr());
+   B = new TransposeOperator(opB.Ptr());
 
    checkpoint(10);
 
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
    //cout << "BTyp Size: " << BTyp.Size() << endl;
 
 
-   B.MultTranspose(Brhs,BTyp);
+   B->MultTranspose(Brhs,BTyp);
 
    checkpoint(11);
 
