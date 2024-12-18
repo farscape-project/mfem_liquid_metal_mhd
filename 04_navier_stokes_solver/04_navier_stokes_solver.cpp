@@ -375,8 +375,9 @@ int main(int argc, char *argv[])
 
    // Set up nonlinear system for F_k y_u = r_u (where r_u is B^T yp).
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
-   yu.GetTrueDofs(Yu);
+   //yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
+   Yu = 0.0;
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
@@ -393,7 +394,7 @@ int main(int argc, char *argv[])
    newton.SetPreconditioner(F_prec);
 
    // Solve nonlinear system.
-   cout << "F_k operator size: " << fk.Height() << " x " << fk.Width() << endl;
+   cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
    newton.Mult(Ru, Yu);
