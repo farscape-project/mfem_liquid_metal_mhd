@@ -274,13 +274,14 @@ int main(int argc, char *argv[])
    //fk.SetEssentialBC(ess_bdr, &ru);
    
    // Set up linear calculation for B^T y_p.
-   HypreParMatrix B;
+   //HypreParMatrix B;
+   HypreParMatrix *B = nullptr;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
 
    checkpoint(9);
 
-   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
+   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, &B);
 
    checkpoint(10);
 
