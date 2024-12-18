@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
    checkpoint(2);
+   cout << "Boundary attributes: " << velocity_fespace.GetMesh()->bdr_attributes << endl;
    cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
    cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
