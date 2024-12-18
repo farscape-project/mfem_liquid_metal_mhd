@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
    velocity_fespace.GetEssentialTrueDofs(boundary_marker_velocity, velocity_ess_tdof);
 
    checkpoint(2);
+   cout << "Boundary attributes: " << velocity_fespace.GetMesh()->bdr_attributes << endl;
    cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
    cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
@@ -273,13 +274,14 @@ int main(int argc, char *argv[])
    //fk.SetEssentialBC(ess_bdr, &ru);
    
    // Set up linear calculation for B^T y_p.
-   HypreParMatrix B;
+   //HypreParMatrix B;
+   HypreParMatrix *B = nullptr;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
 
    checkpoint(9);
 
-   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
+   b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, &B);
 
    checkpoint(10);
 
