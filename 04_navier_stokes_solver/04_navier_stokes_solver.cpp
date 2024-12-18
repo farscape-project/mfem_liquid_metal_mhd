@@ -233,6 +233,8 @@ int main(int argc, char *argv[])
 
    // Bilinear forms for the velocity solve.
    ParNonlinearForm fk(&velocity_fespace);
+   //*********** ParBilinearForm...
+
    // Integrator for (v, v').
    fk.AddDomainIntegrator(new MassIntegrator(one));
    // Integrator for A_AL(v, v').
@@ -240,6 +242,10 @@ int main(int argc, char *argv[])
    // Integrator for O(u_n, v, v').
    fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
+   //***********  They say they take a bilinear form in paper...
+  //blf_F_kappa.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
+  //blf_F_kappa.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+ 
    // Set up B^T yp part of velocity system.
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
@@ -287,6 +293,7 @@ int main(int argc, char *argv[])
    checkpoint(9);
 
    b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
+   //************ Alex doesn't do this
 
    //TransposeOperator *B = NULL;
    //B = new TransposeOperator(opB.Ptr());
@@ -312,7 +319,7 @@ int main(int argc, char *argv[])
 
    checkpoint(12);
 
-   fk.SetEssentialBC(velocity_ess_tdof, &ru);
+   //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
