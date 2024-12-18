@@ -377,7 +377,8 @@ int main(int argc, char *argv[])
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    //yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
-   Yu = 0.0;
+   //Yu = 0.0;
+   yu.ParallelProject(Yu);
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
