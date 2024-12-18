@@ -392,6 +392,7 @@ int main(int argc, char *argv[])
    newton.SetMaxIter(200);
    F_prec.SetType(HypreSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
    newton.SetPreconditioner(F_prec);
+   newton.SetPrintLevel(3);
 
    // Solve nonlinear system.
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
