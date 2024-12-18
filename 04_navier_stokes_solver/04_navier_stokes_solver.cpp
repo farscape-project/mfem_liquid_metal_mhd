@@ -377,7 +377,6 @@ int main(int argc, char *argv[])
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    //yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
-   //Yu = 0.0;
    yu.ParallelProject(Yu);
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
@@ -399,10 +398,10 @@ int main(int argc, char *argv[])
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
-   newton.Mult(Ru, Yu);
+   //newton.Mult(Ru, Yu);
    cout << "Mult completed." << endl;
 
-   yu.Distribute(Yu);
+   //yu.Distribute(Yu);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
