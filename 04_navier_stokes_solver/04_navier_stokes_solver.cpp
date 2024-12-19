@@ -384,7 +384,9 @@ int main(int argc, char *argv[])
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
 
+   cout << "Starting Mult 1..." << endl;
    fk.Mult(Ru, Yu);
+   cout << "Mult 1 completed." << endl;
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
@@ -402,9 +404,9 @@ int main(int argc, char *argv[])
 
    // Solve nonlinear system.
    
-   cout << "Starting Mult..." << endl;
+   cout << "Starting Mult 2..." << endl;
    newton.Mult(Ru, Yu);
-   cout << "Mult completed." << endl;
+   cout << "Mult 2 completed." << endl;
 
    //yu.Distribute(Yu);
 
