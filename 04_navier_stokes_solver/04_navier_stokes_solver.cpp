@@ -377,8 +377,14 @@ int main(int argc, char *argv[])
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    //yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
-   yu.ParallelProject(Yu);
+   yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
+
+   cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
+   cout << "Ru size: " << Ru.Size() << endl;
+   cout << "Yu size: " << Yu.Size() << endl;
+
+   fk.Mult(Ru, Yu);
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver(MPI_COMM_WORLD);
@@ -395,10 +401,9 @@ int main(int argc, char *argv[])
    newton.SetPrintLevel(3);
 
    // Solve nonlinear system.
-   cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
-   cout << "Ru size: " << Ru.Size() << endl;
-   cout << "Yu size: " << Yu.Size() << endl;
-   //newton.Mult(Ru, Yu);
+   
+   cout << "Starting Mult..." << endl;
+   newton.Mult(Ru, Yu);
    cout << "Mult completed." << endl;
 
    //yu.Distribute(Yu);
