@@ -24,6 +24,18 @@ void checkpoint(int num)
    cout << endl;
 }
 
+void u_exact(const mfem::Vector & x, mfem::Vector & f)
+{
+  double u_max(1.0);
+  double y_max(1.0);
+  double z_max(1.0);
+  double y(x(1));
+  double z(x(2));
+  f(0) = (9.0 / 4.0) * u_max * (1 - (y * y) / (y_max * y_max)) * (1 - (z * z) / (z_max * z_max));
+  f(1) = 0.0;
+  f(2) = 0.0;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -96,7 +108,9 @@ int main(int argc, char *argv[])
 
    mfem::ParGridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
    mfem::VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+   mfem::VectorFunctionCoefficient ucoef(3, u_exact);
 
+   ustar_n.ProjectCoefficient(ucoef);
 
    // ----------------------------------------------------------------------------
    // Define boundaries.
