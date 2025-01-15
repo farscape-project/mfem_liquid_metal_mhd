@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, mesh.Dimension());
 
    checkpoint(1);
+   cout << "Mesh dimension: " << mesh.Dimension() << endl;
    cout << "Pressure DoFs: " << pressure_fespace.GetTrueVSize() << endl;
    cout << "Velocity DoFs: " << velocity_fespace.GetTrueVSize() << endl;
    cout << endl;
@@ -260,19 +261,19 @@ int main(int argc, char *argv[])
    fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(reciprocal_Re)); // 1/Re (one may cause it to fail due to cancelling).
-   // Integrator for O(u_n, v, v').
+   
+   // Old Integrator for O(u_n, v, v').
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
-   //***********  They say they take a bilinear form in paper...
+   // Integrator for O(u_n, v, v').
+   //***********  They take a bilinear form in paper...
    fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
    fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
-   // Set up B^T yp part of velocity system.
-   //ParBilinearForm b(&velocity_fespace);
-   //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
-   //b.Assemble();
    checkpoint(6);
    fk.Assemble();
+   
+   
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
