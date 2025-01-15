@@ -108,9 +108,9 @@ int main(int argc, char *argv[])
 
    mfem::ParGridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
    mfem::VectorGridFunctionCoefficient ustar_coef(&ustar_n);
-   mfem::VectorFunctionCoefficient ucoef(3, u_exact);
+   //mfem::VectorFunctionCoefficient ucoef(3, u_exact);
 
-   ustar_n.ProjectCoefficient(ucoef);
+   //ustar_n.ProjectCoefficient(ucoef);
 
    // ----------------------------------------------------------------------------
    // Define boundaries.
@@ -263,9 +263,12 @@ int main(int argc, char *argv[])
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
    //***********  They say they take a bilinear form in paper...
-   fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-   fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+   //fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
+   //fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
  
+   fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(one, 0.5));
+   fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(one, 0.5));
+
    // Set up B^T yp part of velocity system.
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
