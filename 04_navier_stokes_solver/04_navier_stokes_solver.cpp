@@ -256,6 +256,7 @@ int main(int argc, char *argv[])
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    //b.Assemble();
    
+   fk.Assemble();
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
