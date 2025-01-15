@@ -241,15 +241,15 @@ int main(int argc, char *argv[])
    ParBilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
-   fk.AddDomainIntegrator(new MassIntegrator(one));
+   fk.AddDomainIntegrator(new VectorMassIntegrator(one));
    // Integrator for A_AL(v, v').
-   fk.AddDomainIntegrator(new DiffusionIntegrator(one));
+   fk.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); // 1/Re (one may cause it to fail due to cancelling).
    // Integrator for O(u_n, v, v').
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
    //***********  They say they take a bilinear form in paper...
-  fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-  fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+   fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
+   fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
  
    // Set up B^T yp part of velocity system.
    //ParBilinearForm b(&velocity_fespace);
@@ -380,6 +380,9 @@ int main(int argc, char *argv[])
 
    // Set up nonlinear system for F_k y_u = r_u (where r_u is B^T yp).
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
+   // Initialise Ru, Yu
+
+
    //yu.GetTrueDofs(Yu);
    ru.ParallelAssemble(Ru);
    yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
