@@ -67,6 +67,8 @@ int main(int argc, char *argv[])
    for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 0.0;}
    VectorConstantCoefficient zeroVector(constantVector);
 
+   
+
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
    // ----------------------------------------------------------------------------
@@ -91,6 +93,8 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
 
 
+   mfem::ParGridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
+   mfem::VectorGridFunctionCoefficient ustar_coef(&ustar_n);
 
 
    // ----------------------------------------------------------------------------
@@ -232,19 +236,20 @@ int main(int argc, char *argv[])
    checkpoint(5);
 
    // Bilinear forms for the velocity solve.
-   ParNonlinearForm fk(&velocity_fespace);
+   //ParNonlinearForm fk(&velocity_fespace);
    //*********** ParBilinearForm...
+   ParBilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
    fk.AddDomainIntegrator(new MassIntegrator(one));
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new DiffusionIntegrator(one));
    // Integrator for O(u_n, v, v').
-   fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
+   //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
    //***********  They say they take a bilinear form in paper...
-  //blf_F_kappa.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-  //blf_F_kappa.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+  fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
+  fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
  
    // Set up B^T yp part of velocity system.
    //ParBilinearForm b(&velocity_fespace);
