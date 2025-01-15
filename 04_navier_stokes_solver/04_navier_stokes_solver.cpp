@@ -73,14 +73,19 @@ int main(int argc, char *argv[])
    mesh.UniformRefinement();
 
    // Define vector coefficient based on mesh dimension.
-   Vector constantVector(mesh.Dimension());
+   /*Vector constantVector(mesh.Dimension());
    for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 1.0;}
    VectorConstantCoefficient oneVector(constantVector);
 
    for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 0.0;}
    VectorConstantCoefficient zeroVector(constantVector);
+   */
+   Vector constantVector(3);
+   for (int i = 0; i < 3; i++){constantVector(i) = 1.0;}
+   VectorConstantCoefficient oneVector(constantVector);
 
-   
+   for (int i = 0; i < 3; i++){constantVector(i) = 0.0;}
+   VectorConstantCoefficient zeroVector(constantVector);
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
