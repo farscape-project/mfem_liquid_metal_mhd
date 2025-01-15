@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
    // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, mesh.Dimension());
-   ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, mesh.Dimension());
+   ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, 3);
 
    checkpoint(1);
    cout << "Mesh dimension: " << mesh.Dimension() << endl;
