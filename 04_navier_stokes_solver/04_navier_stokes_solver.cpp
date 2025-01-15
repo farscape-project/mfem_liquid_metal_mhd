@@ -258,23 +258,23 @@ int main(int argc, char *argv[])
 
    // Integrator for (v, v').
    fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
-   checkpoint(5a);
+   checkpoint(51);
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(reciprocal_Re)); // 1/Re (one may cause it to fail due to cancelling).
    // Integrator for O(u_n, v, v').
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
-   checkpoint(5b);
+   checkpoint(52);
    //***********  They say they take a bilinear form in paper...
    fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-   checkpoint(c);
+   checkpoint(53);
    fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
    // Set up B^T yp part of velocity system.
    //ParBilinearForm b(&velocity_fespace);
    //b.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(one));
    //b.Assemble();
-   checkpoint(5d);
+   checkpoint(54);
    fk.Assemble();
 
    // ----------------------------------------------------------------------------
