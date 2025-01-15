@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
    // Define constants.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient reciprocal_Re(1 / 100.0);
 
 
    // Note: alpha1 must be defined negative.
@@ -241,9 +242,9 @@ int main(int argc, char *argv[])
    ParBilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
-   fk.AddDomainIntegrator(new VectorMassIntegrator(one));
+   fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
    // Integrator for A_AL(v, v').
-   fk.AddDomainIntegrator(new VectorDiffusionIntegrator(one)); // 1/Re (one may cause it to fail due to cancelling).
+   fk.AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(reciprocal_Re)); // 1/Re (one may cause it to fail due to cancelling).
    // Integrator for O(u_n, v, v').
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
