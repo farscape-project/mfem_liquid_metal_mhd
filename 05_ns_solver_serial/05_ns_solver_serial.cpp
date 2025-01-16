@@ -39,12 +39,6 @@ void u_exact(const mfem::Vector & x, mfem::Vector & f)
 int main(int argc, char *argv[])
 {
 
-   // Initialize MPI and HYPRE.
-   //Mpi::Init(argc, argv);
-   //int num_procs = Mpi::WorldSize();
-   //int myid = Mpi::WorldRank();
-   //Hypre::Init();
-
    // Define constants.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
@@ -55,40 +49,23 @@ int main(int argc, char *argv[])
    real_t alpha1(-1.0);  // alpha1 = alpha + 1/Re.  alpha = 1 (default).
    // kappa = ...
 
-   // Parse command line options.
-   string mesh_file = "../mesh/square.msh";
+   // Set fe_space orders.
    int order_pressure = 1;
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.ParseCheck();
-
-
-   // Read the mesh from the given mesh file, and refine once uniformly.
-   //Mesh serial_mesh(mesh_file);
-   //ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   //serial_mesh.Clear(); 
-   //mesh.UniformRefinement();
-
-   Mesh mesh(mesh_file);
-   mesh.UniformRefinement();
+   //Mesh mesh = Mesh::MakeCartesian2D(10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
+   int dim = mesh.Dimension();
 
    // Define vector coefficient based on mesh dimension.
-   /*Vector constantVector(mesh.Dimension());
-   for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 1.0;}
-   VectorConstantCoefficient oneVector(constantVector);
+   Vector one_vector(3);
+   one_vector = 0.0;
+   VectorConstantCoefficient one_vector_coef(one_vector);
 
-   for (int i = 0; i < mesh.Dimension(); i++){constantVector(i) = 0.0;}
-   VectorConstantCoefficient zeroVector(constantVector);
-   */
-   Vector constantVector(3);
-   for (int i = 0; i < 3; i++){constantVector(i) = 1.0;}
-   VectorConstantCoefficient oneVector(constantVector);
-
-   for (int i = 0; i < 3; i++){constantVector(i) = 0.0;}
-   VectorConstantCoefficient zeroVector(constantVector);
+   Vector zero_vector(3);
+   zero_vector = 1.0;
+   VectorConstantCoefficient zero_vector_coef(zero_vector);
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
@@ -116,8 +93,11 @@ int main(int argc, char *argv[])
 
 
    mfem::GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
-   ustar_n = 1.0;
+   //ustar_n = 1.0;
    mfem::VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+   mfem::VectorFunctionCoefficient ucoef(3, u_exact);
+   ustar_n.ProjectCoefficient(ucoef);
+
    //mfem::VectorFunctionCoefficient ucoef(3, u_exact);
 
    //ustar_n.ProjectCoefficient(ucoef);
@@ -127,12 +107,14 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    Array<int> boundary_marker_pressure, boundary_marker_velocity; 
    boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
+   boundary_marker_pressure = 0; 
    boundary_marker_pressure[0] = 0; 
    boundary_marker_pressure[1] = 0; 
    boundary_marker_pressure[2] = 0; 
    boundary_marker_pressure[3] = 0; 
 
    boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
+   boundary_marker_velocity = 0; 
    boundary_marker_velocity[0] = 0; 
    boundary_marker_velocity[1] = 0; 
    boundary_marker_velocity[2] = 0; 
@@ -216,13 +198,13 @@ int main(int argc, char *argv[])
 
    // Set up rhs for velocity solve.
    LinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zeroVector));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
    ru.Assemble();
 
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
    cout << endl;
 
-   cout << "oneVector size: " << oneVector.GetVDim() << endl;
+   cout << "one_vector_coef size: " << one_vector_coef.GetVDim() << endl;
    cout << "Mesh dimension: " << mesh.Dimension() << endl;
    cout << endl;
 
@@ -412,7 +394,7 @@ int main(int argc, char *argv[])
    // Set up nonlinear system for F_k y_u = r_u (where r_u is B^T yp).
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    // Initialise Ru, Yu
-
+   Ru = 0.0;
    //ru.GetTrueDofs(Ru);
    yu.GetTrueDofs(Yu);
    //ru.ParallelAssemble(Ru);
@@ -425,7 +407,7 @@ int main(int argc, char *argv[])
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    CGSolver F_solver;
-   DSmoother F_prec;
+   OperatorJacobiSmoother F_prec;
 
    F_solver.SetOperator(fk);
    F_solver.SetPrintLevel(1);
