@@ -20,6 +20,10 @@ void checkpoint(int num);
 real_t velocity_dbc(const Vector & x);
 void velocity_dbc_vec(const Vector & x, Vector & f);
 void u_exact(const Vector & x, Vector & f);
+double pFun_ex(const Vector & x);
+void fFun(const Vector & x, Vector & f);
+double gFun(const Vector & x);
+double f_natural(const Vector & x);
 
 int main(int argc, char *argv[])
 {
@@ -34,6 +38,7 @@ int main(int argc, char *argv[])
    // Define ConstantCoefficients.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
 
    // kappa = ...
@@ -91,10 +96,16 @@ int main(int argc, char *argv[])
    Array<int> ess_boundary_marker_pressure, ess_boundary_marker_velocity; 
    ess_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_pressure = 0; 
+   // Dirichlet pressure at outlet.
+   ess_boundary_marker_pressure[1] = 1; 
 
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
-   ess_boundary_marker_velocity = 0; 
+   ess_boundary_marker_velocity = 0;
+   // Dirichlet velocity at inlet (non-zero).
+   ess_boundary_marker_velocity[3] = 1;
+   // Dirichlet velocity at "top"/"bottom" (zero).
    ess_boundary_marker_velocity[0] = 1;
+   ess_boundary_marker_velocity[2] = 1;
 
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
@@ -103,12 +114,42 @@ int main(int argc, char *argv[])
    // Natural (Neumann) boundary conditions.
    Array<int> nat_boundary_marker_pressure, nat_boundary_marker_velocity; 
    nat_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-   nat_boundary_marker_pressure = 1; 
+   nat_boundary_marker_pressure = 1;
+   // Turn off natural boundary condition for pressure at outlet.
+   nat_boundary_marker_pressure[1] = 0;
 
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    nat_boundary_marker_velocity = 1; 
+   // Turn off natural boundary condition for velocity at inlet/"top"/"bottom".
    nat_boundary_marker_velocity[0] = 0; 
+   nat_boundary_marker_velocity[2] = 0; 
+   nat_boundary_marker_velocity[3] = 0; 
 
+
+   // Dirichlet BC values.
+   vector<double> DrchltVelVal;
+   DrchltVelVal.clear();
+
+   DrchltVelVal.push_back(0.0); // Bottom (Zero)
+   DrchltVelVal.push_back(0.0); // Right (natural) - n/a
+   DrchltVelVal.push_back(0.0); // Top (Zero)
+   DrchltVelVal.push_back(1.0); // Left (Inlet)
+
+   /*vector<vector<double>> DrchltVelVal = {
+        {0.0, 0.0}, // Bottom (Zero)
+        {0.0, 0.0}, // Right (natural) - n/a
+        {0.0, 0.0}, // Top (Zero)
+        {1.0, 0.0}  // Left (Inlet)
+    };*/
+
+   // Pressure BC values.
+   vector<double> DrchltPreVal;
+   DrchltPreVal.clear();
+
+   DrchltPreVal.push_back(0.0); // Bottom (Zero)
+   DrchltPreVal.push_back(1.0); // Right (natural) - n/a
+   DrchltPreVal.push_back(0.0); // Top (Zero)
+   DrchltPreVal.push_back(0.0); // Left (Inlet)
 
    checkpoint(2);
    const Array<int> &bdr_attr = velocity_fespace.GetMesh()->bdr_attributes;
@@ -120,6 +161,12 @@ int main(int argc, char *argv[])
    cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
    cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
    cout << endl;
+
+   int n_vel_tags = velocity_fespace.GetMesh()->bdr_attributes.Max();
+   int n_pre_tags = pressure_fespace.GetMesh()->bdr_attributes.Max();
+
+   
+
 
    // Extract the list of all the boundary DOFs. These will be marked as
    // Dirichlet in order to enforce zero boundary conditions.
@@ -134,10 +181,10 @@ int main(int argc, char *argv[])
    //velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
 
    // Set Dirichlet boundary condition to [1,0,0].
-   Vector vel_dbc(dim);
-   vel_dbc = 0.0;
-   vel_dbc[0] = 1.0; 
-   VectorConstantCoefficient vel_dbc_coef(vel_dbc);
+   //Vector vel_dbc(dim);
+   //vel_dbc = 0.0;
+   //vel_dbc[0] = 1.0; 
+   //VectorConstantCoefficient vel_dbc_coef(vel_dbc);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -151,9 +198,9 @@ int main(int argc, char *argv[])
    // Define solutions as ParGridFunctions in relevant fespace and set initial 
    // guesses to zero.
    // ----------------------------------------------------------------------------
-   // Define the solutions xi, nu, p as grid functions for pressure. 
+   // Define the solutions xi, eta, p as grid functions for pressure. 
    GridFunction xi(&pressure_fespace);
-   GridFunction nu(&pressure_fespace);
+   GridFunction eta(&pressure_fespace);
    GridFunction yp(&pressure_fespace);
 
    // Define the solution for velocity.
@@ -163,7 +210,7 @@ int main(int argc, char *argv[])
 
    // Set initial guesses to zero.  This also sets BCs.
    xi = 0.0;
-   nu = 0.0;
+   eta = 0.0;
    yp = 0.0;
    yu = 0.0;
    bTyp = 0.0;
@@ -171,6 +218,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
+   
    
    
 
@@ -207,9 +255,9 @@ int main(int argc, char *argv[])
    cout << endl;
 
    MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
-   b.AddDomainIntegrator(new VectorDivergenceIntegrator(one));
+   b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
    b.Assemble();
-   b.Finalize();
+   //b.Finalize();
 
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
@@ -269,6 +317,8 @@ int main(int argc, char *argv[])
 
    checkpoint(7);
 
+   //for(int ti = 0; ti < 10; ti++)
+   //{
 
    // ----------------------------------------------------------------------------
    // Form linear systems.
@@ -276,24 +326,18 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // Form the linear systems for both 
    //       M_p xi = r_p, and
-   //       S_p nu = r_p. 
+   //       S_p eta = r_p. 
    SparseMatrix Mp;
    Vector Rp_m, Xi;
-   mp.FormLinearSystem(ess_boundary_marker_pressure, xi, rp, Mp, Xi, Rp_m);
+   
 
    checkpoint(7);
 
    SparseMatrix Sp;
-   Vector Rp_s, Nu;
-   sp.FormLinearSystem(ess_boundary_marker_pressure, nu, rp, Sp, Nu, Rp_s);
+   Vector Rp_s, Eta;
+   
 
    checkpoint(8);
-
-   // Set up nonlinear system for F_k y_u = r_u.
-   //Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
-   //yu.GetTrueDofs(Yu);
-   //ru.ParallelAssemble(Ru);
-   //fk.SetEssentialBC(ess_bdr, &ru);
    
    // Set up linear calculation for B^T y_p.
    SparseMatrix B;
@@ -303,30 +347,6 @@ int main(int argc, char *argv[])
 
    checkpoint(9);
 
-   //b.FormRectangularSystemMatrix(pressure_ess_tdof, velocity_ess_tdof, B);
-   //************ Alex doesn't do this
-
-   //TransposeOperator *B = NULL;
-   //B = new TransposeOperator(opB.Ptr());
-
-   checkpoint(10);
-
-   //if (B.NumRows() == 0 || B.NumCols() == 0) {
-   //   std::cerr << "Error: B was not properly initialized!" << std::endl;
-   //   return -1;
-   //}
-
-   //cout << "B Rows: " << B.NumRows() << ", B Cols: " << B.NumCols() << endl;
-
-   //cout << "Brhs Size: " << Brhs.Size() << endl;
-   //cout << "BTyp Size: " << BTyp.Size() << endl;
-
-
-   //B.MultTranspose(Brhs,BTyp);
-   //ru.Add(-1.0,BTyp);
-   //B.AddMultTranspose(Brhs,BTyp,-1.0);
-
-   //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -338,29 +358,49 @@ int main(int argc, char *argv[])
    cout << "Pressure solution vector size: " << Xi.Size() << endl;
    cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
 
+   // Set Dirichlet boundary conditions on pressure.
+   Array<int> ess_pre_tdof, ess_pre_bdr_tmp(n_pre_tags);
+   for(int i_bdr = 0; i_bdr < n_pre_tags; i_bdr++)
+   {
+	   int K = ess_boundary_marker_pressure[i_bdr];
+      if (K == 1) //Checks if boundary is active
+      { 
+         ess_pre_bdr_tmp = 0;
+         ess_pre_bdr_tmp[i_bdr] = 1;
+         pressure_fespace.GetEssentialTrueDofs(ess_pre_bdr_tmp, ess_pre_tdof);
+         cout << setw(10) << i_bdr << setw(10) << ess_pre_tdof.Size() << "\n";
+         xi.SetSubVector(ess_pre_tdof, 0.0);  // Set to zero.
+         eta.SetSubVector(ess_pre_tdof, DrchltPreVal[i_bdr]);
+      }
+   }
 
+   // Form linear systems for Mp and Sp.
+   mp.FormLinearSystem(ess_pre_tdof, xi, rp, Mp, Xi, Rp_m);
+   sp.FormLinearSystem(ess_pre_tdof, eta, rp, Sp, Eta, Rp_s);
+   
    // ----------------------------------------------------------------------------
    // Solving.
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
    CGSolver M_solver;
-   DSmoother M_prec;
+   //OperatorJacobiSmoother M_prec;
+   //M_prec.SetOperator(Mp);
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(200);
+   M_solver.SetMaxIter(10);
    M_solver.SetPrintLevel(1);
    //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
-   M_solver.SetPreconditioner(M_prec);
+   //M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
    M_solver.Mult(Rp_m,Xi);
    mp.RecoverFEMSolution(Xi, rp, xi);
 
 
-   // Solve the S_p nu = r_p system using PCG with Jacobi preconditioner.
+   // Solve the S_p eta = r_p system using PCG with Jacobi preconditioner.
    CGSolver S_solver;
    DSmoother S_prec;
 
@@ -373,41 +413,64 @@ int main(int argc, char *argv[])
    S_solver.SetPreconditioner(S_prec);
    S_solver.SetOperator(Sp);
 
-   S_solver.Mult(Rp_s,Nu);
-   mp.RecoverFEMSolution(Nu, rp, nu);
+   S_solver.Mult(Rp_s,Eta);
+   sp.RecoverFEMSolution(Eta, rp, eta);
 
-   // Do the sum y_p = -alpha1 xi - nu.  Note: above alpha1 must be defined negative.
+   // Do the sum y_p = -alpha1 xi - eta.  Note: above alpha1 must be defined negative.
    yp.Add(neg_alpha1,xi);
-   yp.Add(-1.0,nu);
+   yp.Add(-1.0,eta);
    
 
    // Do multiplication for B^T y_p.
    //const SparseMatrix* rm = velocity_fespace.GetRestrictionMatrix();
    //rm->MultTranspose(yp, ru);
 
+   Vector Yp(pressure_fespace.GetTrueVSize());;
+   //yp.GetTrueDofs(Yp);
+   Yp = yp;
    // Calculate B^T y_p.
-   //b.MultTranspose(yp,BTyp);
-   // Add B^T y_p to r_u for the velocity solve.
-   //ru.Add(-1.0,BTyp);
+   b.MultTranspose(Yp,BTyp);
+   
    // Calculate B^T y_p and add B^T y_p to r_u for the velocity solve.
-   b.AddMultTranspose(yp, BTyp, -1.0);
+   //b.AddMultTranspose(yp, BTyp, -1.0);
+   b.RecoverFEMSolution(BTyp, yu, bTyp);
+
+   // Add B^T y_p to r_u for the velocity solve.
+   ru.Add(-1.0,bTyp);
 
    // Set up nonlinear system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    // Initialise Ru, Yu
    Ru = 0.0;
    //ru.GetTrueDofs(Ru);
-   yu.GetTrueDofs(Yu);
+   
    //ru.ParallelAssemble(Ru);
    //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
+   // Set Dirichlet boundary conditions for velocity.
+   Array<int> ess_vel_tdof, ess_vel_bdr_tmp(n_vel_tags);
+   for(int i_bdr = 0; i_bdr < n_vel_tags; i_bdr++)
+   {
+	   int K = ess_boundary_marker_velocity[i_bdr];
+      if (K == 1) //Checks if boundary is active
+      { 
+         ess_vel_bdr_tmp = 0;
+         ess_vel_bdr_tmp[i_bdr] = 1;
+         velocity_fespace.GetEssentialTrueDofs(ess_vel_bdr_tmp, ess_vel_tdof);
+         cout << setw(10) << i_bdr << setw(10) << ess_vel_tdof.Size() << "\n";
+         yu.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
+         ru.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
+      }
+   }
+
+   yu.GetTrueDofs(Yu);
 
    // Set the Dirichlet values in the solution vector
-   yu.ProjectBdrCoefficient(vel_dbc_coef, ess_boundary_marker_velocity);
+   //yu.ProjectBdrCoefficient(vel_dbc_coef, ess_boundary_marker_velocity);
 
    SparseMatrix Fk;
-   fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu, Ru);
+   fk.FormLinearSystem(ess_vel_tdof, yu, ru, Fk, Yu, Ru);
 
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
@@ -436,6 +499,8 @@ int main(int argc, char *argv[])
 
    //yu.Distribute(Yu);
 
+   //}
+
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
@@ -456,8 +521,9 @@ int main(int argc, char *argv[])
 
    // Export pressure data.
    paraview_dc.RegisterField("xi",&xi);
-   paraview_dc.RegisterField("nu",&nu);
+   paraview_dc.RegisterField("eta",&eta);
    paraview_dc.RegisterField("p",&yp);
+   paraview_dc.RegisterField("bTyp",&bTyp);
 
    // Export velocity data.
    paraview_dc.RegisterField("u",&yu);
@@ -498,6 +564,42 @@ void u_exact(const mfem::Vector & x, mfem::Vector & f)
   f(0) = (9.0 / 4.0) * u_max * (1 - (y * y) / (y_max * y_max)) * (1 - (z * z) / (z_max * z_max));
   f(1) = 0.0;
   f(2) = 0.0;
+}
+
+double pFun_ex(const Vector & x)
+{
+   double xi(x(0));
+   double yi(x(1));
+   double zi(0.0);
+
+   if (x.Size() == 3)
+   {
+      zi = x(2);
+   }
+
+   return exp(xi)*sin(yi)*cos(zi);
+}
+
+void fFun(const Vector & x, Vector & f)
+{
+   f = 0.0;
+}
+
+double gFun(const Vector & x)
+{
+   if (x.Size() == 3)
+   {
+      return -pFun_ex(x);
+   }
+   else
+   {
+      return 0.0;
+   }
+}
+
+double f_natural(const Vector & x)
+{
+   return (-pFun_ex(x));
 }
 
 void checkpoint(int num)
