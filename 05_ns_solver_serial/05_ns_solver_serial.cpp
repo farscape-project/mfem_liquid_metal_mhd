@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
    MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
    b.Assemble();
-   //b.Finalize();
+   b.Finalize();
 
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
@@ -426,8 +426,8 @@ int main(int argc, char *argv[])
    //rm->MultTranspose(yp, ru);
 
    Vector Yp(pressure_fespace.GetTrueVSize());;
-   //yp.GetTrueDofs(Yp);
-   Yp = yp;
+   yp.GetTrueDofs(Yp);
+   //Yp = yp;
    // Calculate B^T y_p.
    b.MultTranspose(Yp,BTyp);
    
