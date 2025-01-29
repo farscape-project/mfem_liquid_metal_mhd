@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   Mesh mesh = Mesh::MakeCartesian2D(10, 3, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -495,7 +495,8 @@ int main(int argc, char *argv[])
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    GMRESSolver F_solver;
-   OperatorJacobiSmoother F_prec;
+   //OperatorJacobiSmoother F_prec;
+   HypreAMS F_prec(Fk,velocity_fespace);
 
    //F_solver.SetOperator(fk);
    F_solver.SetOperator(Fk);
@@ -512,13 +513,21 @@ int main(int argc, char *argv[])
    F_solver.Mult(Ru, Yu);
    cout << "Mult completed." << endl;
 
+   //Fk.Print();
+
    fk.RecoverFEMSolution(Yu, ru, yu);
 
-   cout << "Yu vector size: " << Ru.Size() << endl;
+   /*cout << "Yu vector size: " << Yu.Size() << endl;
    for (int i = 0; i < Yu.Size(); i++)
    {
       cout << Yu[i] << endl;
    }
+
+   cout << "Ru vector size: " << Ru.Size() << endl;
+   for (int i = 0; i < Ru.Size(); i++)
+   {
+      cout << Ru[i] << endl;
+   }*/
 
    //yu.Distribute(Yu);
 
