@@ -352,14 +352,10 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
 
    checkpoint(11);
-   cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
-   cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
-
-   cout << "Pressure solution vector size: " << Xi.Size() << endl;
-   cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
 
    // Set Dirichlet boundary conditions on pressure.
    Array<int> ess_pre_tdof, ess_pre_bdr_tmp(n_pre_tags);
+   cout << "Setting pressure Dirichlet boundary conditions..." << "\n";
    for(int i_bdr = 0; i_bdr < n_pre_tags; i_bdr++)
    {
 	   int K = ess_boundary_marker_pressure[i_bdr];
@@ -368,7 +364,7 @@ int main(int argc, char *argv[])
          ess_pre_bdr_tmp = 0;
          ess_pre_bdr_tmp[i_bdr] = 1;
          pressure_fespace.GetEssentialTrueDofs(ess_pre_bdr_tmp, ess_pre_tdof);
-         cout << setw(10) << i_bdr << setw(10) << ess_pre_tdof.Size() << "\n";
+         cout << "Dirichlet boundary no. " << i_bdr << " has size of " << ess_pre_tdof.Size() << "\n";
          xi.SetSubVector(ess_pre_tdof, 0.0);  // Set to zero.
          eta.SetSubVector(ess_pre_tdof, DrchltPreVal[i_bdr]);
       }
@@ -378,6 +374,12 @@ int main(int argc, char *argv[])
    mp.FormLinearSystem(ess_pre_tdof, xi, rp, Mp, Xi, Rp_m);
    sp.FormLinearSystem(ess_pre_tdof, eta, rp, Sp, Eta, Rp_s);
    
+   cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
+   cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
+
+   cout << "Pressure solution vector size: " << Xi.Size() << endl;
+   cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
+
    // ----------------------------------------------------------------------------
    // Solving.
    // ----------------------------------------------------------------------------
@@ -409,7 +411,7 @@ int main(int argc, char *argv[])
    S_solver.SetAbsTol(0.0);
    S_solver.SetMaxIter(200);
    S_solver.SetPrintLevel(1);
-   //S_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
+   //S_prec.SetType(DSmoother::Jacobi); 
    S_solver.SetPreconditioner(S_prec);
    S_solver.SetOperator(Sp);
 
@@ -420,29 +422,38 @@ int main(int argc, char *argv[])
    yp.Add(neg_alpha1,xi);
    yp.Add(-1.0,eta);
    
-
-   // Do multiplication for B^T y_p.
-   //const SparseMatrix* rm = velocity_fespace.GetRestrictionMatrix();
-   //rm->MultTranspose(yp, ru);
-
+   // Calculate B^T y_p and add B^T y_p to r_u for the velocity solve.
    Vector Yp(pressure_fespace.GetTrueVSize());;
    yp.GetTrueDofs(Yp);
    //Yp = yp;
    // Calculate B^T y_p.
    b.MultTranspose(Yp,BTyp);
+
+   /*cout << "BTyp vector size: " << BTyp.Size() << endl;
+   for (int iBTyp = 0; iBTyp < BTyp.Size(); iBTyp++)
+   {
+      cout << BTyp[iBTyp] << endl;
+   }*/
    
-   // Calculate B^T y_p and add B^T y_p to r_u for the velocity solve.
    //b.AddMultTranspose(yp, BTyp, -1.0);
-   b.RecoverFEMSolution(BTyp, yu, bTyp);
+   // RecoverFEMSolution NOT WORKING!
+   //b.RecoverFEMSolution(BTyp, ru, bTyp);
+   // Recover GridFunction from Vector.
+   bTyp.SetFromTrueDofs(BTyp);
+
+   /*cout << "bTyp vector size: " << bTyp.Size() << endl;
+   for (int ibTyp = 0; ibTyp < bTyp.Size(); ibTyp++)
+   {
+      cout << bTyp[ibTyp] << endl;
+   }*/
+
 
    // Add B^T y_p to r_u for the velocity solve.
    ru.Add(-1.0,bTyp);
-
-   // Set up nonlinear system for F_k y_u = r_u (where r_u is r_u - B^T yp).
+   
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    // Initialise Ru, Yu
    Ru = 0.0;
-   //ru.GetTrueDofs(Ru);
    
    //ru.ParallelAssemble(Ru);
    //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
@@ -450,6 +461,7 @@ int main(int argc, char *argv[])
 
    // Set Dirichlet boundary conditions for velocity.
    Array<int> ess_vel_tdof, ess_vel_bdr_tmp(n_vel_tags);
+   cout << "Setting velocity Dirichlet boundary conditions..." << "\n";
    for(int i_bdr = 0; i_bdr < n_vel_tags; i_bdr++)
    {
 	   int K = ess_boundary_marker_velocity[i_bdr];
@@ -458,7 +470,7 @@ int main(int argc, char *argv[])
          ess_vel_bdr_tmp = 0;
          ess_vel_bdr_tmp[i_bdr] = 1;
          velocity_fespace.GetEssentialTrueDofs(ess_vel_bdr_tmp, ess_vel_tdof);
-         cout << setw(10) << i_bdr << setw(10) << ess_vel_tdof.Size() << "\n";
+         cout << "Dirichlet boundary no. " << i_bdr << " has size of " << ess_vel_tdof.Size() << "\n";
          yu.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
          ru.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
       }
@@ -466,11 +478,16 @@ int main(int argc, char *argv[])
 
    yu.GetTrueDofs(Yu);
 
-   // Set the Dirichlet values in the solution vector
-   //yu.ProjectBdrCoefficient(vel_dbc_coef, ess_boundary_marker_velocity);
 
    SparseMatrix Fk;
+   // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    fk.FormLinearSystem(ess_vel_tdof, yu, ru, Fk, Yu, Ru);
+
+   cout << "Ru vector size: " << Ru.Size() << endl;
+   for (int i = 0; i < Ru.Size(); i++)
+   {
+      cout << Ru[i] << endl;
+   }
 
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
@@ -497,6 +514,12 @@ int main(int argc, char *argv[])
 
    fk.RecoverFEMSolution(Yu, ru, yu);
 
+   cout << "Yu vector size: " << Ru.Size() << endl;
+   for (int i = 0; i < Yu.Size(); i++)
+   {
+      cout << Yu[i] << endl;
+   }
+
    //yu.Distribute(Yu);
 
    //}
@@ -520,13 +543,15 @@ int main(int argc, char *argv[])
    paraview_dc.SetTime(0.0); // set the time
 
    // Export pressure data.
-   paraview_dc.RegisterField("xi",&xi);
-   paraview_dc.RegisterField("eta",&eta);
    paraview_dc.RegisterField("p",&yp);
-   paraview_dc.RegisterField("bTyp",&bTyp);
 
    // Export velocity data.
    paraview_dc.RegisterField("u",&yu);
+
+   // Temporary intermediate values for debugging.
+   paraview_dc.RegisterField("bTyp",&bTyp);
+   paraview_dc.RegisterField("xi",&xi);
+   paraview_dc.RegisterField("eta",&eta);
 
    paraview_dc.Save();
 
