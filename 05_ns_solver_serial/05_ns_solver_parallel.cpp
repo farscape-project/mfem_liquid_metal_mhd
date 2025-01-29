@@ -60,7 +60,11 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh serial_mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear(); 
+   //mesh.UniformRefinement();
+
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -72,12 +76,12 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // H1 continuous Lagrange finite elements of given order for pressure.
    H1_FECollection pressure_fec(order_pressure, dim);
-   FiniteElementSpace pressure_fespace(&mesh, &pressure_fec);
+   ParFiniteElementSpace pressure_fespace(&mesh, &pressure_fec);
 
    // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, dim);
-   FiniteElementSpace velocity_fespace(&mesh, &velocity_fec, dim);
+   ParFiniteElementSpace velocity_fespace(&mesh, &velocity_fec, dim);
 
    checkpoint(1);
    cout << "Mesh dimension: " << dim << endl;
@@ -88,7 +92,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
+   ParGridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
    VectorFunctionCoefficient ucoef(3, u_exact);
    ustar_n.ProjectCoefficient(ucoef);
    VectorGridFunctionCoefficient ustar_coef(&ustar_n);
@@ -203,14 +207,14 @@ int main(int argc, char *argv[])
    // guesses to zero.
    // ----------------------------------------------------------------------------
    // Define the solutions xi, eta, p as grid functions for pressure. 
-   GridFunction xi(&pressure_fespace);
-   GridFunction eta(&pressure_fespace);
-   GridFunction yp(&pressure_fespace);
+   ParGridFunction xi(&pressure_fespace);
+   ParGridFunction eta(&pressure_fespace);
+   ParGridFunction yp(&pressure_fespace);
 
    // Define the solution for velocity.
-   GridFunction yu(&velocity_fespace);
+   ParGridFunction yu(&velocity_fespace);
    // Solution for B^T * y_p.
-   GridFunction bTyp(&velocity_fespace);
+   ParGridFunction bTyp(&velocity_fespace);
 
    // Set initial guesses to zero.  This also sets BCs.
    xi = 0.0;
@@ -233,7 +237,7 @@ int main(int argc, char *argv[])
    // each solve.
    // ----------------------------------------------------------------------------
    // Set up rhs for pressure solve.
-   LinearForm rp(&pressure_fespace);
+   ParLinearForm rp(&pressure_fespace);
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
 
@@ -243,7 +247,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient velocity_dbc_coeff(velocity_dbc);
 
    // Set up rhs for velocity solve.
-   LinearForm ru(&velocity_fespace);
+   ParLinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
 
    // Natural boundary condition.
@@ -258,7 +262,7 @@ int main(int argc, char *argv[])
    cout << "Mesh dimension: " << mesh.Dimension() << endl;
    cout << endl;
 
-   MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
+   ParMixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
    b.Assemble();
    b.Finalize();
@@ -282,11 +286,11 @@ int main(int argc, char *argv[])
    // each solve.
    // ----------------------------------------------------------------------------
    // Bilinear forms for the two-part pressure solve.
-   BilinearForm mp(&pressure_fespace);
+   ParBilinearForm mp(&pressure_fespace);
    mp.AddDomainIntegrator(new MassIntegrator(one));
    mp.Assemble();
 
-   BilinearForm sp(&pressure_fespace);
+   ParBilinearForm sp(&pressure_fespace);
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
 
@@ -295,7 +299,7 @@ int main(int argc, char *argv[])
    // Bilinear forms for the velocity solve.
    //ParNonlinearForm fk(&velocity_fespace);
    //*********** ParBilinearForm...
-   BilinearForm fk(&velocity_fespace);
+   ParBilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
    fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
@@ -331,20 +335,20 @@ int main(int argc, char *argv[])
    // Form the linear systems for both 
    //       M_p xi = r_p, and
    //       S_p eta = r_p. 
-   SparseMatrix Mp;
+   HypreParMatrix Mp;
    Vector Rp_m, Xi;
    
 
    checkpoint(7);
 
-   SparseMatrix Sp;
+   HypreParMatrix Sp;
    Vector Rp_s, Eta;
    
 
    checkpoint(8);
    
    // Set up linear calculation for B^T y_p.
-   SparseMatrix B;
+   HypreParMatrix B;
    //OperatorPtr opB;
    Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
    //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
@@ -389,7 +393,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
-   CGSolver M_solver;
+   CGSolver M_solver(MPI_COMM_WORLD);
    //OperatorJacobiSmoother M_prec;
    //M_prec.SetOperator(Mp);
 
@@ -459,8 +463,8 @@ int main(int argc, char *argv[])
    // Initialise Ru, Yu
    Ru = 0.0;
    
-   //ru.ParallelAssemble(Ru);
-   //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
+   ru.ParallelAssemble(Ru);
+   yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
    // Set Dirichlet boundary conditions for velocity.
@@ -483,7 +487,7 @@ int main(int argc, char *argv[])
    yu.GetTrueDofs(Yu);
 
 
-   SparseMatrix Fk;
+   HypreParMatrix Fk;
    // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    fk.FormLinearSystem(ess_vel_tdof, yu, ru, Fk, Yu, Ru);
 
@@ -498,7 +502,7 @@ int main(int argc, char *argv[])
    cout << "Yu size: " << Yu.Size() << endl;
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
-   GMRESSolver F_solver;
+   GMRESSolver F_solver(MPI_COMM_WORLD);
    //OperatorJacobiSmoother F_prec;
    HypreADS F_prec(Fk,velocity_fespace);
 

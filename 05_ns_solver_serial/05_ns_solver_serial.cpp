@@ -28,9 +28,6 @@ double f_natural(const Vector & x);
 int main(int argc, char *argv[])
 {
 
-   Mpi::Init(argc, argv);
-   Hypre::Init();
-
    // Define constants.
    real_t Re(100.0);
    real_t reciprocal_Re(1 / Re);
@@ -500,7 +497,6 @@ int main(int argc, char *argv[])
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    GMRESSolver F_solver;
    //OperatorJacobiSmoother F_prec;
-   HypreADS F_prec(Fk,velocity_fespace);
 
    //F_solver.SetOperator(fk);
    F_solver.SetOperator(Fk);
@@ -508,7 +504,7 @@ int main(int argc, char *argv[])
    F_solver.SetRelTol(1e-10);
    F_solver.SetMaxIter(200);
    //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
-   F_solver.SetPreconditioner(F_prec);
+   //F_solver.SetPreconditioner(F_prec);
    F_solver.SetPrintLevel(3);
 
    // Solve nonlinear system.
