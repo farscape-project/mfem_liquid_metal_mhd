@@ -483,11 +483,11 @@ int main(int argc, char *argv[])
    // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    fk.FormLinearSystem(ess_vel_tdof, yu, ru, Fk, Yu, Ru);
 
-   cout << "Ru vector size: " << Ru.Size() << endl;
+   /*cout << "Ru vector size: " << Ru.Size() << endl;
    for (int i = 0; i < Ru.Size(); i++)
    {
       cout << Ru[i] << endl;
-   }
+   }*/
 
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
