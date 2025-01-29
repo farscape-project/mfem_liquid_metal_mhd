@@ -99,6 +99,8 @@ int main(int argc, char *argv[])
    ess_boundary_marker_pressure = 0; 
    // Dirichlet pressure at outlet.
    ess_boundary_marker_pressure[1] = 1; 
+   // Dirichlet pressure at inlet.
+   ess_boundary_marker_pressure[3] = 1; 
 
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_velocity = 0;
@@ -118,6 +120,8 @@ int main(int argc, char *argv[])
    nat_boundary_marker_pressure = 1;
    // Turn off natural boundary condition for pressure at outlet.
    nat_boundary_marker_pressure[1] = 0;
+   // and inlet.
+   nat_boundary_marker_pressure[3] = 0;
 
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    nat_boundary_marker_velocity = 1; 
@@ -136,6 +140,22 @@ int main(int argc, char *argv[])
    DrchltVelVal.push_back(0.0); // Top (Zero)
    DrchltVelVal.push_back(1.0); // Left (Inlet)
 
+   vector<double> DrchltVelValx;
+   DrchltVelValx.clear();
+
+   DrchltVelValx.push_back(0.0); // Bottom (Zero)
+   DrchltVelValx.push_back(0.0); // Right (natural) - n/a
+   DrchltVelValx.push_back(0.0); // Top (Zero)
+   DrchltVelValx.push_back(1.0); // Left (Inlet)
+
+   vector<double> DrchltVelValy;
+   DrchltVelValy.clear();
+
+   DrchltVelValy.push_back(0.0); // Bottom (Zero)
+   DrchltVelValy.push_back(0.0); // Right (natural) - n/a
+   DrchltVelValy.push_back(0.0); // Top (Zero)
+   DrchltVelValy.push_back(0.0); // Left (Inlet)
+
    /*vector<vector<double>> DrchltVelVal = {
         {0.0, 0.0}, // Bottom (Zero)
         {0.0, 0.0}, // Right (natural) - n/a
@@ -148,9 +168,9 @@ int main(int argc, char *argv[])
    DrchltPreVal.clear();
 
    DrchltPreVal.push_back(0.0); // Bottom (Zero)
-   DrchltPreVal.push_back(1.0); // Right (natural) - n/a
+   DrchltPreVal.push_back(-1.0); // Right (natural) - n/a
    DrchltPreVal.push_back(0.0); // Top (Zero)
-   DrchltPreVal.push_back(0.0); // Left (Inlet)
+   DrchltPreVal.push_back(-1.0); // Left (Inlet)
 
    checkpoint(2);
    const Array<int> &bdr_attr = velocity_fespace.GetMesh()->bdr_attributes;
@@ -472,8 +492,8 @@ int main(int argc, char *argv[])
          ess_vel_bdr_tmp[i_bdr] = 1;
          velocity_fespace.GetEssentialTrueDofs(ess_vel_bdr_tmp, ess_vel_tdof);
          cout << "Dirichlet boundary no. " << i_bdr << " has size of " << ess_vel_tdof.Size() << "\n";
-         yu.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
-         ru.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
+         yu.SetSubVector(ess_vel_tdof, DrchltVelValx[i_bdr]);
+         ru.SetSubVector(ess_vel_tdof, DrchltVelValx[i_bdr]);
       }
    }
 
@@ -496,13 +516,14 @@ int main(int argc, char *argv[])
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    GMRESSolver F_solver;
+   //CGSolver F_solver;
    //OperatorJacobiSmoother F_prec;
 
    //F_solver.SetOperator(fk);
    F_solver.SetOperator(Fk);
    F_solver.SetPrintLevel(1);
    F_solver.SetRelTol(1e-10);
-   F_solver.SetMaxIter(200);
+   F_solver.SetMaxIter(2000);
    //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
    //F_solver.SetPreconditioner(F_prec);
    F_solver.SetPrintLevel(3);
@@ -517,13 +538,13 @@ int main(int argc, char *argv[])
 
    fk.RecoverFEMSolution(Yu, ru, yu);
 
-   /*cout << "Yu vector size: " << Yu.Size() << endl;
+   cout << "Yu vector size: " << Yu.Size() << endl;
    for (int i = 0; i < Yu.Size(); i++)
    {
       cout << Yu[i] << endl;
    }
 
-   cout << "Ru vector size: " << Ru.Size() << endl;
+   /*cout << "Ru vector size: " << Ru.Size() << endl;
    for (int i = 0; i < Ru.Size(); i++)
    {
       cout << Ru[i] << endl;
