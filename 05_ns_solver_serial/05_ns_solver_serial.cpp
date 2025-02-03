@@ -17,7 +17,7 @@ using namespace std;
 using namespace mfem;
 
 void checkpoint(int num);
-real_t velocity_dbc(const Vector & x);
+real_t velocity_nbc(const Vector & x);
 real_t pressure_dbc(const Vector & x);
 real_t zero_dbc(const Vector & x);
 void velocity_dbc_vec_func(const Vector & x, Vector & f);
@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
-   //Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_velocity = 0;
    // Dirichlet velocity at inlet (non-zero).
-   ess_boundary_marker_velocity[3] = 1;
+   ess_boundary_marker_velocity[3] = 0;
    // Dirichlet velocity at "top"/"bottom" (zero).
    ess_boundary_marker_velocity[0] = 1;
    ess_boundary_marker_velocity[2] = 1;
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    nat_boundary_marker_velocity = 1; 
    // Turn off natural boundary condition for velocity at inlet/"top"/"bottom".
-   nat_boundary_marker_velocity[0] = 0; 
+   nat_boundary_marker_velocity[0] = 1; 
    nat_boundary_marker_velocity[2] = 0; 
    nat_boundary_marker_velocity[3] = 0; 
 
@@ -189,14 +189,14 @@ int main(int argc, char *argv[])
    checkpoint(3);
    cout << "Pressure vector size (rp): " << rp.Size() << endl;
 
-   FunctionCoefficient velocity_dbc_coeff(velocity_dbc);
+   FunctionCoefficient velocity_nbc_coeff(velocity_nbc);
 
    // Set up rhs for velocity solve.
    LinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
 
    // Natural boundary condition.
-   ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_dbc_coeff), nat_boundary_marker_velocity);
+   ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
 
    ru.Assemble();
 
@@ -417,7 +417,8 @@ int main(int argc, char *argv[])
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    GMRESSolver F_solver;
    //CGSolver F_solver;
-   OperatorJacobiSmoother F_prec;
+   //SuperLUSolver F_solver;
+   //OperatorJacobiSmoother F_prec;
 
    //F_solver.SetOperator(fk);
    F_solver.SetOperator(Fk);
@@ -425,7 +426,7 @@ int main(int argc, char *argv[])
    F_solver.SetRelTol(1e-10);
    F_solver.SetMaxIter(2000);
    //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
-   F_solver.SetPreconditioner(F_prec);
+   //F_solver.SetPreconditioner(F_prec);
    F_solver.SetPrintLevel(3);
 
    // Solve nonlinear system.
@@ -485,7 +486,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-real_t velocity_dbc(const Vector & x)
+real_t velocity_nbc(const Vector & x)
 {
    return 1.0;
 }
@@ -494,7 +495,7 @@ real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
    { // Value at outlet.
-      return 2.0;
+      return 0.0;
    }
    else
    { // Value at inlet.
@@ -509,7 +510,7 @@ real_t zero_dbc(const Vector & x)
 
 void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
-   
+   real_t pi = 3.14159;
    if (x(0) > 0.0)
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
@@ -522,7 +523,8 @@ void velocity_dbc_vec_func(const Vector & x, Vector & f)
    } 
    else 
    { // One in x-direction at inlet.
-      f(0) = 1.0;
+      //f(0) = sin(5 * pi * x(0));
+      f(0) = 0.0;
       f(1) = 0.0;
 
       if (x.Size() == 3)
