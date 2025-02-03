@@ -282,7 +282,6 @@ int main(int argc, char *argv[])
    //       S_p eta = r_p. 
    SparseMatrix Mp;
    Vector Rp_m, Xi;
-   
 
    checkpoint(7);
 
@@ -312,21 +311,24 @@ int main(int argc, char *argv[])
    eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
 
    // Form linear systems for Mp and Sp.
-   mp.FormLinearSystem(ess_boundary_marker_pressure, xi, rp, Mp, Xi, Rp_m);
-   sp.FormLinearSystem(ess_boundary_marker_pressure, eta, rp, Sp, Eta, Rp_s);
+   mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
+   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
    
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
 
    cout << "Pressure solution vector size: " << Xi.Size() << endl;
    cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
-
+   
    // ----------------------------------------------------------------------------
    // Solving.
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
    // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
    CGSolver M_solver;
+   DSmoother M_prec;
+   //Solver M_prec = NULL;
+   //M_prec = new OperatorJacobiSmoother(mp, pressure_ess_tdof);
    //OperatorJacobiSmoother M_prec;
    //M_prec.SetOperator(Mp);
 
@@ -336,7 +338,7 @@ int main(int argc, char *argv[])
    M_solver.SetMaxIter(10);
    M_solver.SetPrintLevel(1);
    //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
-   //M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
    M_solver.Mult(Rp_m,Xi);
@@ -478,11 +480,11 @@ real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
    { // Value at outlet.
-      return 1.0;
+      return 2.0;
    }
    else
    { // Value at inlet.
-      return 2.0;
+      return 1.0;
    }
 }
 
