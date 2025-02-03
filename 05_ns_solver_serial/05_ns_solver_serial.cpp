@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_pressure = 0; 
    // Dirichlet pressure at outlet.
-   ess_boundary_marker_pressure[1] = 0; 
+   ess_boundary_marker_pressure[1] = 1; 
    // Dirichlet pressure at inlet.
    ess_boundary_marker_pressure[3] = 1; 
 
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    nat_boundary_marker_pressure = 1;
    // Turn off natural boundary condition for pressure at outlet.
-   nat_boundary_marker_pressure[1] = 1;
+   nat_boundary_marker_pressure[1] = 0;
    // and inlet.
    nat_boundary_marker_pressure[3] = 0;
 
@@ -477,11 +477,11 @@ real_t velocity_dbc(const Vector & x)
 real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
-   { // Zero on top and bottom boundaries.
+   { // Value at outlet.
       return 1.0;
    }
    else
-   {
+   { // Value at inlet.
       return 2.0;
    }
 }
