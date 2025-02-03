@@ -18,7 +18,9 @@ using namespace mfem;
 
 void checkpoint(int num);
 real_t velocity_dbc(const Vector & x);
-void velocity_dbc_vec(const Vector & x, Vector & f);
+real_t pressure_dbc(const Vector & x);
+real_t zero_dbc(const Vector & x);
+void velocity_dbc_vec_func(const Vector & x, Vector & f);
 void u_exact(const Vector & x, Vector & f);
 double pFun_ex(const Vector & x);
 void fFun(const Vector & x, Vector & f);
@@ -100,13 +102,26 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // Define boundaries.
    // ----------------------------------------------------------------------------
-   // Essential (Dirichlet) boundary conditions.
+   // Essential (Dirichlet) boundary conditions for pressure.
    Array<int> ess_boundary_marker_pressure, ess_boundary_marker_velocity; 
    ess_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_pressure = 0; 
    // Dirichlet pressure at outlet.
    ess_boundary_marker_pressure[1] = 1; 
+   // Dirichlet pressure at inlet.
+   ess_boundary_marker_pressure[3] = 1; 
 
+   // Natural (Neumann) boundary conditions for pressure.
+   Array<int> nat_boundary_marker_pressure, nat_boundary_marker_velocity; 
+   nat_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
+   nat_boundary_marker_pressure = 1;
+   // Turn off natural boundary condition for pressure at outlet.
+   nat_boundary_marker_pressure[1] = 0;
+   // and inlet.
+   nat_boundary_marker_pressure[3] = 0;
+
+
+   // Essential (Dirichlet) boundary conditions for velocity.
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    ess_boundary_marker_velocity = 0;
    // Dirichlet velocity at inlet (non-zero).
@@ -115,17 +130,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_velocity[0] = 1;
    ess_boundary_marker_velocity[2] = 1;
 
-   Array<int> pressure_ess_tdof, velocity_ess_tdof;
-   pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
-   velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
-
-   // Natural (Neumann) boundary conditions.
-   Array<int> nat_boundary_marker_pressure, nat_boundary_marker_velocity; 
-   nat_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-   nat_boundary_marker_pressure = 1;
-   // Turn off natural boundary condition for pressure at outlet.
-   nat_boundary_marker_pressure[1] = 0;
-
+   // Natural (Neumann) boundary conditions for velocity.
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
    nat_boundary_marker_velocity = 1; 
    // Turn off natural boundary condition for velocity at inlet/"top"/"bottom".
@@ -134,71 +139,12 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity[3] = 0; 
 
 
-   // Dirichlet BC values.
-   vector<double> DrchltVelVal;
-   DrchltVelVal.clear();
+   Array<int> pressure_ess_tdof, velocity_ess_tdof;
+   pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
+   velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
 
-   DrchltVelVal.push_back(0.0); // Bottom (Zero)
-   DrchltVelVal.push_back(0.0); // Right (natural) - n/a
-   DrchltVelVal.push_back(0.0); // Top (Zero)
-   DrchltVelVal.push_back(1.0); // Left (Inlet)
-
-   /*vector<vector<double>> DrchltVelVal = {
-        {0.0, 0.0}, // Bottom (Zero)
-        {0.0, 0.0}, // Right (natural) - n/a
-        {0.0, 0.0}, // Top (Zero)
-        {1.0, 0.0}  // Left (Inlet)
-    };*/
-
-   // Pressure BC values.
-   vector<double> DrchltPreVal;
-   DrchltPreVal.clear();
-
-   DrchltPreVal.push_back(0.0); // Bottom (Zero)
-   DrchltPreVal.push_back(1.0); // Right (natural) - n/a
-   DrchltPreVal.push_back(0.0); // Top (Zero)
-   DrchltPreVal.push_back(0.0); // Left (Inlet)
-
-   checkpoint(2);
-   const Array<int> &bdr_attr = velocity_fespace.GetMesh()->bdr_attributes;
-   cout << "Boundary attributes: ";
-   for (int i = 0; i < bdr_attr.Size(); i++) {
-      cout << bdr_attr[i] << " ";
-   }
-   cout << endl; 
-   cout << "No. of essential DoFs for pressure boundary conditions: " << pressure_ess_tdof.Size() << endl;
-   cout << "No. of essential DoFs for velocity boundary conditions: " << velocity_ess_tdof.Size() << endl;
-   cout << endl;
-
-   int n_vel_tags = velocity_fespace.GetMesh()->bdr_attributes.Max();
-   int n_pre_tags = pressure_fespace.GetMesh()->bdr_attributes.Max();
 
    
-
-
-   // Extract the list of all the boundary DOFs. These will be marked as
-   // Dirichlet in order to enforce zero boundary conditions.
-   //Array<int> boundary_dofs;
-   //pressure_fespace.GetBoundaryTrueDofs(boundary_dofs);
-   //boundary_marker.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-
-   // Temporary location for velocity boundary conditions.
-   //Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   //ess_bdr = 0;
-
-   //velocity_fespace.GetEssentialTrueDofs(boundary_marker, test_ess_tdof);
-
-   // Set Dirichlet boundary condition to [1,0,0].
-   //Vector vel_dbc(dim);
-   //vel_dbc = 0.0;
-   //vel_dbc[0] = 1.0; 
-   //VectorConstantCoefficient vel_dbc_coef(vel_dbc);
-
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
-
-
-
 
    // ----------------------------------------------------------------------------
    // Initialise solutions.
@@ -361,26 +307,12 @@ int main(int argc, char *argv[])
 
    checkpoint(11);
 
-   // Set Dirichlet boundary conditions on pressure.
-   Array<int> ess_pre_tdof, ess_pre_bdr_tmp(n_pre_tags);
-   cout << "Setting pressure Dirichlet boundary conditions..." << "\n";
-   for(int i_bdr = 0; i_bdr < n_pre_tags; i_bdr++)
-   {
-	   int K = ess_boundary_marker_pressure[i_bdr];
-      if (K == 1) //Checks if boundary is active
-      { 
-         ess_pre_bdr_tmp = 0;
-         ess_pre_bdr_tmp[i_bdr] = 1;
-         pressure_fespace.GetEssentialTrueDofs(ess_pre_bdr_tmp, ess_pre_tdof);
-         cout << "Dirichlet boundary no. " << i_bdr << " has size of " << ess_pre_tdof.Size() << "\n";
-         xi.SetSubVector(ess_pre_tdof, 0.0);  // Set to zero.
-         eta.SetSubVector(ess_pre_tdof, DrchltPreVal[i_bdr]);
-      }
-   }
+   // Project Dirichlet boundary values for pressure.
+   xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
 
-   // Form linear systems for Mp and Sp.
-   mp.FormLinearSystem(ess_pre_tdof, xi, rp, Mp, Xi, Rp_m);
-   sp.FormLinearSystem(ess_pre_tdof, eta, rp, Sp, Eta, Rp_s);
+   // Form linear systems for Mp.
+   mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
+
    
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
@@ -394,6 +326,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
    CGSolver M_solver(MPI_COMM_WORLD);
+   DSmoother M_prec;
    //OperatorJacobiSmoother M_prec;
    //M_prec.SetOperator(Mp);
 
@@ -403,12 +336,17 @@ int main(int argc, char *argv[])
    M_solver.SetMaxIter(10);
    M_solver.SetPrintLevel(1);
    //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
-   //M_solver.SetPreconditioner(M_prec);
+   M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(Mp);
 
    M_solver.Mult(Rp_m,Xi);
    mp.RecoverFEMSolution(Xi, rp, xi);
 
+
+   // Project Dirichlet boundary values for pressure.
+   eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
+   // Form linear systems for Mp.
+   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
 
    // Solve the S_p eta = r_p system using PCG with Jacobi preconditioner.
    CGSolver S_solver;
@@ -467,22 +405,8 @@ int main(int argc, char *argv[])
    yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
-   // Set Dirichlet boundary conditions for velocity.
-   Array<int> ess_vel_tdof, ess_vel_bdr_tmp(n_vel_tags);
-   cout << "Setting velocity Dirichlet boundary conditions..." << "\n";
-   for(int i_bdr = 0; i_bdr < n_vel_tags; i_bdr++)
-   {
-	   int K = ess_boundary_marker_velocity[i_bdr];
-      if (K == 1) //Checks if boundary is active
-      { 
-         ess_vel_bdr_tmp = 0;
-         ess_vel_bdr_tmp[i_bdr] = 1;
-         velocity_fespace.GetEssentialTrueDofs(ess_vel_bdr_tmp, ess_vel_tdof);
-         cout << "Dirichlet boundary no. " << i_bdr << " has size of " << ess_vel_tdof.Size() << "\n";
-         yu.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
-         ru.SetSubVector(ess_vel_tdof, DrchltVelVal[i_bdr]);
-      }
-   }
+   // Project Dirichlet boundary values for velocity.
+   yu.ProjectBdrCoefficient(velocity_DBC,ess_boundary_marker_velocity);
 
    yu.GetTrueDofs(Yu);
 

@@ -59,8 +59,8 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
-   Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -308,11 +308,9 @@ int main(int argc, char *argv[])
 
    // Project Dirichlet boundary values for pressure.
    xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
-   eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
 
-   // Form linear systems for Mp and Sp.
+   // Form linear systems for Mp.
    mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
-   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
    
    cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
    cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
@@ -344,6 +342,10 @@ int main(int argc, char *argv[])
    M_solver.Mult(Rp_m,Xi);
    mp.RecoverFEMSolution(Xi, rp, xi);
 
+   // Project Dirichlet boundary values for pressure.
+   eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
+   // Form linear systems for Mp.
+   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
 
    // Solve the S_p eta = r_p system using PCG with Jacobi preconditioner.
    CGSolver S_solver;
@@ -377,6 +379,12 @@ int main(int argc, char *argv[])
 
    // Add B^T y_p to r_u for the velocity solve.
    ru.Add(-1.0,bTyp);
+
+   cout << "ru vector size: " << ru.Size() << endl;
+   for (int i = 0; i < ru.Size(); i++)
+   {
+      cout << ru[i] << endl;
+   }
    
    Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
    // Initialise Ru, Yu
@@ -395,6 +403,12 @@ int main(int argc, char *argv[])
    SparseMatrix Fk;
    // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu, Ru);
+
+   cout << "Ru vector size: " << Ru.Size() << endl;
+   for (int i = 0; i < Ru.Size(); i++)
+   {
+      cout << Ru[i] << endl;
+   }
 
    cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
    cout << "Ru size: " << Ru.Size() << endl;
@@ -424,11 +438,11 @@ int main(int argc, char *argv[])
 
    fk.RecoverFEMSolution(Yu, ru, yu);
 
-   cout << "Yu vector size: " << Yu.Size() << endl;
+   /*cout << "Yu vector size: " << Yu.Size() << endl;
    for (int i = 0; i < Yu.Size(); i++)
    {
       cout << Yu[i] << endl;
-   }
+   }*/
 
 
    //}
