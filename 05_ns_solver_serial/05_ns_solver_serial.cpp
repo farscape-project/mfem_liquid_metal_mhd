@@ -21,6 +21,7 @@ real_t velocity_nbc(const Vector & x);
 real_t pressure_nbc(const Vector & x);
 real_t pressure_dbc(const Vector & x);
 real_t zero_dbc(const Vector & x);
+real_t outflow_term_func(const Vector & x);
 void velocity_dbc_vec_func(const Vector & x, Vector & f);
 void u_exact(const Vector & x, Vector & f);
 
@@ -38,7 +39,9 @@ int main(int argc, char *argv[])
    // Define ConstantCoefficients.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient half(0.5);
    ConstantCoefficient neg_one(-1.0);
+   ConstantCoefficient tmp_const(1.0);
    ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
 
    // kappa = ...
@@ -56,8 +59,8 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
-   //Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -242,25 +245,28 @@ int main(int argc, char *argv[])
 
    checkpoint(5);
 
+
+   FunctionCoefficient outflow_term(outflow_term_func);
+
    // Bilinear forms for the velocity solve.
    //ParNonlinearForm fk(&velocity_fespace);
    //*********** ParBilinearForm...
    BilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
-   fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
+   fk.AddDomainIntegrator(new VectorMassIntegrator());
    // Integrator for A_AL(v, v').
-   fk.AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(reciprocal_Re_coef)); // 1/Re (one may cause it to fail due to cancelling).
+   fk.AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef)); // 1/Re (one may cause it to fail due to cancelling).
    
    // Old Integrator for O(u_n, v, v').
    //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
    // Integrator for O(u_n, v, v').
    //***********  They take a bilinear form in paper...
-   fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-   fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+   fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
+   fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
-   fk.AddBoundaryIntegrator(new VectorMassIntegrator(ustar_coef));
+   fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
    checkpoint(6);
    fk.Assemble();
@@ -517,10 +523,30 @@ real_t zero_dbc(const Vector & x)
    return 0.0;
 }
 
+real_t outflow_term_func(const Vector & x)
+{
+
+   real_t val = 1.0;
+
+   if (x(0) < 0.99999)
+   { // Value at outlet.
+      return 0.5 * val;
+   }
+   else
+   { // Value at inlet.
+      return 0.0;
+   }
+}
+
+
 void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    real_t pi = 3.14159;
-   if (x(0) > 0.0)
+
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
+   
+   if (x(0) > 0.00005)
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
       f(1) = 0.0;
@@ -532,7 +558,8 @@ void velocity_dbc_vec_func(const Vector & x, Vector & f)
    } 
    else 
    { // One in x-direction at inlet.
-      f(0) = sin(5 * pi * x(0));
+      //f(0) = sin(5 * pi * x(1));
+      f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
       //f(0) = 1.0;
       f(1) = 0.0;
 
@@ -552,8 +579,12 @@ void u_exact(const mfem::Vector & x, mfem::Vector & f)
    double z(x(2));
    real_t pi = 3.14159;
 
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
+
    //f(0) = (9.0 / 4.0) * u_max * (1 - (y * y) / (y_max * y_max)) * (1 - (z * z) / (z_max * z_max));
-   f(0) = sin(5 * pi * x(0));
+   //f(0) = sin(5 * pi * x(0));
+   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
    f(1) = 0.0;
    if (x.Size() == 3)
    {

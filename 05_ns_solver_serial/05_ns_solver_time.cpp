@@ -520,7 +520,7 @@ real_t zero_dbc(const Vector & x)
 void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    real_t pi = 3.14159;
-   if (x(0) > 0.0)
+   if (x(0) > 0.005)
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
       f(1) = 0.0;
