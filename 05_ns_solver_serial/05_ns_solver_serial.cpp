@@ -88,10 +88,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
-   VectorFunctionCoefficient ucoef(3, u_exact);
-   ustar_n.ProjectCoefficient(ucoef);
-   VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+   
 
    // ----------------------------------------------------------------------------
    // Define boundaries.
@@ -248,6 +245,16 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient outflow_term(outflow_term_func);
 
+
+   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
+
+   //for(int ti = 0; ti < 10; ti++)
+   //{
+
+   VectorFunctionCoefficient ucoef(3, u_exact);
+   ustar_n.ProjectCoefficient(ucoef);
+   VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+
    // Bilinear forms for the velocity solve.
    //ParNonlinearForm fk(&velocity_fespace);
    //*********** ParBilinearForm...
@@ -266,7 +273,7 @@ int main(int argc, char *argv[])
    fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
    fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
-   fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
+   //fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
    checkpoint(6);
    fk.Assemble();
@@ -279,8 +286,7 @@ int main(int argc, char *argv[])
 
    checkpoint(7);
 
-   //for(int ti = 0; ti < 10; ti++)
-   //{
+   
 
    // ----------------------------------------------------------------------------
    // Form linear systems.
@@ -425,8 +431,8 @@ int main(int argc, char *argv[])
    cout << "Yu size: " << Yu.Size() << endl;
 
    // Set up the solve for the nonlinear F_k y_u = r_u system.
-   //GMRESSolver F_solver;
-   CGSolver F_solver;
+   GMRESSolver F_solver;
+   //CGSolver F_solver;
    //SuperLUSolver F_solver;
    //OperatorJacobiSmoother F_prec;
 
@@ -434,7 +440,7 @@ int main(int argc, char *argv[])
    F_solver.SetOperator(Fk);
    F_solver.SetPrintLevel(1);
    F_solver.SetRelTol(1e-10);
-   F_solver.SetMaxIter(200);
+   F_solver.SetMaxIter(2000);
    //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
    //F_solver.SetPreconditioner(F_prec);
    F_solver.SetPrintLevel(3);
@@ -449,11 +455,11 @@ int main(int argc, char *argv[])
 
    fk.RecoverFEMSolution(Yu, ru, yu);
 
-   cout << "Yu vector size: " << Yu.Size() << endl;
+   /*cout << "Yu vector size: " << Yu.Size() << endl;
    for (int i = 0; i < Yu.Size(); i++)
    {
       cout << Yu[i] << endl;
-   }
+   }*/
 
 
    //}
@@ -510,11 +516,11 @@ real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
    { // Value at outlet.
-      return 1.0;
+      return 0.0;
    }
    else
    { // Value at inlet.
-      return 2.0;
+      return 0.0;
    }
 }
 
