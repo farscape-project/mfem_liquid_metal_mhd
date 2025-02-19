@@ -25,6 +25,8 @@ real_t outflow_term_func(const Vector & x);
 void velocity_dbc_vec_func(const Vector & x, Vector & f);
 void u_exact(const Vector & x, Vector & f);
 
+void initial_velocity(const Vector & x, Vector & f);
+
 int main(int argc, char *argv[])
 {
 
@@ -35,6 +37,7 @@ int main(int argc, char *argv[])
    real_t alpha1, neg_alpha1;  
    alpha1 = alpha + reciprocal_Re;
    neg_alpha1 = -alpha1;
+   real_t tau(0.1);
 
    // Define ConstantCoefficients.
    ConstantCoefficient zero(0.0);
@@ -43,6 +46,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient neg_one(-1.0);
    ConstantCoefficient tmp_const(1.0);
    ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
+   ConstantCoefficient vectorMassCoef(2.0 / tau);
 
    // kappa = ...
 
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_pressure[0] = 0; // Top
    ess_boundary_marker_pressure[1] = 1; // Outlet
    ess_boundary_marker_pressure[2] = 0; // Bottom
-   ess_boundary_marker_pressure[3] = 0; // Inlet
+   ess_boundary_marker_pressure[3] = 1; // Inlet
 
    // Essential (Dirichlet) boundary conditions for velocity.
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -115,7 +119,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_velocity[0] = 1; // Top
    ess_boundary_marker_velocity[1] = 0; // Outlet
    ess_boundary_marker_velocity[2] = 1; // Bottom
-   ess_boundary_marker_velocity[3] = 1; // Inlet
+   ess_boundary_marker_velocity[3] = 0; // Inlet
 
 
    // Natural (Neumann) boundary conditions for pressure.
@@ -126,7 +130,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_pressure[0] = 1; // Top
    nat_boundary_marker_pressure[1] = 0; // Outlet
    nat_boundary_marker_pressure[2] = 1; // Bottom
-   nat_boundary_marker_pressure[3] = 1; // Inlet
+   nat_boundary_marker_pressure[3] = 0; // Inlet
 
    // Natural (Neumann) boundary conditions for velocity.
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -135,7 +139,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity[0] = 0; // Top
    nat_boundary_marker_velocity[1] = 1; // Outlet
    nat_boundary_marker_velocity[2] = 0; // Bottom
-   nat_boundary_marker_velocity[3] = 0; // Inlet
+   nat_boundary_marker_velocity[3] = 1; // Inlet
 
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
@@ -188,7 +192,7 @@ int main(int argc, char *argv[])
    LinearForm rp(&pressure_fespace);
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    // Natural boundary condition.
-   //rp.AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), nat_boundary_marker_pressure);
+   rp.AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), nat_boundary_marker_pressure);
    rp.Assemble();
 
    checkpoint(3);
@@ -198,7 +202,7 @@ int main(int argc, char *argv[])
    LinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
    // Natural boundary condition.
-   //ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
+   ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
    ru.Assemble();
 
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
@@ -261,7 +265,7 @@ int main(int argc, char *argv[])
    BilinearForm fk(&velocity_fespace);
 
    // Integrator for (v, v').
-   fk.AddDomainIntegrator(new VectorMassIntegrator());
+   fk.AddDomainIntegrator(new VectorMassIntegrator(vectorMassCoef));
    // Integrator for A_AL(v, v').
    fk.AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef)); // 1/Re (one may cause it to fail due to cancelling).
    
@@ -273,7 +277,8 @@ int main(int argc, char *argv[])
    fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
    fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
-   //fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
+   // Outflow boundary term.
+   fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
    checkpoint(6);
    fk.Assemble();
@@ -322,7 +327,8 @@ int main(int argc, char *argv[])
 
 
    // Project Dirichlet boundary values for pressure.
-   xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
+   //xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
+   xi.ProjectBdrCoefficient(zero_DBC,pressure_ess_tdof);
 
    // Form linear systems for Mp.
    mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
@@ -353,7 +359,8 @@ int main(int argc, char *argv[])
    mp.RecoverFEMSolution(Xi, rp, xi);
 
    // Project Dirichlet boundary values for pressure.
-   eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
+   //eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
+   eta.ProjectBdrCoefficient(pressure_DBC,pressure_ess_tdof);
    // Form linear systems for Mp.
    sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
 
@@ -410,13 +417,19 @@ int main(int argc, char *argv[])
    //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
    //fk.SetEssentialBC(velocity_ess_tdof, &ru);
 
+   // Set initial condition.
+   //VectorFunctionCoefficient initial_velocity_coef(dim, initial_velocity);
+   //yu.ProjectCoefficient(initial_velocity_coef);
+
 
    // Project Dirichlet boundary values for velocity.
-   yu.ProjectBdrCoefficient(velocity_DBC,ess_boundary_marker_velocity);
+   //yu.ProjectBdrCoefficient(velocity_DBC,ess_boundary_marker_velocity);
+   yu.ProjectBdrCoefficient(velocity_DBC,velocity_ess_tdof);
 
    yu.GetTrueDofs(Yu);
 
    SparseMatrix Fk;
+
    // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
    fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu, Ru);
 
@@ -430,15 +443,15 @@ int main(int argc, char *argv[])
    cout << "Ru size: " << Ru.Size() << endl;
    cout << "Yu size: " << Yu.Size() << endl;
 
+
    // Set up the solve for the nonlinear F_k y_u = r_u system.
    GMRESSolver F_solver;
    //CGSolver F_solver;
-   //SuperLUSolver F_solver;
+   //BiCGSTABSolver F_solver;
    //OperatorJacobiSmoother F_prec;
 
    //F_solver.SetOperator(fk);
    F_solver.SetOperator(Fk);
-   F_solver.SetPrintLevel(1);
    F_solver.SetRelTol(1e-10);
    F_solver.SetMaxIter(2000);
    //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
@@ -446,9 +459,11 @@ int main(int argc, char *argv[])
    F_solver.SetPrintLevel(3);
 
    // Solve nonlinear system.
-   
+    
    cout << "Starting Mult..." << endl;
+   
    F_solver.Mult(Ru, Yu);
+      
    cout << "Mult completed." << endl;
 
    //Fk.Print();
@@ -493,6 +508,9 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("xi",&xi);
    paraview_dc.RegisterField("eta",&eta);
 
+   // Testing ustar_n is doing the right thing.
+   //paraview_dc.RegisterField("ustar_n",&ustar_n);
+
    paraview_dc.Save();
 
 
@@ -520,7 +538,7 @@ real_t pressure_dbc(const Vector & x)
    }
    else
    { // Value at inlet.
-      return 0.0;
+      return 1.0;
    }
 }
 
@@ -535,12 +553,12 @@ real_t outflow_term_func(const Vector & x)
    real_t val = 1.0;
 
    if (x(0) < 0.99999)
-   { // Value at outlet.
-      return 0.5 * val;
-   }
-   else
    { // Value at inlet.
       return 0.0;
+   }
+   else
+   { // Value at outlet.
+      return 0.5 * val;
    }
 }
 
@@ -578,24 +596,17 @@ void velocity_dbc_vec_func(const Vector & x, Vector & f)
 
 void u_exact(const mfem::Vector & x, mfem::Vector & f)
 {
-   double u_max(1.0);
-   double y_max(1.0);
-   double z_max(1.0);
-   double y(x(1));
-   double z(x(2));
-   real_t pi = 3.14159;
 
    real_t r_max = 0.1;
    real_t u_avg = 1.0;
 
-   //f(0) = (9.0 / 4.0) * u_max * (1 - (y * y) / (y_max * y_max)) * (1 - (z * z) / (z_max * z_max));
-   //f(0) = sin(5 * pi * x(0));
    f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
    f(1) = 0.0;
    if (x.Size() == 3)
    {
       f(2) = 0.0;
    }
+   
 }
 
 
@@ -605,4 +616,12 @@ void checkpoint(int num)
    cout << "**************** CHECKPOINT " << num << " ****************" << endl;
    cout << "**********************************************" << endl;
    cout << endl;
+}
+
+void initial_velocity(const Vector & x, Vector & f)
+{
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
+
+   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
 }

@@ -21,8 +21,11 @@ real_t velocity_nbc(const Vector & x);
 real_t pressure_nbc(const Vector & x);
 real_t pressure_dbc(const Vector & x);
 real_t zero_dbc(const Vector & x);
+real_t outflow_term_func(const Vector & x);
 void velocity_dbc_vec_func(const Vector & x, Vector & f);
 void u_exact(const Vector & x, Vector & f);
+
+void initial_velocity(const Vector & x, Vector & f);
 
 int main(int argc, char *argv[])
 {
@@ -34,12 +37,16 @@ int main(int argc, char *argv[])
    real_t alpha1, neg_alpha1;  
    alpha1 = alpha + reciprocal_Re;
    neg_alpha1 = -alpha1;
+   real_t tau(0.1);
 
    // Define ConstantCoefficients.
    ConstantCoefficient zero(0.0);
    ConstantCoefficient one(1.0);
+   ConstantCoefficient half(0.5);
    ConstantCoefficient neg_one(-1.0);
+   ConstantCoefficient tmp_const(1.0);
    ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
+   ConstantCoefficient vectorMassCoef(2.0 / tau);
 
    // kappa = ...
 
@@ -56,8 +63,8 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
 
-   Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
-   //Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    //Mesh mesh = Mesh::MakeCartesian3D(10, 10, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 1.0, 1.0);
    int dim = mesh.Dimension();   
 
@@ -85,10 +92,7 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
 
-   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
-   VectorFunctionCoefficient ucoef(3, u_exact);
-   ustar_n.ProjectCoefficient(ucoef);
-   VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+   
 
    // ----------------------------------------------------------------------------
    // Define boundaries.
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_pressure[0] = 0; // Top
    ess_boundary_marker_pressure[1] = 1; // Outlet
    ess_boundary_marker_pressure[2] = 0; // Bottom
-   ess_boundary_marker_pressure[3] = 0; // Inlet
+   ess_boundary_marker_pressure[3] = 1; // Inlet
 
    // Essential (Dirichlet) boundary conditions for velocity.
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -115,7 +119,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_velocity[0] = 1; // Top
    ess_boundary_marker_velocity[1] = 0; // Outlet
    ess_boundary_marker_velocity[2] = 1; // Bottom
-   ess_boundary_marker_velocity[3] = 1; // Inlet
+   ess_boundary_marker_velocity[3] = 0; // Inlet
 
 
    // Natural (Neumann) boundary conditions for pressure.
@@ -126,7 +130,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_pressure[0] = 1; // Top
    nat_boundary_marker_pressure[1] = 0; // Outlet
    nat_boundary_marker_pressure[2] = 1; // Bottom
-   nat_boundary_marker_pressure[3] = 1; // Inlet
+   nat_boundary_marker_pressure[3] = 0; // Inlet
 
    // Natural (Neumann) boundary conditions for velocity.
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -135,7 +139,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity[0] = 0; // Top
    nat_boundary_marker_velocity[1] = 1; // Outlet
    nat_boundary_marker_velocity[2] = 0; // Bottom
-   nat_boundary_marker_velocity[3] = 0; // Inlet
+   nat_boundary_marker_velocity[3] = 1; // Inlet
 
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
@@ -160,12 +164,18 @@ int main(int argc, char *argv[])
    // Solution for B^T * y_p.
    GridFunction bTyp(&velocity_fespace);
 
+   // Velocity history.
+   GridFunction un_nm1(&velocity_fespace);
+   GridFunction un_nm2(&velocity_fespace);
+
    // Set initial guesses to zero.  This also sets BCs.
    xi = 0.0;
    eta = 0.0;
    yp = 0.0;
    yu = 0.0;
    bTyp = 0.0;
+   un_nm1 = 0.0;
+   un_nm2 = 0.0;
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -188,7 +198,7 @@ int main(int argc, char *argv[])
    LinearForm rp(&pressure_fespace);
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    // Natural boundary condition.
-   //rp.AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), nat_boundary_marker_pressure);
+   rp.AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), nat_boundary_marker_pressure);
    rp.Assemble();
 
    checkpoint(3);
@@ -198,7 +208,7 @@ int main(int argc, char *argv[])
    LinearForm ru(&velocity_fespace);
    ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
    // Natural boundary condition.
-   //ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
+   ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
    ru.Assemble();
 
    cout << "Velocity vector size (ru): " << ru.Size() << endl;
@@ -242,215 +252,245 @@ int main(int argc, char *argv[])
 
    checkpoint(5);
 
-   // Bilinear forms for the velocity solve.
-   //ParNonlinearForm fk(&velocity_fespace);
-   //*********** ParBilinearForm...
+
+   FunctionCoefficient outflow_term(outflow_term_func);
+
+   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
+
    BilinearForm fk(&velocity_fespace);
 
+   VectorFunctionCoefficient ucoef(3, u_exact);
+   ustar_n.ProjectCoefficient(ucoef);
+   VectorGridFunctionCoefficient ustar_coef(&ustar_n);
+
+   // Bilinear forms for the velocity solve.
+     //ParNonlinearForm fk(&velocity_fespace);
+     //*********** ParBilinearForm...
    // Integrator for (v, v').
-   fk.AddDomainIntegrator(new mfem::VectorMassIntegrator());
-   // Integrator for A_AL(v, v').
-   fk.AddDomainIntegrator(new mfem::VectorDiffusionIntegrator(reciprocal_Re_coef)); // 1/Re (one may cause it to fail due to cancelling).
-   
-   // Old Integrator for O(u_n, v, v').
-   //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
+     fk.AddDomainIntegrator(new VectorMassIntegrator(vectorMassCoef));
+     // Integrator for A_AL(v, v').
+     fk.AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef)); // 1/Re 
+     
+     // Old Integrator for O(u_n, v, v').
+     //fk.AddDomainIntegrator(new SkewSymmetricVectorConvectionNLFIntegrator(one));
 
-   // Integrator for O(u_n, v, v').
-   //***********  They take a bilinear form in paper...
-   fk.AddDomainIntegrator(new mfem::ConvectionIntegrator(ustar_coef, 0.5));
-   fk.AddDomainIntegrator(new mfem::ConservativeConvectionIntegrator(ustar_coef, 0.5));
+     // Integrator for O(u_n, v, v').
+     //***********  They take a bilinear form in paper...
+     fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
+     fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
 
-   fk.AddBoundaryIntegrator(new VectorMassIntegrator(ustar_coef));
+     // Outflow boundary term.
+     fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
-   checkpoint(6);
-   fk.Assemble();
-   
-   
-
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
-
-
-   checkpoint(7);
+     checkpoint(6);
+     fk.Assemble();
 
    for(int ti = 0; ti < 10; ti++)
    {
 
-   // ----------------------------------------------------------------------------
-   // Form linear systems.
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
-   // Form the linear systems for both 
-   //       M_p xi = r_p, and
-   //       S_p eta = r_p. 
-   SparseMatrix Mp;
-   Vector Rp_m, Xi;
+     cout << "Time step t = " << ti << endl;
 
-   checkpoint(7);
+     
+     
+     
 
-   SparseMatrix Sp;
-   Vector Rp_s, Eta;
+     
+     
+     
+
+     // ----------------------------------------------------------------------------
+     // ----------------------------------------------------------------------------
+
+
+     checkpoint(7);
+
+     
+
+     // ----------------------------------------------------------------------------
+     // Form linear systems.
+     // ----------------------------------------------------------------------------
+     // ----------------------------------------------------------------------------
+     // Form the linear systems for both 
+     //       M_p xi = r_p, and
+     //       S_p eta = r_p. 
+     SparseMatrix Mp;
+     Vector Rp_m, Xi;
+
+     checkpoint(7);
+
+     SparseMatrix Sp;
+     Vector Rp_s, Eta;
+     
+
+     checkpoint(8);
+     
+     // Set up linear calculation for B^T y_p.
+     SparseMatrix B;
+     //OperatorPtr opB;
+     Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
+     //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
+
+     checkpoint(9);
+
+
+     // ----------------------------------------------------------------------------
+     // ----------------------------------------------------------------------------
+
+     checkpoint(11);
+
+
+     // Project Dirichlet boundary values for pressure.
+     //xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
+     xi.ProjectBdrCoefficient(zero_DBC,pressure_ess_tdof);
+
+     // Form linear systems for Mp.
+     mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
+     
+     
+     // ----------------------------------------------------------------------------
+     // Solving.
+     // ----------------------------------------------------------------------------
+     // ----------------------------------------------------------------------------
+     // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
+     CGSolver M_solver;
+     DSmoother M_prec;
+     //Solver M_prec = NULL;
+     //M_prec = new OperatorJacobiSmoother(mp, pressure_ess_tdof);
+     //OperatorJacobiSmoother M_prec;
+     //M_prec.SetOperator(Mp);
+
+     M_solver.iterative_mode = false;
+     M_solver.SetRelTol(1e-8);
+     M_solver.SetAbsTol(0.0);
+     M_solver.SetMaxIter(10);
+     M_solver.SetPrintLevel(1);
+     //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
+     M_solver.SetPreconditioner(M_prec);
+     M_solver.SetOperator(Mp);
+
+     M_solver.Mult(Rp_m,Xi);
+     mp.RecoverFEMSolution(Xi, rp, xi);
+
+     // Project Dirichlet boundary values for pressure.
+     //eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
+     eta.ProjectBdrCoefficient(pressure_DBC,pressure_ess_tdof);
+     // Form linear systems for Mp.
+     sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
+
+     cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
+     cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
+
+     cout << "Pressure solution vector size: " << Xi.Size() << endl;
+     cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
+
+     // Solve the S_p eta = r_p system using PCG with Jacobi preconditioner.
+     CGSolver S_solver;
+     DSmoother S_prec;
+
+     S_solver.iterative_mode = false;
+     S_solver.SetRelTol(1e-8);
+     S_solver.SetAbsTol(0.0);
+     S_solver.SetMaxIter(200);
+     S_solver.SetPrintLevel(1);
+     //S_prec.SetType(DSmoother::Jacobi); 
+     S_solver.SetPreconditioner(S_prec);
+     S_solver.SetOperator(Sp);
+
+     S_solver.Mult(Rp_s,Eta);
+     sp.RecoverFEMSolution(Eta, rp, eta);
+
+     // Do the sum y_p = -alpha1 xi - eta.  Note: above alpha1 must be defined negative.
+     yp.Add(neg_alpha1,xi);
+     yp.Add(-1.0,eta);
+     
+     // Calculate B^T y_p and add B^T y_p to r_u for the velocity solve.
+     Vector Yp(pressure_fespace.GetTrueVSize());;
+     yp.GetTrueDofs(Yp);
+     //Yp = yp;
+     // Calculate B^T y_p.
+     b.MultTranspose(Yp,BTyp);
+
+     // Recover GridFunction from Vector.
+     bTyp.SetFromTrueDofs(BTyp);
+
+     // Add B^T y_p to r_u for the velocity solve.
+     ru.Add(-1.0,bTyp);
+
+     /*cout << "ru vector size: " << ru.Size() << endl;
+     for (int i = 0; i < ru.Size(); i++)
+     {
+        cout << ru[i] << endl;
+     }*/
+     
+     Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
+     // Initialise Ru, Yu
+     Ru = 0.0;
+     
+     //ru.ParallelAssemble(Ru);
+     //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
+     //fk.SetEssentialBC(velocity_ess_tdof, &ru);
+
+     // Set initial condition.
+     //VectorFunctionCoefficient initial_velocity_coef(dim, initial_velocity);
+     //yu.ProjectCoefficient(initial_velocity_coef);
+
+
+     // Project Dirichlet boundary values for velocity.
+     //yu.ProjectBdrCoefficient(velocity_DBC,ess_boundary_marker_velocity);
+     yu.ProjectBdrCoefficient(velocity_DBC,velocity_ess_tdof);
+
+     yu.GetTrueDofs(Yu);
+
+     SparseMatrix Fk;
+
+     // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
+     fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu, Ru);
+
+     /*cout << "Ru vector size: " << Ru.Size() << endl;
+     for (int i = 0; i < Ru.Size(); i++)
+     {
+        cout << Ru[i] << endl;
+     }*/
+
+     cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
+     cout << "Ru size: " << Ru.Size() << endl;
+     cout << "Yu size: " << Yu.Size() << endl;
+
+
+     // Set up the solve for the nonlinear F_k y_u = r_u system.
+     GMRESSolver F_solver;
+     //CGSolver F_solver;
+     //BiCGSTABSolver F_solver;
+     //OperatorJacobiSmoother F_prec;
+
+     //F_solver.SetOperator(fk);
+     F_solver.SetOperator(Fk);
+     F_solver.SetRelTol(1e-10);
+     F_solver.SetMaxIter(2000);
+     //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
+     //F_solver.SetPreconditioner(F_prec);
+     F_solver.SetPrintLevel(3);
+
+     // Solve nonlinear system.
+     
+     cout << "Starting Mult..." << endl;
+     
+     F_solver.Mult(Ru, Yu);
+        
+     cout << "Mult completed." << endl;
+
+     //Fk.Print();
+
+     fk.RecoverFEMSolution(Yu, ru, yu);
+
+     /*cout << "Yu vector size: " << Yu.Size() << endl;
+     for (int i = 0; i < Yu.Size(); i++)
+     {
+        cout << Yu[i] << endl;
+     }*/
+
+
    
-
-   checkpoint(8);
-   
-   // Set up linear calculation for B^T y_p.
-   SparseMatrix B;
-   //OperatorPtr opB;
-   Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
-   //b.FormLinearSystem(boundary_dofs, yp, b, B, BTyp, Brhs);
-
-   checkpoint(9);
-
-
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
-
-   checkpoint(11);
-
-
-   // Project Dirichlet boundary values for pressure.
-   xi.ProjectBdrCoefficient(zero_DBC,ess_boundary_marker_pressure);
-
-   // Form linear systems for Mp.
-   mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
-   
-   
-   // ----------------------------------------------------------------------------
-   // Solving.
-   // ----------------------------------------------------------------------------
-   // ----------------------------------------------------------------------------
-   // Solve the M_p xi = r_p system using PCG with Jacobi preconditioner.
-   CGSolver M_solver;
-   DSmoother M_prec;
-   //Solver M_prec = NULL;
-   //M_prec = new OperatorJacobiSmoother(mp, pressure_ess_tdof);
-   //OperatorJacobiSmoother M_prec;
-   //M_prec.SetOperator(Mp);
-
-   M_solver.iterative_mode = false;
-   M_solver.SetRelTol(1e-8);
-   M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(10);
-   M_solver.SetPrintLevel(1);
-   //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
-   M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(Mp);
-
-   M_solver.Mult(Rp_m,Xi);
-   mp.RecoverFEMSolution(Xi, rp, xi);
-
-   // Project Dirichlet boundary values for pressure.
-   eta.ProjectBdrCoefficient(pressure_DBC,ess_boundary_marker_pressure);
-   // Form linear systems for Mp.
-   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
-
-   cout << "Bilinear form mp matrix size: " << Mp.Height() << " x " << Mp.Width() << endl;
-   cout << "Bilinear form sp matrix size: " << Sp.Height() << " x " << Sp.Width() << endl;
-
-   cout << "Pressure solution vector size: " << Xi.Size() << endl;
-   cout << "Pressure rhs vector size: " << Rp_m.Size() << endl;
-
-   // Solve the S_p eta = r_p system using PCG with Jacobi preconditioner.
-   CGSolver S_solver;
-   DSmoother S_prec;
-
-   S_solver.iterative_mode = false;
-   S_solver.SetRelTol(1e-8);
-   S_solver.SetAbsTol(0.0);
-   S_solver.SetMaxIter(200);
-   S_solver.SetPrintLevel(1);
-   //S_prec.SetType(DSmoother::Jacobi); 
-   S_solver.SetPreconditioner(S_prec);
-   S_solver.SetOperator(Sp);
-
-   S_solver.Mult(Rp_s,Eta);
-   sp.RecoverFEMSolution(Eta, rp, eta);
-
-   // Do the sum y_p = -alpha1 xi - eta.  Note: above alpha1 must be defined negative.
-   yp.Add(neg_alpha1,xi);
-   yp.Add(-1.0,eta);
-   
-   // Calculate B^T y_p and add B^T y_p to r_u for the velocity solve.
-   Vector Yp(pressure_fespace.GetTrueVSize());;
-   yp.GetTrueDofs(Yp);
-   //Yp = yp;
-   // Calculate B^T y_p.
-   b.MultTranspose(Yp,BTyp);
-
-   // Recover GridFunction from Vector.
-   bTyp.SetFromTrueDofs(BTyp);
-
-   // Add B^T y_p to r_u for the velocity solve.
-   ru.Add(-1.0,bTyp);
-
-   /*cout << "ru vector size: " << ru.Size() << endl;
-   for (int i = 0; i < ru.Size(); i++)
-   {
-      cout << ru[i] << endl;
-   }*/
-   
-   Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
-   // Initialise Ru, Yu
-   Ru = 0.0;
-   
-   //ru.ParallelAssemble(Ru);
-   //yu.ParallelProject(Yu);    // https://github.com/mfem/mfem/issues/2791 comment Feb 17, 2022
-   //fk.SetEssentialBC(velocity_ess_tdof, &ru);
-
-
-   // Project Dirichlet boundary values for velocity.
-   yu.ProjectBdrCoefficient(velocity_DBC,ess_boundary_marker_velocity);
-
-   yu.GetTrueDofs(Yu);
-
-   SparseMatrix Fk;
-   // Set up system for F_k y_u = r_u (where r_u is r_u - B^T yp).
-   fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu, Ru);
-
-   /*cout << "Ru vector size: " << Ru.Size() << endl;
-   for (int i = 0; i < Ru.Size(); i++)
-   {
-      cout << Ru[i] << endl;
-   }*/
-
-   cout << "f_k operator size (height x width): " << fk.Height() << " x " << fk.Width() << endl;
-   cout << "Ru size: " << Ru.Size() << endl;
-   cout << "Yu size: " << Yu.Size() << endl;
-
-   // Set up the solve for the nonlinear F_k y_u = r_u system.
-   //GMRESSolver F_solver;
-   CGSolver F_solver;
-   //SuperLUSolver F_solver;
-   //OperatorJacobiSmoother F_prec;
-
-   //F_solver.SetOperator(fk);
-   F_solver.SetOperator(Fk);
-   F_solver.SetPrintLevel(1);
-   F_solver.SetRelTol(1e-10);
-   F_solver.SetMaxIter(200);
-   //F_prec.SetType(SparseSmoother::Jacobi); // Schwarz preconditioner...?  ASM (PETSc)?
-   //F_solver.SetPreconditioner(F_prec);
-   F_solver.SetPrintLevel(3);
-
-   // Solve nonlinear system.
-   
-   cout << "Starting Mult..." << endl;
-   F_solver.Mult(Ru, Yu);
-   cout << "Mult completed." << endl;
-
-   //Fk.Print();
-
-   fk.RecoverFEMSolution(Yu, ru, yu);
-
-   cout << "Yu vector size: " << Yu.Size() << endl;
-   for (int i = 0; i < Yu.Size(); i++)
-   {
-      cout << Yu[i] << endl;
-   }
-
-
-   }
 
    // ----------------------------------------------------------------------------
    // ----------------------------------------------------------------------------
@@ -464,11 +504,11 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
    paraview_dc.SetPrefixPath("data");
-   paraview_dc.SetLevelsOfDetail(order_pressure);
-   paraview_dc.SetCycle(0);
+   paraview_dc.SetLevelsOfDetail(order_velocity);
+   paraview_dc.SetCycle(ti);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
    paraview_dc.SetHighOrderOutput(true);
-   paraview_dc.SetTime(0.0); // set the time
+   paraview_dc.SetTime(ti); // set the time
 
    // Export pressure data.
    paraview_dc.RegisterField("p",&yp);
@@ -481,7 +521,20 @@ int main(int argc, char *argv[])
    paraview_dc.RegisterField("xi",&xi);
    paraview_dc.RegisterField("eta",&eta);
 
+   // Testing ustar_n is doing the right thing.
+   //paraview_dc.RegisterField("ustar_n",&ustar_n);
+
    paraview_dc.Save();
+
+   // Add velocity vector update.
+   // ustar_coef becomes u_n_hstar = 0.5(3u_{n-1} - u_{n-2})
+
+   un_nm2 = un_nm1;
+   un_nm1 = yu;
+   // How to multiply grid function by real number?
+   ustar_n = 0.5 * ( 3.0 * un_nm1 - un_nm2 );
+
+   }
 
 
    // ----------------------------------------------------------------------------
@@ -504,11 +557,11 @@ real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
    { // Value at outlet.
-      return 1.0;
+      return 0.0;
    }
    else
    { // Value at inlet.
-      return 2.0;
+      return 1.0;
    }
 }
 
@@ -517,10 +570,30 @@ real_t zero_dbc(const Vector & x)
    return 0.0;
 }
 
+real_t outflow_term_func(const Vector & x)
+{
+
+   real_t val = 1.0;
+
+   if (x(0) < 0.99999)
+   { // Value at inlet.
+      return 0.0;
+   }
+   else
+   { // Value at outlet.
+      return 0.5 * val;
+   }
+}
+
+
 void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    real_t pi = 3.14159;
-   if (x(0) > 0.005)
+
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
+   
+   if (x(0) > 0.00005)
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
       f(1) = 0.0;
@@ -532,7 +605,8 @@ void velocity_dbc_vec_func(const Vector & x, Vector & f)
    } 
    else 
    { // One in x-direction at inlet.
-      f(0) = sin(5 * pi * x(0));
+      //f(0) = sin(5 * pi * x(1));
+      f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
       //f(0) = 1.0;
       f(1) = 0.0;
 
@@ -545,20 +619,17 @@ void velocity_dbc_vec_func(const Vector & x, Vector & f)
 
 void u_exact(const mfem::Vector & x, mfem::Vector & f)
 {
-   double u_max(1.0);
-   double y_max(1.0);
-   double z_max(1.0);
-   double y(x(1));
-   double z(x(2));
-   real_t pi = 3.14159;
+   
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
 
-   //f(0) = (9.0 / 4.0) * u_max * (1 - (y * y) / (y_max * y_max)) * (1 - (z * z) / (z_max * z_max));
-   f(0) = sin(5 * pi * x(0));
+   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
    f(1) = 0.0;
    if (x.Size() == 3)
    {
       f(2) = 0.0;
    }
+   
 }
 
 
@@ -568,4 +639,12 @@ void checkpoint(int num)
    cout << "**************** CHECKPOINT " << num << " ****************" << endl;
    cout << "**********************************************" << endl;
    cout << endl;
+}
+
+void initial_velocity(const Vector & x, Vector & f)
+{
+   real_t r_max = 0.1;
+   real_t u_avg = 1.0;
+
+   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
 }
