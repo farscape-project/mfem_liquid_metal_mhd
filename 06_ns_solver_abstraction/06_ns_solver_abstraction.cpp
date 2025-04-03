@@ -338,19 +338,13 @@ int main(int argc, char *argv[])
 
    // Project Dirichlet boundary values for pressure.
    xi.ProjectBdrCoefficient(zero_DBC,pressure_ess_tdof);
-   //eta.ProjectBdrCoefficient(pressure_DBC,pressure_ess_tdof);
 
    // Form linear system for Mp.
    mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
 
-   // Form linear system for Sp.
-   //sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
 
    xi.SetTrueVector();
    eta.SetTrueVector();
-
-   //Vector X(Xi.Size() + Eta.Size());
-   //Vector Y(X.Size());
 
    // Copy the elements from Xi and Eta into X
    for (int i = 0; i < Xi.Size(); i++) {
@@ -360,29 +354,14 @@ int main(int argc, char *argv[])
       X(i + Xi.Size()) = Rp_s(i);  
    }
 
-   cout << "pressure_ess_tdof check (Before PPreconditioner)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
-
    //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
    PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, rp, pressure_ess_tdof, velocity_ess_tdof, &pressure_DBC);
    precond.SetGridFunctions(&rp, &yp, &xi, &eta);
    precond.SetBilinearForms(&mp, &sp);
    precond.SetFunctionCoefficients(&pressure_DBC);
 
-
-   cout << "pressure_ess_tdof check (After PPreconditioner, before Mult, in main function)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
-   if (pressure_ess_tdof.Size() == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
-
    precond.Mult(X, Y);
    
-
    xi.SetFromTrueVector();
    eta.SetFromTrueVector();
 
@@ -390,15 +369,11 @@ int main(int argc, char *argv[])
    yp.Add(-1.0,eta);
 
 
-   //mp.RecoverFEMSolution(Xi, rp, xi);
-   //sp.RecoverFEMSolution(Eta, rp, eta);
-
-   cout << "Grid function values for yp, xi, eta:" << endl;
+   /*cout << "Grid function values for yp, xi, eta:" << endl;
    for (int i = 0; i < pressure_fespace.GetTrueVSize(); i++)
    {
       cout << i << " " << yp[i] << " " << xi[i] << " " << eta[i] << endl;
-   }
-
+   }*/
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
@@ -407,20 +382,12 @@ int main(int argc, char *argv[])
    visualize(paraview_dc, order_pressure, &eta, "eta");
    visualize(paraview_dc, order_pressure, &yp, "pressure");
 
-   //x_gf.ProjectCoefficient(deform);
-   //x_ref.ProjectCoefficient(refconfig);
-   //p_gf = 0.0;
-
-   //x_gf.SetTrueVector();
-   //p_gf.SetTrueVector();
 
    // Initialize operator for Ax = b solve.  Arguments need updating.
    //AOperator oper(spaces, ess_bdr, block_trueOffsets);
 
    // Do the solve.
    //oper.Solve(y);
-
-   // Visualize results.
 
    return 0;
 }
@@ -458,14 +425,6 @@ PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int>
    F_solver.SetMaxIter(2000);
    F_solver.SetPrintLevel(3);*/
 
-   cout << "pressure_ess_tdof check (PPreconditioner constructor)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
-
-   if (pressure_ess_tdof.Size() == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
 }
 
 void PPreconditioner::Mult(const Vector &x, Vector &y) const
@@ -485,32 +444,12 @@ void PPreconditioner::Mult(const Vector &x, Vector &y) const
 
    mp.RecoverFEMSolution(Xi, rp, xi);
 
-   checkpoint(1);
-
-   cout << "pressure_ess_tdof check (inside PPreconditioner::Mult)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << (pressure_ess_tdof)[i] << endl;  
-   }
-
-   if (sizeof(pressure_ess_tdof) == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
-
-
-
    eta.ProjectBdrCoefficient(*pressure_DBC,pressure_ess_tdof);
 
-   checkpoint(2);
-
-   // WORK OUT WHY WE'RE SEGFAULTING HERE.
    sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
    S_solver.SetOperator(Sp);
 
-   checkpoint(3);
-
    S_solver.Mult(Rp_s, Eta);
-
-   
    
 }
 

@@ -1,0 +1,21 @@
+# Directories
+data*
+backups
+
+# Simulation files
+run_mfem.sh
+*.log
+
+# Scripts
+remove.sh
+setup_mfem.sh
+
+*.dSYM
+
+# Executables and old files
+06_ns_solver_abstraction.dSYM       
+old.cpp
+06_ns_solver_abstraction_mymult     
+06_ns_solver_abstraction_mymult.cpp
+06_ns_solver_abstraction_tmp.cpp
+06_ns_solver_abstraction
