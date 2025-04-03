@@ -27,16 +27,17 @@ protected:
    BilinearForm&mp, &sp;
 
    const Array<int> &pressure_ess_tdof, velocity_ess_tdof;
-   FunctionCoefficient *pressure_DBC;
+   FunctionCoefficient *pressure_DBC, *zero_DBC;
 
 public:
    PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk, 
       GridFunction &yp, GridFunction &xi, GridFunction &eta, BilinearForm &mp, BilinearForm &sp, LinearForm &rp,
-      const Array<int> &pressure_ess_tdof, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_);
+      const Array<int> &pressure_ess_tdof, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_);
 
-    void SetFunctionCoefficients(FunctionCoefficient *pressure_DBC_)
+    void SetFunctionCoefficients(FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
     {
       pressure_DBC = pressure_DBC_;
+      zero_DBC = zero_DBC_;
     }
 
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -313,11 +314,7 @@ int main(int argc, char *argv[])
 
    SparseMatrix Fk;
 
-   // Project Dirichlet boundary values for pressure.
-   xi.ProjectBdrCoefficient(zero_DBC,pressure_ess_tdof);
-
-   // Form linear system for Mp.
-   mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
+   
 
 
    xi.SetTrueVector();
@@ -332,8 +329,8 @@ int main(int argc, char *argv[])
    }
 
    //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
-   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, rp, pressure_ess_tdof, velocity_ess_tdof, &pressure_DBC);
-   precond.SetFunctionCoefficients(&pressure_DBC);
+   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, rp, pressure_ess_tdof, velocity_ess_tdof, &pressure_DBC, &zero_DBC);
+   precond.SetFunctionCoefficients(&pressure_DBC, &zero_DBC);
 
    precond.Mult(X, Y);
    
@@ -367,14 +364,11 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-
-//PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk)
-//: block_trueOffsets(offsets)
 PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk, 
    GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, LinearForm &rp_,
-   const Array<int> &pressure_ess_tdof_, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_)
+   const Array<int> &pressure_ess_tdof_, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
    : Mp(Mp_), Sp(Sp_), block_trueOffsets(offsets), xi(xi_), eta(eta_), yp(yp_), rp(rp_), mp(mp_), sp(sp_), 
-   pressure_ess_tdof(pressure_ess_tdof_), pressure_DBC(pressure_DBC_)
+   pressure_ess_tdof(pressure_ess_tdof_), pressure_DBC(pressure_DBC_), zero_DBC(zero_DBC_)
    {
 
    M_solver.iterative_mode = false;
@@ -384,7 +378,6 @@ PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int>
    M_solver.SetPrintLevel(1);
    //M_prec.SetType(DSmoother::Jacobi); // Works for now, but check if diagonal...
    M_solver.SetPreconditioner(M_prec);
-   M_solver.SetOperator(Mp);
 
    S_solver.iterative_mode = false;
    S_solver.SetRelTol(1e-8);
@@ -393,7 +386,6 @@ PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int>
    S_solver.SetPrintLevel(1);
    //S_prec.SetType(DSmoother::Jacobi); 
    S_solver.SetPreconditioner(S_prec);
-   S_solver.SetOperator(Sp);
 
    /*F_solver.SetOperator(Fk);
    F_solver.SetRelTol(1e-10);
@@ -413,18 +405,25 @@ void PPreconditioner::Mult(const Vector &x, Vector &y) const
    Vector Rp_s(x.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
    Vector Eta( y.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
 
+   // Project zero Dirichlet boundary values and form linear system.
+   xi.ProjectBdrCoefficient(*zero_DBC,pressure_ess_tdof);
+   mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
 
-   // Apply M_solver and S_solver to get results
+   // Apply M_solver.
+   M_solver.SetOperator(Mp);
    M_solver.Mult(Rp_m, Xi);
 
    mp.RecoverFEMSolution(Xi, rp, xi);
 
+   // Project Dirichlet boundary values for pressure and form linear system.
    eta.ProjectBdrCoefficient(*pressure_DBC,pressure_ess_tdof);
-
    sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
-   S_solver.SetOperator(Sp);
 
+   // Apply S_solver.
+   S_solver.SetOperator(Sp);
    S_solver.Mult(Rp_s, Eta);
+
+   sp.RecoverFEMSolution(Eta, rp, eta);
    
 }
 
