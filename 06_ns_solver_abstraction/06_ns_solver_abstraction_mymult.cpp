@@ -12,56 +12,19 @@ class PPreconditioner : public Solver
 protected:
    Array<FiniteElementSpace *> spaces;
 
-   SparseMatrix &Mp, &Sp;
+   SparseMatrix *Mp, *Sp;
 
-   mutable CGSolver M_solver, S_solver;
    mutable DSmoother M_prec, S_prec;
-   //mutable GMRESSolver F_solver;
+   mutable CGSolver M_solver, S_solver;
+   mutable GMRESSolver F_solver;
 
    // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
-   GridFunction &xi, &eta, &yp;
-   LinearForm &rp;
-
-   BilinearForm&mp, &sp;
-
-   const Array<int> &pressure_ess_tdof, velocity_ess_tdof;
-   FunctionCoefficient *pressure_DBC;
-
 public:
-   PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk, 
-      GridFunction &yp, GridFunction &xi, GridFunction &eta, BilinearForm &mp, BilinearForm &sp, LinearForm &rp,
-      const Array<int> &pressure_ess_tdof, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_);
+   PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk);
 
-   void SetGridFunctions(LinearForm *rp_, GridFunction *yp_, GridFunction *xi_, GridFunction *eta_)
-    {
-
-      /*cout << "pressure_ess_tdof check (SetGridFunctions)" << endl;
-      for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-         cout << pressure_ess_tdof[i] << endl;  
-      }
-      if (pressure_ess_tdof.Size() == 0) {
-         std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-      }*/
-
-        //rp = rp_;
-        //yp = yp_;
-        //xi = xi_;
-        //eta = eta_;
-    }
-
-    void SetBilinearForms(BilinearForm *mp_, BilinearForm *sp_)
-    {
-        //mp = mp_;
-        //sp = sp_;
-    }
-
-    void SetFunctionCoefficients(FunctionCoefficient *pressure_DBC_)
-    {
-      pressure_DBC = pressure_DBC_;
-    }
-
+   virtual void myMult(const Vector &x1, const Vector &x2, Vector &y1, Vector &y2) const;
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void SetOperator(const Operator &op);
 
@@ -292,7 +255,7 @@ int main(int argc, char *argv[])
 
 
    // Bilinear forms for the two-part pressure solve.
-   BilinearForm mp(&pressure_fespace); 
+   BilinearForm mp(&pressure_fespace);
    mp.AddDomainIntegrator(new MassIntegrator(one));
    mp.Assemble();
 
@@ -338,13 +301,13 @@ int main(int argc, char *argv[])
 
    // Project Dirichlet boundary values for pressure.
    xi.ProjectBdrCoefficient(zero_DBC,pressure_ess_tdof);
-   //eta.ProjectBdrCoefficient(pressure_DBC,pressure_ess_tdof);
+   eta.ProjectBdrCoefficient(pressure_DBC,pressure_ess_tdof);
 
    // Form linear system for Mp.
    mp.FormLinearSystem(pressure_ess_tdof, xi, rp, Mp, Xi, Rp_m);
 
    // Form linear system for Sp.
-   //sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
+   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
 
    xi.SetTrueVector();
    eta.SetTrueVector();
@@ -360,43 +323,24 @@ int main(int argc, char *argv[])
       X(i + Xi.Size()) = Rp_s(i);  
    }
 
-   cout << "pressure_ess_tdof check (Before PPreconditioner)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
+   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
+   precond.myMult(Rp_m, Xi, Rp_s, Eta);
 
-   //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
-   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, rp, pressure_ess_tdof, velocity_ess_tdof, &pressure_DBC);
-   precond.SetGridFunctions(&rp, &yp, &xi, &eta);
-   precond.SetBilinearForms(&mp, &sp);
-   precond.SetFunctionCoefficients(&pressure_DBC);
+   //xi.SetFromTrueVector();
+   //eta.SetFromTrueVector();
 
-
-   cout << "pressure_ess_tdof check (After PPreconditioner, before Mult, in main function)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
-   if (pressure_ess_tdof.Size() == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
-
-   precond.Mult(X, Y);
    
 
-   xi.SetFromTrueVector();
-   eta.SetFromTrueVector();
+
+   mp.RecoverFEMSolution(Xi, rp, xi);
+   sp.RecoverFEMSolution(Eta, rp, eta);
 
    yp.Add(neg_alpha1,xi);
    yp.Add(-1.0,eta);
 
-
-   //mp.RecoverFEMSolution(Xi, rp, xi);
-   //sp.RecoverFEMSolution(Eta, rp, eta);
-
-   cout << "Grid function values for yp, xi, eta:" << endl;
    for (int i = 0; i < pressure_fespace.GetTrueVSize(); i++)
    {
-      cout << i << " " << yp[i] << " " << xi[i] << " " << eta[i] << endl;
+      cout << yp[i] << " " << xi[i] << " " << eta[i] << endl;
    }
 
 
@@ -426,14 +370,9 @@ int main(int argc, char *argv[])
 }
 
 
-//PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk)
-//: block_trueOffsets(offsets)
-PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk, 
-   GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, LinearForm &rp_,
-   const Array<int> &pressure_ess_tdof_, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_)
-   : block_trueOffsets(offsets), Mp(Mp_), Sp(Sp_), mp(mp_), sp(sp_), yp(yp_), rp(rp_), xi(xi_), eta(eta_), 
-   pressure_ess_tdof(pressure_ess_tdof_), pressure_DBC(pressure_DBC_)
-   {
+PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk)
+: block_trueOffsets(offsets)
+{
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-8);
@@ -458,60 +397,19 @@ PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int>
    F_solver.SetMaxIter(2000);
    F_solver.SetPrintLevel(3);*/
 
-   cout << "pressure_ess_tdof check (PPreconditioner constructor)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << pressure_ess_tdof[i] << endl;  
-   }
-
-   if (pressure_ess_tdof.Size() == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
+}
+void PPreconditioner::myMult(const Vector &x1, const Vector &x2, Vector &y1, Vector &y2) const
+{
+   
+   // Apply M_solver and S_solver to get results
+   M_solver.Mult(x1, y1);
+   S_solver.Mult(x2, y2);
+   
 }
 
 void PPreconditioner::Mult(const Vector &x, Vector &y) const
 {
-
-   int idx(0);
-   Vector Rp_m(x.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
-   Vector Xi(  y.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
-
-   idx = 1;
-   Vector Rp_s(x.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
-   Vector Eta( y.GetData() + block_trueOffsets[idx], block_trueOffsets[idx+1] - block_trueOffsets[idx]);
-
-
-   // Apply M_solver and S_solver to get results
-   M_solver.Mult(Rp_m, Xi);
-
-   mp.RecoverFEMSolution(Xi, rp, xi);
-
-   checkpoint(1);
-
-   cout << "pressure_ess_tdof check (inside PPreconditioner::Mult)" << endl;
-   for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-      cout << (pressure_ess_tdof)[i] << endl;  
-   }
-
-   if (sizeof(pressure_ess_tdof) == 0) {
-      std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-   }
-
-
-
-   eta.ProjectBdrCoefficient(*pressure_DBC,pressure_ess_tdof);
-
-   checkpoint(2);
-
-   // WORK OUT WHY WE'RE SEGFAULTING HERE.
-   sp.FormLinearSystem(pressure_ess_tdof, eta, rp, Sp, Eta, Rp_s);
-   S_solver.SetOperator(Sp);
-
-   checkpoint(3);
-
-   S_solver.Mult(Rp_s, Eta);
-
-   
-   
+   M_solver.Mult(x, y);
 }
 
 void PPreconditioner::SetOperator(const Operator &op)
