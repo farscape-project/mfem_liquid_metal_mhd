@@ -34,29 +34,6 @@ public:
       GridFunction &yp, GridFunction &xi, GridFunction &eta, BilinearForm &mp, BilinearForm &sp, LinearForm &rp,
       const Array<int> &pressure_ess_tdof, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_);
 
-   void SetGridFunctions(LinearForm *rp_, GridFunction *yp_, GridFunction *xi_, GridFunction *eta_)
-    {
-
-      /*cout << "pressure_ess_tdof check (SetGridFunctions)" << endl;
-      for (int i = 0; i < pressure_ess_tdof.Size(); i++) {
-         cout << pressure_ess_tdof[i] << endl;  
-      }
-      if (pressure_ess_tdof.Size() == 0) {
-         std::cerr << "Error: pressure_ess_tdof array is empty!" << std::endl;
-      }*/
-
-        //rp = rp_;
-        //yp = yp_;
-        //xi = xi_;
-        //eta = eta_;
-    }
-
-    void SetBilinearForms(BilinearForm *mp_, BilinearForm *sp_)
-    {
-        //mp = mp_;
-        //sp = sp_;
-    }
-
     void SetFunctionCoefficients(FunctionCoefficient *pressure_DBC_)
     {
       pressure_DBC = pressure_DBC_;
@@ -356,8 +333,6 @@ int main(int argc, char *argv[])
 
    //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
    PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, rp, pressure_ess_tdof, velocity_ess_tdof, &pressure_DBC);
-   precond.SetGridFunctions(&rp, &yp, &xi, &eta);
-   precond.SetBilinearForms(&mp, &sp);
    precond.SetFunctionCoefficients(&pressure_DBC);
 
    precond.Mult(X, Y);
@@ -398,7 +373,7 @@ int main(int argc, char *argv[])
 PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &spaces, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk, 
    GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, LinearForm &rp_,
    const Array<int> &pressure_ess_tdof_, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_)
-   : block_trueOffsets(offsets), Mp(Mp_), Sp(Sp_), mp(mp_), sp(sp_), yp(yp_), rp(rp_), xi(xi_), eta(eta_), 
+   : Mp(Mp_), Sp(Sp_), block_trueOffsets(offsets), xi(xi_), eta(eta_), yp(yp_), rp(rp_), mp(mp_), sp(sp_), 
    pressure_ess_tdof(pressure_ess_tdof_), pressure_DBC(pressure_DBC_)
    {
 
@@ -626,7 +601,7 @@ real_t outflow_term_func(const Vector & x)
 
 void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
-   real_t pi = 3.14159;
+   //real_t pi = 3.14159;
 
    real_t r_max = 0.1;
    real_t u_avg = 1.0;
