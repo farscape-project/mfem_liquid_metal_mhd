@@ -12,17 +12,17 @@ class PPreconditioner : public Solver
 protected:
    Array<FiniteElementSpace *> spaces;
 
-   SparseMatrix &Mp, &Sp;
+   SparseMatrix &Mp, &Sp, &Fk;
 
    mutable CGSolver M_solver, S_solver;
    mutable DSmoother M_prec, S_prec;
-   //mutable GMRESSolver F_solver;
+   mutable GMRESSolver F_solver;
 
    // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
-   GridFunction &xi, &eta, &yp;
-   GridFunction bTyp;
+   GridFunction &xi, &eta, &yu, &yp;
+   //GridFunction bTyp;
 
    LinearForm &rp, &ru;
 
@@ -30,15 +30,19 @@ protected:
 
    MixedBilinearForm &b;
 
-   const Array<int> &pressure_ess_tdof, velocity_ess_tdof;
+   const Array<int> &pressure_ess_tdof, &velocity_ess_tdof;
    FunctionCoefficient *pressure_DBC, *zero_DBC;
+   VectorFunctionCoefficient *velocity_DBC;
 
 public:
    PPreconditioner(Array<FiniteElementSpace *> &fes, Array<int> &offsets, SparseMatrix &Mp, SparseMatrix &Sp, SparseMatrix &Fk, 
-      GridFunction &yp, GridFunction &xi, GridFunction &eta, BilinearForm &mp, BilinearForm &sp, BilinearForm &fk, LinearForm &rp, LinearForm &ru, MixedBilinearForm &b, const Array<int> &pressure_ess_tdof, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_);
+      GridFunction &yu, GridFunction &yp, GridFunction &xi, GridFunction &eta, BilinearForm &mp, BilinearForm &sp, BilinearForm &fk, LinearForm &rp, 
+      LinearForm &ru, MixedBilinearForm &b, const Array<int> &pressure_ess_tdof, const Array<int> &velocity_ess_tdof, 
+      VectorFunctionCoefficient *velocity_DBC_, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_);
 
-    void SetFunctionCoefficients(FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
+    void SetFunctionCoefficients(VectorFunctionCoefficient *velocity_DBC_, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
     {
+      velocity_DBC = velocity_DBC_;
       pressure_DBC = pressure_DBC_;
       zero_DBC = zero_DBC_;
     }
@@ -90,6 +94,89 @@ public:
 
    virtual ~AOperator();
 };*/
+
+class VectorConvectionIntegrator : public BilinearFormIntegrator
+{
+private:
+   VectorCoefficient &velocity;
+   real_t alpha;
+
+public:
+   VectorConvectionIntegrator(VectorCoefficient &v, real_t a = 1.0)
+      : velocity(v), alpha(a) { }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat) override
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      int vdim = Trans.GetSpaceDim();
+
+      elmat.SetSize(vdim * nd, vdim * nd);
+      elmat = 0.0;
+
+      Vector shape(nd);
+      shape.SetSize(nd);
+
+      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * el.GetOrder());
+
+      Vector vel(dim);
+      DenseMatrix dshape(nd, dim);
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint(&ip);
+
+         double w = ip.weight * Trans.Weight();
+         velocity.Eval(vel, Trans, ip);
+         el.CalcPhysDShape(Trans, dshape);
+         el.CalcShape(ip, shape);
+
+         for (int j = 0; j < nd; j++)
+         {
+            double dot = 0.0;
+            for (int d = 0; d < dim; d++)
+               dot += vel(d) * dshape(j, d);
+
+            for (int k = 0; k < nd; k++)
+            {
+               for (int vd = 0; vd < vdim; vd++)
+               {
+                  int row = vd * nd + k;
+                  int col = vd * nd + j;
+                  elmat(row, col) += alpha * dot * shape(k) * w;
+               }
+            }
+         }
+      }
+   }
+};
+
+// $-\alpha (v, q \cdot \nabla w)$, the negative transpose of VectorConvectionIntegrator
+class ConservativeVectorConvectionIntegrator : public TransposeIntegrator
+{
+public:
+   ConservativeVectorConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
+      : TransposeIntegrator(new VectorConvectionIntegrator(q, -a)) { }
+};
+
+void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat_conservative, const FiniteElement &el) {
+   int num_dofs = el.GetDof();
+   
+   for (int i = 0; i < num_dofs; i++) {
+      for (int j = 0; j < num_dofs; j++) {
+         real_t diff = elmat(i, j) + elmat_conservative(i, j); // Should ideally be 0 if they are transposed.
+         
+         if (std::abs(diff) > 1e-6) {
+            std::cerr << "Error: Convection terms do not cancel out. Difference at (" 
+                      << i << ", " << j << "): " << diff << std::endl;
+         }
+      }
+   }
+}
+
 
 void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, 
    const char *field_name = NULL);
@@ -219,8 +306,6 @@ int main(int argc, char *argv[])
    block_trueOffsets[3] = velocity_fespace.GetTrueVSize();
    block_trueOffsets.PartialSum();
 
-   checkpoint(1);
-
    BlockVector X(block_trueOffsets);
    BlockVector Y(block_trueOffsets);
 
@@ -247,8 +332,6 @@ int main(int argc, char *argv[])
    yp = 0.0;
    yu = 0.0;
    //bTyp = 0.0;
-
-   checkpoint(2);
 
    //yp.MakeTRef(&pressure_fespace, Y.GetBlock(0), 0);
    //yp.MakeTRef(&pressure_fespace, Y.GetBlock(1), 0);
@@ -285,27 +368,18 @@ int main(int argc, char *argv[])
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
 
-   checkpoint(3);
-
    FunctionCoefficient outflow_term(outflow_term_func);
 
-   checkpoint(4);
-
    GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
-   checkpoint(5);
    VectorFunctionCoefficient ucoef(dim, u_exact);
-   checkpoint(6);
 
    std::cout << "ustar_n.VectorDim() = " << ustar_n.VectorDim() << std::endl;
    std::cout << "ucoef.GetVDim() = " << ucoef.GetVDim() << std::endl;
 
    ustar_n.ProjectCoefficient(ucoef);
-   checkpoint(7);
    VectorGridFunctionCoefficient ustar_coef(&ustar_n);
 
    
-   checkpoint(8);
-
    Vector simpleVec(2);
    simpleVec = 1.0;
    VectorConstantCoefficient simpleCoeff(simpleVec);
@@ -329,10 +403,14 @@ int main(int argc, char *argv[])
    std::cout << "velocity_fespace.GetVDim() = " << velocity_fespace.GetVDim() << std::endl;
 
    // Integrator for O(u_n, v, v').
-   fk.AddDomainIntegrator(new ConvectionIntegrator(simpleCoeff, 0.5));
+   //fk.AddDomainIntegrator(new ConvectionIntegrator(simpleCoeff, 0.5));
    //fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(simpleCoeff, 0.5));
    
    std::cout << "fk Height: " << fk.Height() << ", Width: " << fk.Width() << std::endl;   
+
+   
+   fk.AddDomainIntegrator(new VectorConvectionIntegrator(ustar_coef,0.5));
+   fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(ustar_coef,0.5));
 
    //fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
    //fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
@@ -340,11 +418,21 @@ int main(int argc, char *argv[])
    // Outflow boundary term.
    fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
-   checkpoint(9);
-
    fk.Assemble(); // Crashing here!  Issue with ConvectionIntegrators.
+   fk.Finalize();
 
-   checkpoint(10);
+   // Test...
+   const FiniteElement &el = *velocity_fespace.GetFE(0); // get FE for element 0
+   ElementTransformation &Trans = *velocity_fespace.GetElementTransformation(0);
+
+   DenseMatrix elmat_std, elmat_cons;
+   VectorConvectionIntegrator standard_integrator(ustar_coef,0.5);
+   ConservativeVectorConvectionIntegrator conservative_integrator(ustar_coef,0.5);
+
+   standard_integrator.AssembleElementMatrix(el, Trans, elmat_std);
+   conservative_integrator.AssembleElementMatrix(el, Trans, elmat_cons);
+
+   CheckConvectionIntegrals(elmat_std, elmat_cons, el);
 
    // Form the linear systems for both 
    //       M_p xi = r_p, and
@@ -365,8 +453,6 @@ int main(int argc, char *argv[])
    eta.SetTrueVector();
    yu.SetTrueVector();
 
-   checkpoint(4);
-
    // Copy the right-hand-side elements into X
    for (int i = 0; i < Xi.Size(); i++) {
       X(i) = Rp_m(i); 
@@ -375,15 +461,13 @@ int main(int argc, char *argv[])
       X(i + Xi.Size()) = Rp_s(i);  
    }
    for (int i = 0; i < Yu.Size(); i++) {
-      X(i + Xi.Size() + Eta.Size()) = Ru(i);  
+      X(i + Xi.Size() + Eta.Size()) = Ru(i);
    }
 
-   checkpoint(5);
-
    //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
-   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yp, xi, eta, mp, sp, fk, rp, ru, b, pressure_ess_tdof, velocity_ess_tdof, 
-      &pressure_DBC, &zero_DBC);
-   precond.SetFunctionCoefficients(&pressure_DBC, &zero_DBC);
+   PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk, yu, yp, xi, eta, mp, sp, fk, rp, ru, b, pressure_ess_tdof, velocity_ess_tdof, 
+      &velocity_DBC, &pressure_DBC, &zero_DBC);
+   precond.SetFunctionCoefficients(&velocity_DBC, &pressure_DBC, &zero_DBC);
 
    precond.Mult(X, Y);
    
@@ -406,6 +490,7 @@ int main(int argc, char *argv[])
    visualize(paraview_dc, order_pressure, &xi, "xi");
    visualize(paraview_dc, order_pressure, &eta, "eta");
    visualize(paraview_dc, order_pressure, &yp, "pressure");
+   visualize(paraview_dc, order_velocity, &yu, "velocity");
 
 
    // Initialize operator for Ax = b solve.  Arguments need updating.
@@ -417,12 +502,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &fes, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk, 
-   GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, BilinearForm &fk_, LinearForm &rp_, 
-   LinearForm &ru_, MixedBilinearForm &b_,
-   const Array<int> &pressure_ess_tdof_, const Array<int> velocity_ess_tdof, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
-   : Mp(Mp_), Sp(Sp_), block_trueOffsets(offsets), xi(xi_), eta(eta_), yp(yp_), rp(rp_), ru(ru_), mp(mp_), sp(sp_), fk(fk_), b(b_), 
-   pressure_ess_tdof(pressure_ess_tdof_), pressure_DBC(pressure_DBC_), zero_DBC(zero_DBC_)
+PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &fes, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk_, 
+   GridFunction &yu_, GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, BilinearForm &fk_, LinearForm &rp_, 
+   LinearForm &ru_, MixedBilinearForm &b_,const Array<int> &pressure_ess_tdof_, const Array<int> &velocity_ess_tdof_, 
+   VectorFunctionCoefficient *velocity_DBC_, FunctionCoefficient *pressure_DBC_, FunctionCoefficient *zero_DBC_)
+   : Mp(Mp_), Sp(Sp_), Fk(Fk_), block_trueOffsets(offsets), xi(xi_), eta(eta_), yu(yu_), yp(yp_), rp(rp_), ru(ru_), mp(mp_), sp(sp_), fk(fk_), b(b_), 
+   velocity_ess_tdof(velocity_ess_tdof_), pressure_ess_tdof(pressure_ess_tdof_), velocity_DBC(velocity_DBC_), pressure_DBC(pressure_DBC_), zero_DBC(zero_DBC_)
    {
 
    fes.Copy(spaces);
@@ -443,10 +528,10 @@ PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &fes, Array<int> &o
    //S_prec.SetType(DSmoother::Jacobi); 
    S_solver.SetPreconditioner(S_prec);
 
-   /*F_solver.SetOperator(Fk);
+   
    F_solver.SetRelTol(1e-10);
    F_solver.SetMaxIter(2000);
-   F_solver.SetPrintLevel(3);*/
+   F_solver.SetPrintLevel(3);
 
 }
 
@@ -514,6 +599,21 @@ void PPreconditioner::Mult(const Vector &x, Vector &y) const
    // Add B^T y_p to r_u for the velocity solve.
    ru.Add(-1.0,bTyp);
    
+   // Project Dirichlet boundary values for velocity.
+   Vector Yu_tmp(spaces[1]->GetTrueVSize());
+
+
+   yu.ProjectBdrCoefficient(*velocity_DBC,velocity_ess_tdof);
+   yu.GetTrueDofs(Yu_tmp);
+
+   fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu_tmp, Ru);
+
+   // Operator set here to prevent crashes for now.
+   F_solver.SetOperator(Fk);
+   F_solver.Mult(Ru, Yu_tmp);
+
+   fk.RecoverFEMSolution(Yu, ru, yu);
+
 }
 
 void PPreconditioner::SetOperator(const Operator &op)
