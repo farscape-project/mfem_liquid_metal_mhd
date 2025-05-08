@@ -7,6 +7,7 @@
 
 using namespace mfem;
 
+// $\alpha (Q \cdot \nabla u, v)$
 class VectorConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
@@ -21,7 +22,8 @@ public:
                                       DenseMatrix &elmat) override;
 };
 
-// $-\alpha (v, q \cdot \nabla w)$, the negative transpose of VectorConvectionIntegrator
+
+// $-\alpha (v, Q \cdot \nabla v)$, negative transpose of VectorConvectionIntegrator
 class ConservativeVectorConvectionIntegrator : public TransposeIntegrator
 {
 public:
