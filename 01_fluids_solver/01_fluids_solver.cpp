@@ -2,6 +2,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include "custom_integrators.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -18,7 +19,7 @@ protected:
    mutable DSmoother M_prec, S_prec;
    mutable GMRESSolver F_solver;
 
-   // Block offsets for variable access
+   // Block offsets for variable access 
    Array<int> &block_trueOffsets;
 
    GridFunction &xi, &eta, &yu, &yp;
@@ -95,72 +96,6 @@ public:
    virtual ~AOperator();
 };*/
 
-class VectorConvectionIntegrator : public BilinearFormIntegrator
-{
-private:
-   VectorCoefficient &velocity;
-   real_t alpha;
-
-public:
-   VectorConvectionIntegrator(VectorCoefficient &v, real_t a = 1.0)
-      : velocity(v), alpha(a) { }
-
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) override
-   {
-      int nd = el.GetDof();
-      int dim = el.GetDim();
-      int vdim = Trans.GetSpaceDim();
-
-      elmat.SetSize(vdim * nd, vdim * nd);
-      elmat = 0.0;
-
-      Vector shape(nd);
-      shape.SetSize(nd);
-
-      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * el.GetOrder());
-
-      Vector vel(dim);
-      DenseMatrix dshape(nd, dim);
-
-      for (int i = 0; i < ir->GetNPoints(); i++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(i);
-         Trans.SetIntPoint(&ip);
-
-         double w = ip.weight * Trans.Weight();
-         velocity.Eval(vel, Trans, ip);
-         el.CalcPhysDShape(Trans, dshape);
-         el.CalcShape(ip, shape);
-
-         for (int j = 0; j < nd; j++)
-         {
-            double dot = 0.0;
-            for (int d = 0; d < dim; d++)
-               dot += vel(d) * dshape(j, d);
-
-            for (int k = 0; k < nd; k++)
-            {
-               for (int vd = 0; vd < vdim; vd++)
-               {
-                  int row = vd * nd + k;
-                  int col = vd * nd + j;
-                  elmat(row, col) += alpha * dot * shape(k) * w;
-               }
-            }
-         }
-      }
-   }
-};
-
-// $-\alpha (v, q \cdot \nabla w)$, the negative transpose of VectorConvectionIntegrator
-class ConservativeVectorConvectionIntegrator : public TransposeIntegrator
-{
-public:
-   ConservativeVectorConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
-      : TransposeIntegrator(new VectorConvectionIntegrator(q, -a)) { }
-};
 
 void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat_conservative, const FiniteElement &el) {
    int num_dofs = el.GetDof();
