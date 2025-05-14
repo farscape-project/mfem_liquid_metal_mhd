@@ -11,7 +11,7 @@ using namespace mfem;
 class VectorConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
-   VectorCoefficient &velocity;
+   VectorCoefficient &velocity;  // Rename to vel_coeff or similar to be clear it's a coefficient.
    real_t alpha;
 
 public:

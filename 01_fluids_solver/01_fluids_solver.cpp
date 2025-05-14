@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
    spaces[1] = &pressure_fespace;
 
    // ----------------------------------------------------------------------------
-   // Define boundaries.kmkml
+   // Define boundaries.
    // ----------------------------------------------------------------------------
 
    VectorFunctionCoefficient velocity_DBC(dim, velocity_dbc_vec_func);
@@ -543,7 +543,7 @@ void PPreconditioner::Mult(const Vector &x, Vector &y) const
 
    fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Yu_tmp, Ru);
 
-   // Operator set here to prevent crashes for now.
+   // Apply F solver for velocity.
    F_solver.SetOperator(Fk);
    F_solver.Mult(Ru, Yu_tmp);
 

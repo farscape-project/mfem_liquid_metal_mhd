@@ -8,7 +8,7 @@ VectorConvectionIntegrator::VectorConvectionIntegrator(VectorCoefficient &v, rea
 void VectorConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {
-    int nd = el.GetDof();               // No. of DOFs in this element.
+    int nd = el.GetDof();               // No. of nodes in this element.
     int dim = el.GetDim();              // Reference element dimension.
     int vdim = Trans.GetSpaceDim();     // Physical space dimension.
 
@@ -34,26 +34,32 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
         double w = ip.weight * Trans.Weight();
         // Evaluate convection field (Q in hpp file or w in paper).
         velocity.Eval(vel, Trans, ip);
-        // Compute derivates of shape functions in physical space.
-        el.CalcPhysDShape(Trans, dshape);
         // Evaluate shape function values.
         el.CalcShape(ip, shape);
-
-        // Loop through DOFs.
+        // Compute derivates of shape functions in physical space.
+        el.CalcPhysDShape(Trans, dshape);
+        
+        // Loop through DOFs (for test (phi_j)).
         for (int j = 0; j < nd; j++)
         {
             double dot = 0.0;
             for (int d = 0; d < dim; d++)
                 dot += vel(d) * dshape(j, d); // Calculate dot product Q \cdot \nabla phi_j (basis function).
 
+            // Loop through DOFs (for trial (phi_k)).
             for (int k = 0; k < nd; k++)
             {
+                // Loop through dimensions.
                 for (int vd = 0; vd < vdim; vd++)
                 {
                     // Compute integrand for each component (vd - x,y,z).
                     int row = vd * nd + k;
                     int col = vd * nd + j;
                     elmat(row, col) += alpha * dot * shape(k) * w; 
+
+                    // Work out which way around the matrix entries need to
+                    // be.  VectorMassIntegrator looks like it's in two 
+                    // (dim) blocks.
                 }
             }
         }
