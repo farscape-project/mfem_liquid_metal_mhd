@@ -1,22 +1,7 @@
 # Liquid Metal MHD in MFEM
 
-Repository for a liquid metal MHD code in MFEM - one of the FARSCAPE4 WP4.2 deliverables.
+Repository for a liquid metal MHD code in MFEM - deliverable for Fusion Computing Lab WP3.3.
 
 ## Electrostatics
 
-The script `01_electrostatic2D.cpp` solves the following equations
-```math
-\displaylines{k \vec{J} + \nabla \phi = \vec{f}, \\
-- \nabla \cdot \vec{J} = g,}
-```
-for variables current density $J$ and electric scalar potential $\phi$ and coefficient $k = 1$ with functions $\vec{f} = (0,-1)$ and $g = 0$ with insulating boundary conditions on left and right walls and conducting boundary conditions on top and bottom.
-
-
-## Electrostatics with $\vec{u} \times \vec{B}$
-
-The script `02_electrostatic2DwithUcrossB.cpp` solves the following equations
-```math
-\displaylines{k \vec{J} + \nabla \phi + \vec{u} \times \vec{B} = \vec{f}, \\
-- \nabla \cdot \vec{J} = g,}
-```
-in 3D for variables current density $J$ and electric scalar potential $\phi$ and coefficient $k = 1$ with functions $\vec{f} = (0,-1)$ and $g = 0$ with $\vec{u}$ and $\vec{B}$ constant. Boundary conditions are insulating on left and right walls and conducting on top and bottom.
+The solver in `01_fluids_solver` contains a linearised form of the Navier-Stokes equations in `01_fluids_solver.cpp`.  Currently the solver just solves the linearised equation in a preconditioner class that is ready to be incorporated into a non-linear solver.  Next step is to implement the GMRES solve and incorporate the preconditioner.
