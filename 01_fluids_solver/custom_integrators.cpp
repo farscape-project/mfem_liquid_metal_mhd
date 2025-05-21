@@ -56,8 +56,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
                     int row = vd * nd + k;
                     int col = vd * nd + j;
                     elmat(row, col) += alpha * dot * shape(k) * w; 
-
-                    // Work out which way around the matrix entries need to
+                    // Double check which way around the matrix entries need to
                     // be.  VectorMassIntegrator looks like it's in two 
                     // (dim) blocks.
                 }
