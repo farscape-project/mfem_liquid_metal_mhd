@@ -4,8 +4,9 @@ CONFIG_MK = $(MFEM_DIR)/config/config.mk
 include $(CONFIG_MK)
 
 # Source files and executable
-TARGET = 02_gmres_fluids_solver
-SRC = ${TARGET}.cpp custom_integrators.cpp
+TARGET = 03_gmres_solver_restructure
+SRC = ${TARGET}.cpp custom_integrators.cpp FluidsOperator.cpp constants.cpp
+INC = custom_integrators.hpp FluidsOperator.hpp constants.hpp utils.hpp
 
 # Compiler and flags
 CXX = $(MFEM_CXX)

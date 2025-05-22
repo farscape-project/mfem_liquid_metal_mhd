@@ -2,11 +2,14 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
-#include "custom_integrators.hpp"
+
+#include "FluidsOperator.hpp"
+#include "constants.hpp"
 
 using namespace std;
 using namespace mfem;
 
+/*
 // Custom preconditioner class for solving Py = r.
 class PPreconditioner : public Solver
 {
@@ -54,49 +57,9 @@ public:
    virtual ~PPreconditioner();
 };
 
-// Operator for solving Ax = b.
-/*class AOperator : public Operator
-{
-protected:
-   // Finite element spaces
-   Array<FiniteElementSpace *> spaces;
+*/
 
-   // Block nonlinear form
-   BlockLinearForm *Hform;
-
-   // Pressure mass matrix for the preconditioner
-   SparseMatrix *pressure_mass;
-
-   // Newton solver for the hyperelastic operator
-   NewtonSolver newton_solver;
-
-   // Solver for the Jacobian solve in the Newton method
-   Solver *j_solver;
-
-   // Preconditioner
-   Solver *j_prec;
-
-   // Define relevant coefficients
-   //Coefficient &mu;
-
-   // Block offsets for variable access
-   Array<int> &block_trueOffsets;
-
-public:
-   AOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets);
-
-   // Required to use the native newton solver
-   virtual Operator &GetGradient(const Vector &xp) const;
-   virtual void Mult(const Vector &k, Vector &y) const;
-
-   // Driver for the newton solver
-   void Solve(Vector &xp) const;
-
-   virtual ~AOperator();
-};*/
-
-
+/*
 void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat_conservative, const FiniteElement &el) {
    int num_dofs = el.GetDof();
    
@@ -110,23 +73,24 @@ void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat
          }
       }
    }
-}
+}*/
 
 
-void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, 
-   const char *field_name, int ti, double t);
+//void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, 
+//   const char *field_name, int ti, double t);
 
-void checkpoint(int num);
+/*void checkpoint(int num);
 real_t velocity_nbc(const Vector & x);
 real_t pressure_nbc(const Vector & x);
 real_t pressure_dbc(const Vector & x);
 real_t zero_dbc(const Vector & x);
 real_t outflow_term_func(const Vector & x);
 void velocity_dbc_vec_func(const Vector & x, Vector & f);
-void u_exact(const Vector & x, Vector & f);
+void u_exact(const Vector & x, Vector & f);*/
+
 
 // Define constants.
-real_t Re(100.0);
+/*real_t Re(100.0);
 real_t reciprocal_Re(1 / Re);
 real_t alpha(1.0); // alpha = 1 (default).
 real_t alpha1(alpha + reciprocal_Re);
@@ -141,16 +105,21 @@ ConstantCoefficient neg_one(-1.0);
 ConstantCoefficient tmp_const(1.0);
 ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
 ConstantCoefficient vectorMassCoef(2.0 / tau);
+*/
 
 int main(int argc, char *argv[])
 {
    
+   /* TODO 
    // Define VectorConstantCoefficients.
    Vector zero_vector(3), one_vector(3);
    zero_vector = 0.0;
    VectorConstantCoefficient zero_vector_coef(zero_vector);
    one_vector = 1.0;
    VectorConstantCoefficient one_vector_coef(one_vector);
+   */
+
+
 
    // Set fe_space orders.
    int order_pressure = 1;
@@ -162,6 +131,7 @@ int main(int argc, char *argv[])
    //Mesh mesh = Mesh::MakeCartesian2D(30, 10, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    int dim = mesh.Dimension();   
 
+   
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
    // ----------------------------------------------------------------------------
@@ -177,6 +147,9 @@ int main(int argc, char *argv[])
    Array<FiniteElementSpace *> spaces(2);
    spaces[0] = &velocity_fespace;
    spaces[1] = &pressure_fespace;
+
+   int v_space_size = pressure_fespace.GetTrueVSize();
+   int p_space_size = pressure_fespace.GetTrueVSize();
 
    // ----------------------------------------------------------------------------
    // Define boundaries.
@@ -228,31 +201,68 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity[2] = 0; // Bottom
    nat_boundary_marker_velocity[3] = 1; // Inlet
 
+   Array<Array<int> *> nat_bdr(2);
+   nat_bdr[0] = &nat_boundary_marker_velocity;
+   nat_bdr[1] = &nat_boundary_marker_pressure;
+
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
 
+   // Print mesh statistics.
+   std::cout << "***********************************************************\n";
+   std::cout << "dim(u) = " << v_space_size << "\n";
+   std::cout << "dim(p) = " << p_space_size << "\n";
+   std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
+   std::cout << "***********************************************************\n";
 
-   // Define block structure of the solution vector (p (twice) then u).
+
+   // Define block structure of the solution vector (u then p).
    Array<int> block_trueOffsets(3);
    block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = velocity_fespace.GetTrueVSize();
-   block_trueOffsets[2] = pressure_fespace.GetTrueVSize();
+   block_trueOffsets[1] = v_space_size;
+   block_trueOffsets[2] = p_space_size;
    block_trueOffsets.PartialSum();
 
    BlockVector X(block_trueOffsets);
-   BlockVector Y(block_trueOffsets);
+   //BlockVector Y(block_trueOffsets);
 
    // ----------------------------------------------------------------------------
-   // Initialise solutions as GridFunctions.
+   // Initialise grid functions.
    // ----------------------------------------------------------------------------
+   // Velocity.
+   GridFunction xu_gf(&velocity_fespace);
+
    // Define the solutions xi, eta, p as grid functions for pressure. 
-   GridFunction xi(&pressure_fespace);
-   GridFunction eta(&pressure_fespace);
-   GridFunction yp(&pressure_fespace);
+   //GridFunction xi(&pressure_fespace);
+   //GridFunction eta(&pressure_fespace);
 
-   // Define the solution for velocity.
-   GridFunction yu(&velocity_fespace);
+   // Pressure.
+   GridFunction xp_gf(&pressure_fespace);
+
+   // Identify grid functions with relevant sections of the block vector.
+   xu_gf.MakeTRef(&velocity_fespace, X.GetBlock(0), 0);
+   xp_gf.MakeTRef(&pressure_fespace, X.GetBlock(1), 0);
+
+   
+   // Initialise grid functions with zero, then with boundary conditions.
+   xu_gf = 0.0; xp_gf = 0.0;
+   xu_gf.ProjectCoefficient(velocity_DBC);
+   xp_gf.ProjectCoefficient(pressure_DBC);
+
+   // Project boundaries.  Choose between this and ProjectCoefficient above.
+   //xu_gf.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
+   //xp_gf.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
+
+   xu_gf.SetTrueVector();
+   xp_gf.SetTrueVector();
+
+
+   // Initialise fluids operator.
+   FluidsOperator oper(spaces, ess_bdr, nat_bdr, block_trueOffsets, dim);
+
+   oper.Solve(X);
+
    // Solution for B^T * y_p.
    //GridFunction bTyp(&velocity_fespace);
 
@@ -261,21 +271,22 @@ int main(int argc, char *argv[])
    eta.MakeTRef(&pressure_fespace, Y.GetBlock(1), 0);
    yu.MakeTRef(&velocity_fespace, Y.GetBlock(2), 0);
    */
-
+   
    // Set initial guesses to zero.  This also sets BCs.
-   xi = 0.0;
-   eta = 0.0;
-   yp = 0.0;
-   yu = 0.0;
+   //xi = 0.0;
+   //eta = 0.0;
+   //yp = 0.0;
+   //yu = 0.0;
    //bTyp = 0.0;
 
    //yp.MakeTRef(&pressure_fespace, Y.GetBlock(0), 0);
    //yp.MakeTRef(&pressure_fespace, Y.GetBlock(1), 0);
 
-   FunctionCoefficient velocity_nbc_coeff(velocity_nbc);
-   FunctionCoefficient pressure_nbc_coeff(pressure_nbc);
+   //FunctionCoefficient velocity_nbc_coeff(velocity_nbc);
+   //FunctionCoefficient pressure_nbc_coeff(pressure_nbc);
 
    // Set up rhs for pressure solve.
+   /*
    LinearForm rp(&pressure_fespace);
    rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    // Natural boundary condition.
@@ -288,13 +299,15 @@ int main(int argc, char *argv[])
    // Natural boundary condition.
    ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
    ru.Assemble();
-
+   */
+   /*
    MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
    b.Assemble();
    b.Finalize();
+   */
 
-
+   /* TODO (MAYBE)
    // Bilinear forms for the two-part pressure solve.
    BilinearForm mp(&pressure_fespace); 
    mp.AddDomainIntegrator(new MassIntegrator(one));
@@ -303,6 +316,9 @@ int main(int argc, char *argv[])
    BilinearForm sp(&pressure_fespace);
    sp.AddDomainIntegrator(new DiffusionIntegrator(one));
    sp.Assemble();
+   */
+
+   /*
 
    FunctionCoefficient outflow_term(outflow_term_func);
 
@@ -327,7 +343,8 @@ int main(int argc, char *argv[])
 
    std::cout << "simpleCoeff dimension: " << simpleCoeff.GetVDim() << std::endl;
    std::cout << "Mesh dimension: " << velocity_fespace.GetMesh()->Dimension() << std::endl;
-
+   */
+   /*
    // Bilinear form for the velocity solve.
    BilinearForm fk(&velocity_fespace);
    // Integrator for (v, v').
@@ -355,9 +372,10 @@ int main(int argc, char *argv[])
    fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
 
    fk.Assemble(); // Crashing here!  Issue with ConvectionIntegrators.
-   fk.Finalize();
+   fk.Finalize();*/
 
    // Test...
+   /*
    const FiniteElement &el = *velocity_fespace.GetFE(0); // get FE for element 0
    ElementTransformation &Trans = *velocity_fespace.GetElementTransformation(0);
 
@@ -369,10 +387,11 @@ int main(int argc, char *argv[])
    conservative_integrator.AssembleElementMatrix(el, Trans, elmat_cons);
 
    CheckConvectionIntegrals(elmat_std, elmat_cons, el);
-
+   */
    // Form the linear systems for both 
    //       M_p xi = r_p, and
    //       S_p eta = r_p. 
+   /*
    SparseMatrix Mp, Sp;
    Vector Xi(pressure_fespace.GetTrueVSize()), Eta(pressure_fespace.GetTrueVSize());
    Vector Rp_m(pressure_fespace.GetTrueVSize()), Rp_s(pressure_fespace.GetTrueVSize());
@@ -388,7 +407,7 @@ int main(int argc, char *argv[])
    xi.SetTrueVector();
    eta.SetTrueVector();
    //yu.SetTrueVector();
-
+   */
    /*
    // Copy the right-hand-side elements into X
    for (int i = 0; i < Xi.Size(); i++) {
@@ -402,9 +421,9 @@ int main(int argc, char *argv[])
    }*/
 
    //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
-   PPreconditioner *precond = new PPreconditioner(spaces, block_trueOffsets, Mp, Sp, Fk, yu, yp, xi, eta, mp, sp, fk, rp, ru, b, pressure_ess_tdof, velocity_ess_tdof, 
-      &velocity_DBC, &pressure_DBC, &zero_DBC);
-   precond->SetFunctionCoefficients(&velocity_DBC, &pressure_DBC, &zero_DBC);
+   //PPreconditioner *precond = new PPreconditioner(spaces, block_trueOffsets, Mp, Sp, Fk, yu, yp, xi, eta, mp, sp, fk, rp, ru, b, pressure_ess_tdof, velocity_ess_tdof, 
+   //   &velocity_DBC, &pressure_DBC, &zero_DBC);
+   //precond->SetFunctionCoefficients(&velocity_DBC, &pressure_DBC, &zero_DBC);
 
    //precond.Mult(X, Y);
 
@@ -413,54 +432,57 @@ int main(int argc, char *argv[])
    // Necessary?
    //A.SetBlock(1,1, NULL);
 
+   /*
    // Initialise solution and RHS vectors.
    BlockVector X_NS(block_trueOffsets), RHS(block_trueOffsets);
    X_NS = 0.0;
    RHS.GetBlock(0) = ru; 
    RHS.GetBlock(1) = rp;  
+   */
 
    // Initialise time-loop details.
    double t = 0.0;
-   double t_final = 0.001;
-   double dt = 0.0001;
-   int steps = int(t_final / dt);
+   //double t_final = 0.001;
+   //double dt = 0.0001;
+   //int steps = int(t_final / dt);
 
    // Initialise velocity.
-   yu.ProjectCoefficient(velocity_DBC);
+   //yu.ProjectCoefficient(velocity_DBC);
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
    paraview_dc.SetPrefixPath("data");
    int ti_out = 0;
-   visualize(paraview_dc, order_velocity, &yu, "velocity", ti_out, 0.0);
-   visualize(paraview_dc, order_pressure, &yp, "pressure", ti_out, 0.0);
+   visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, 0.0);
+   visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, 0.0);
    ti_out += 1;
+   
 
-   Vector Xu(yu.Size()), Ru(yu.Size()), Xp(yp.Size()), Rp(yp.Size());
+   //Vector Xu(yu.Size()), Ru(yu.Size()), Xp(yp.Size()), Rp(yp.Size());
 
-   for (int ti = 0; ti < steps; ti++)
-   {
-      t += dt;
-      std::cout << "Time step " << ti + 1 << ", time = " << t << std::endl;
+   //for (int ti = 0; ti < steps; ti++)
+   //{
+      //t += dt;
+      //std::cout << "Time step " << ti + 1 << ", time = " << t << std::endl;
 
       // Apply Dirichlet boundary conditions.
-      yu.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
-      yp.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
+      //yu.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
+      //yp.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
 
-      fk.Assemble();
-      sp.Assemble();
-      ru.Assemble();
-      rp.Assemble();
+      //fk.Assemble();
+      //sp.Assemble();
+      //ru.Assemble();
+      //rp.Assemble();
 
-      fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Xu, Ru);
-      sp.FormLinearSystem(pressure_ess_tdof, yp, rp, Sp, Xp, Rp);
+      //fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Xu, Ru);
+      //sp.FormLinearSystem(pressure_ess_tdof, yp, rp, Sp, Xp, Rp);
 
-      X_NS.GetBlock(0) = Xu;
-      X_NS.GetBlock(1) = Xp;
-      RHS.GetBlock(0) = Ru;
-      RHS.GetBlock(1) = Rp;
+      //X_NS.GetBlock(0) = Xu;
+      //X_NS.GetBlock(1) = Xp;
+      //RHS.GetBlock(0) = Ru;
+      //RHS.GetBlock(1) = Rp;
 
-
+/*
       BlockOperator A(block_trueOffsets);
 
       // Set F block for velocity.
@@ -471,8 +493,9 @@ int main(int argc, char *argv[])
       A.SetBlock(0,1, bt);
       A.SetBlock(1,0, &b);
 
-
+*/
       // Solve.
+      /*
       GMRESSolver gmres;
       gmres.SetOperator(A);
       //gmres.SetPreconditioner(*precond); 
@@ -482,24 +505,28 @@ int main(int argc, char *argv[])
       gmres.SetPrintLevel(0);
       gmres.iterative_mode = false; 
       gmres.Mult(RHS, X_NS);  
+      */
       
-      Vector &u_sol = X_NS.GetBlock(0);
-      Vector &p_sol = X_NS.GetBlock(1);
+      Vector &u_sol = X.GetBlock(0);
+      Vector &p_sol = X.GetBlock(1);
 
-      fk.RecoverFEMSolution(u_sol, ru, yu);
-      sp.RecoverFEMSolution(p_sol, rp, yp);
+      xu_gf.GetTrueDofs(X.GetBlock(0));
+      xp_gf.GetTrueDofs(X.GetBlock(1));
+
+      //fk.RecoverFEMSolution(u_sol, ru, yu);
+      //sp.RecoverFEMSolution(p_sol, rp, yp);
 
 
       // Visualisation in Paraview.
-      if (ti || 10)
-      {
-         visualize(paraview_dc, order_velocity, &yu, "velocity", ti_out, t);
-         visualize(paraview_dc, order_pressure, &yp, "pressure", ti_out, t);
+      //if (ti || 10)
+      //{
+         visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, t);
+         visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, t);
          ti_out += 1;
-      }
+      //}
 
 
-   }
+   //}
 
 
    // Initialize operator for Ax = b solve.  Arguments need updating.
@@ -511,6 +538,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+/*
 PPreconditioner::PPreconditioner(Array<FiniteElementSpace *> &fes, Array<int> &offsets, SparseMatrix &Mp_, SparseMatrix &Sp_, SparseMatrix &Fk_, 
    GridFunction &yu_, GridFunction &yp_, GridFunction &xi_, GridFunction &eta_, BilinearForm &mp_, BilinearForm &sp_, BilinearForm &fk_, LinearForm &rp_, 
    LinearForm &ru_, MixedBilinearForm &b_,const Array<int> &pressure_ess_tdof_, const Array<int> &velocity_ess_tdof_, 
@@ -627,7 +655,7 @@ void PPreconditioner::Mult(const Vector &x, Vector &y) const
 
 void PPreconditioner::SetOperator(const Operator &op)
 {
-   /*jacobian = (BlockOperator *) &op;
+   jacobian = (BlockOperator *) &op;
 
    // Initialize the stiffness preconditioner and solver
    if (stiff_prec == NULL)
@@ -649,7 +677,7 @@ void PPreconditioner::SetOperator(const Operator &op)
 
    // At each Newton cycle, compute the new stiffness preconditioner by updating
    // the iterative solver which, in turn, updates its preconditioner
-   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));*/
+   stiff_pcg->SetOperator(jacobian->GetBlock(0,0));
 }
 
 PPreconditioner::~PPreconditioner()
@@ -660,98 +688,9 @@ PPreconditioner::~PPreconditioner()
    //delete stiff_pcg;
 }
 
-/*
-AOperator::AOperator(Array<FiniteElementSpace *> &fes,
-                               Array<Array<int> *> &ess_bdr,
-                               Array<int> &offsets)
-   : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
-     newton_solver(), block_trueOffsets(offsets)
-{
-   Array<Vector *> rhs(2);
-   rhs = NULL; // Set all entries in the array
-
-   fes.Copy(spaces);
-
-   // Define the block nonlinear form
-   Hform = new BlockNonlinearForm(spaces);
-
-   // Add the incompressible neo-Hookean integrator
-   //Hform->AddDomainIntegrator(new IncompressibleNeoHookeanIntegrator(mu));
-
-   // Set the essential boundary conditions
-   Hform->SetEssentialBC(ess_bdr, rhs);
-
-   // Compute the pressure mass stiffness matrix
-   BilinearForm *a = new BilinearForm(spaces[1]);
-   ConstantCoefficient one(1.0);
-   a->AddDomainIntegrator(new MassIntegrator(one));
-   a->Assemble();
-   a->Finalize();
-
-   OperatorPtr op;
-   Array<int> p_ess_tdofs;
-   a->FormSystemMatrix(p_ess_tdofs, op);
-   pressure_mass = a->LoseMat();
-   delete a;
-
-   // Initialize the Jacobian preconditioner
-   PPreconditioner *jac_prec =
-      new PPreconditioner(fes, *pressure_mass, block_trueOffsets);
-   j_prec = jac_prec;
-
-   // Set up the Jacobian solver
-   GMRESSolver *j_gmres = new GMRESSolver();
-   j_gmres->iterative_mode = false;
-   j_gmres->SetRelTol(1e-12);
-   j_gmres->SetAbsTol(1e-12);
-   j_gmres->SetMaxIter(300);
-   j_gmres->SetPrintLevel(-1);
-   j_gmres->SetPreconditioner(*j_prec);
-   j_solver = j_gmres;
-
-   real_t newton_rel_tol = 1e-4;
-   real_t newton_abs_tol = 1e-6;
-   int newton_iter = 500;
-
-   // Set the newton solve parameters
-   newton_solver.iterative_mode = true;
-   newton_solver.SetSolver(*j_solver);
-   newton_solver.SetOperator(*this);
-   newton_solver.SetPrintLevel(-1);
-   newton_solver.SetRelTol(newton_rel_tol);
-   newton_solver.SetAbsTol(newton_abs_tol);
-   newton_solver.SetMaxIter(newton_iter);
-}
-
-// Solve the Newton system
-void AOperator::Solve(Vector &xp) const
-{
-   Vector zero;
-   newton_solver.Mult(zero, xp);
-   MFEM_VERIFY(newton_solver.GetConverged(),
-               "Newton Solver did not converge.");
-}
-
-// compute: y = H(x,p)
-void AOperator::Mult(const Vector &k, Vector &y) const
-{
-   Hform->Mult(k, y);
-}
-
-// Compute the Jacobian from the nonlinear form
-Operator &AOperator::GetGradient(const Vector &xp) const
-{
-   return Hform->GetGradient(xp);
-}
-
-AOperator::~AOperator()
-{
-   delete Hform;
-   delete pressure_mass;
-   delete j_solver;
-   delete j_prec;
-}
 */
+
+/*
 
 real_t velocity_nbc(const Vector & x)
 {
@@ -875,3 +814,4 @@ void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *fie
 
    paraview_dc.Save();
 }
+*/
