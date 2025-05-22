@@ -67,6 +67,13 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
     fk.Assemble();
     fk.Finalize();
 
+    // Needs grid function.  And what do to about X, at the moment it comes from Solve?
+    SparseMatrix Fk;
+    fk.FormLinearSystem(*ess_bdr[0], yu, ru, Fk, X[0], RHS[0]);
+
+    // Needs a dummy solver.
+    //sp.FormLinearSystem(&ess_bdr[1], yp, rp, Sp, Xp, Rp);
+
     // Initialise solution and RHS vectors.
     //BlockVector X(block_trueOffsets), 
     //X = 0.0;
@@ -92,7 +99,7 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
     fluids_solver.SetRelTol(1e-8);
     fluids_solver.SetAbsTol(0.0);
     fluids_solver.SetMaxIter(200);
-    fluids_solver.SetPrintLevel(0);
+    fluids_solver.SetPrintLevel(1);
     fluids_solver.iterative_mode = false; 
     
 

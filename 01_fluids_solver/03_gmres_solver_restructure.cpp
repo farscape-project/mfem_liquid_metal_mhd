@@ -59,67 +59,8 @@ public:
 
 */
 
-/*
-void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat_conservative, const FiniteElement &el) {
-   int num_dofs = el.GetDof();
-   
-   for (int i = 0; i < num_dofs; i++) {
-      for (int j = 0; j < num_dofs; j++) {
-         real_t diff = elmat(i, j) + elmat_conservative(i, j); // Should ideally be 0 if they are transposed.
-         
-         if (std::abs(diff) > 1e-6) {
-            std::cerr << "Error: Convection terms do not cancel out. Difference at (" 
-                      << i << ", " << j << "): " << diff << std::endl;
-         }
-      }
-   }
-}*/
-
-
-//void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, 
-//   const char *field_name, int ti, double t);
-
-/*void checkpoint(int num);
-real_t velocity_nbc(const Vector & x);
-real_t pressure_nbc(const Vector & x);
-real_t pressure_dbc(const Vector & x);
-real_t zero_dbc(const Vector & x);
-real_t outflow_term_func(const Vector & x);
-void velocity_dbc_vec_func(const Vector & x, Vector & f);
-void u_exact(const Vector & x, Vector & f);*/
-
-
-// Define constants.
-/*real_t Re(100.0);
-real_t reciprocal_Re(1 / Re);
-real_t alpha(1.0); // alpha = 1 (default).
-real_t alpha1(alpha + reciprocal_Re);
-real_t neg_alpha1(-alpha1);
-real_t tau(0.1);
-
-// Define ConstantCoefficients.
-ConstantCoefficient zero(0.0);
-ConstantCoefficient one(1.0);
-ConstantCoefficient half(0.5);
-ConstantCoefficient neg_one(-1.0);
-ConstantCoefficient tmp_const(1.0);
-ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
-ConstantCoefficient vectorMassCoef(2.0 / tau);
-*/
-
 int main(int argc, char *argv[])
 {
-   
-   /* TODO 
-   // Define VectorConstantCoefficients.
-   Vector zero_vector(3), one_vector(3);
-   zero_vector = 0.0;
-   VectorConstantCoefficient zero_vector_coef(zero_vector);
-   one_vector = 1.0;
-   VectorConstantCoefficient one_vector_coef(one_vector);
-   */
-
-
 
    // Set fe_space orders.
    int order_pressure = 1;
@@ -148,7 +89,7 @@ int main(int argc, char *argv[])
    spaces[0] = &velocity_fespace;
    spaces[1] = &pressure_fespace;
 
-   int v_space_size = pressure_fespace.GetTrueVSize();
+   int v_space_size = velocity_fespace.GetTrueVSize();
    int p_space_size = pressure_fespace.GetTrueVSize();
 
    // ----------------------------------------------------------------------------
@@ -247,15 +188,19 @@ int main(int argc, char *argv[])
    
    // Initialise grid functions with zero, then with boundary conditions.
    xu_gf = 0.0; xp_gf = 0.0;
-   xu_gf.ProjectCoefficient(velocity_DBC);
-   xp_gf.ProjectCoefficient(pressure_DBC);
+   //xu_gf.ProjectCoefficient(velocity_DBC);
+   //xp_gf.ProjectCoefficient(pressure_DBC);
 
    // Project boundaries.  Choose between this and ProjectCoefficient above.
-   //xu_gf.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
-   //xp_gf.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
+   xu_gf.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
+   xp_gf.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
 
    xu_gf.SetTrueVector();
    xp_gf.SetTrueVector();
+
+   // Make sure bcs get into X.
+   //X.GetBlock(0) = xu_gf;
+   //X.GetBlock(1) = xp_gf;
 
 
    // Initialise fluids operator.
@@ -263,277 +208,14 @@ int main(int argc, char *argv[])
 
    oper.Solve(X);
 
-   // Solution for B^T * y_p.
-   //GridFunction bTyp(&velocity_fespace);
-
-   /*
-   xi.MakeTRef(&pressure_fespace, Y.GetBlock(0), 0);
-   eta.MakeTRef(&pressure_fespace, Y.GetBlock(1), 0);
-   yu.MakeTRef(&velocity_fespace, Y.GetBlock(2), 0);
-   */
-   
-   // Set initial guesses to zero.  This also sets BCs.
-   //xi = 0.0;
-   //eta = 0.0;
-   //yp = 0.0;
-   //yu = 0.0;
-   //bTyp = 0.0;
-
-   //yp.MakeTRef(&pressure_fespace, Y.GetBlock(0), 0);
-   //yp.MakeTRef(&pressure_fespace, Y.GetBlock(1), 0);
-
-   //FunctionCoefficient velocity_nbc_coeff(velocity_nbc);
-   //FunctionCoefficient pressure_nbc_coeff(pressure_nbc);
-
-   // Set up rhs for pressure solve.
-   /*
-   LinearForm rp(&pressure_fespace);
-   rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
-   // Natural boundary condition.
-   rp.AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), nat_boundary_marker_pressure);
-   rp.Assemble();
-
-   // Set up rhs for velocity solve.
-   LinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
-   // Natural boundary condition.
-   ru.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), nat_boundary_marker_velocity);
-   ru.Assemble();
-   */
-   /*
-   MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
-   b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
-   b.Assemble();
-   b.Finalize();
-   */
-
-   /* TODO (MAYBE)
-   // Bilinear forms for the two-part pressure solve.
-   BilinearForm mp(&pressure_fespace); 
-   mp.AddDomainIntegrator(new MassIntegrator(one));
-   mp.Assemble();
-
-   BilinearForm sp(&pressure_fespace);
-   sp.AddDomainIntegrator(new DiffusionIntegrator(one));
-   sp.Assemble();
-   */
-
-   /*
-
-   FunctionCoefficient outflow_term(outflow_term_func);
-
-   GridFunction ustar_n(&velocity_fespace); // 0.5(3u_{n-1} - u_{n-2})
-   VectorFunctionCoefficient ucoef(dim, u_exact);
-
-   std::cout << "ustar_n.VectorDim() = " << ustar_n.VectorDim() << std::endl;
-   std::cout << "ucoef.GetVDim() = " << ucoef.GetVDim() << std::endl;
-
-   ustar_n.ProjectCoefficient(ucoef);
-   VectorGridFunctionCoefficient ustar_coef(&ustar_n);
-
-   
-   Vector simpleVec(2);
-   simpleVec = 1.0;
-   VectorConstantCoefficient simpleCoeff(simpleVec);
-
-   std::cout << "simpleVec.Size() = " << simpleVec.Size() << std::endl;
-   for (int i = 0; i < simpleVec.Size(); i++) {
-      cout << simpleVec[i] << endl;
-   }
-
-   std::cout << "simpleCoeff dimension: " << simpleCoeff.GetVDim() << std::endl;
-   std::cout << "Mesh dimension: " << velocity_fespace.GetMesh()->Dimension() << std::endl;
-   */
-   /*
-   // Bilinear form for the velocity solve.
-   BilinearForm fk(&velocity_fespace);
-   // Integrator for (v, v').
-   fk.AddDomainIntegrator(new VectorMassIntegrator(vectorMassCoef));
-   // Integrator for A_AL(v, v').
-   fk.AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
-
-   std::cout << "ustar_coef.GetVDim() = " << ustar_coef.GetVDim() << std::endl;
-   std::cout << "velocity_fespace.GetVDim() = " << velocity_fespace.GetVDim() << std::endl;
-
-   // Integrator for O(u_n, v, v').
-   //fk.AddDomainIntegrator(new ConvectionIntegrator(simpleCoeff, 0.5));
-   //fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(simpleCoeff, 0.5));
-   
-   std::cout << "fk Height: " << fk.Height() << ", Width: " << fk.Width() << std::endl;   
-
-   
-   fk.AddDomainIntegrator(new VectorConvectionIntegrator(ustar_coef,0.5));
-   fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(ustar_coef,0.5));
-
-   //fk.AddDomainIntegrator(new ConvectionIntegrator(ustar_coef, 0.5));
-   //fk.AddDomainIntegrator(new ConservativeConvectionIntegrator(ustar_coef, 0.5));
-
-   // Outflow boundary term.
-   fk.AddBoundaryIntegrator(new VectorMassIntegrator(outflow_term));
-
-   fk.Assemble(); // Crashing here!  Issue with ConvectionIntegrators.
-   fk.Finalize();*/
-
-   // Test...
-   /*
-   const FiniteElement &el = *velocity_fespace.GetFE(0); // get FE for element 0
-   ElementTransformation &Trans = *velocity_fespace.GetElementTransformation(0);
-
-   DenseMatrix elmat_std, elmat_cons;
-   VectorConvectionIntegrator standard_integrator(ustar_coef,0.5);
-   ConservativeVectorConvectionIntegrator conservative_integrator(ustar_coef,0.5);
-
-   standard_integrator.AssembleElementMatrix(el, Trans, elmat_std);
-   conservative_integrator.AssembleElementMatrix(el, Trans, elmat_cons);
-
-   CheckConvectionIntegrals(elmat_std, elmat_cons, el);
-   */
-   // Form the linear systems for both 
-   //       M_p xi = r_p, and
-   //       S_p eta = r_p. 
-   /*
-   SparseMatrix Mp, Sp;
-   Vector Xi(pressure_fespace.GetTrueVSize()), Eta(pressure_fespace.GetTrueVSize());
-   Vector Rp_m(pressure_fespace.GetTrueVSize()), Rp_s(pressure_fespace.GetTrueVSize());
-   Vector Yu(velocity_fespace.GetTrueVSize()), Ru(velocity_fespace.GetTrueVSize());
-
-      
-   // Set up linear calculation for B^T y_p.
-   //SparseMatrix B;
-   //Vector Brhs(pressure_fespace.GetTrueVSize()), BTyp(velocity_fespace.GetTrueVSize());
-
-   SparseMatrix Fk;
-
-   xi.SetTrueVector();
-   eta.SetTrueVector();
-   //yu.SetTrueVector();
-   */
-   /*
-   // Copy the right-hand-side elements into X
-   for (int i = 0; i < Xi.Size(); i++) {
-      X(i) = Rp_m(i); 
-   }
-   for (int i = 0; i < Eta.Size(); i++) {
-      X(i + Xi.Size()) = Rp_s(i);  
-   }
-   for (int i = 0; i < Yu.Size(); i++) {
-      X(i + Xi.Size() + Eta.Size()) = Ru(i);
-   }*/
-
-   //PPreconditioner precond(spaces, block_trueOffsets, Mp, Sp, Fk);
-   //PPreconditioner *precond = new PPreconditioner(spaces, block_trueOffsets, Mp, Sp, Fk, yu, yp, xi, eta, mp, sp, fk, rp, ru, b, pressure_ess_tdof, velocity_ess_tdof, 
-   //   &velocity_DBC, &pressure_DBC, &zero_DBC);
-   //precond->SetFunctionCoefficients(&velocity_DBC, &pressure_DBC, &zero_DBC);
-
-   //precond.Mult(X, Y);
-
-  
-
-   // Necessary?
-   //A.SetBlock(1,1, NULL);
-
-   /*
-   // Initialise solution and RHS vectors.
-   BlockVector X_NS(block_trueOffsets), RHS(block_trueOffsets);
-   X_NS = 0.0;
-   RHS.GetBlock(0) = ru; 
-   RHS.GetBlock(1) = rp;  
-   */
-
-   // Initialise time-loop details.
-   double t = 0.0;
-   //double t_final = 0.001;
-   //double dt = 0.0001;
-   //int steps = int(t_final / dt);
-
-   // Initialise velocity.
-   //yu.ProjectCoefficient(velocity_DBC);
+   xu_gf.GetTrueDofs(X.GetBlock(0));
+   xp_gf.GetTrueDofs(X.GetBlock(1));
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
    paraview_dc.SetPrefixPath("data");
-   int ti_out = 0;
-   visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, 0.0);
-   visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, 0.0);
-   ti_out += 1;
-   
-
-   //Vector Xu(yu.Size()), Ru(yu.Size()), Xp(yp.Size()), Rp(yp.Size());
-
-   //for (int ti = 0; ti < steps; ti++)
-   //{
-      //t += dt;
-      //std::cout << "Time step " << ti + 1 << ", time = " << t << std::endl;
-
-      // Apply Dirichlet boundary conditions.
-      //yu.ProjectBdrCoefficient(velocity_DBC, velocity_ess_tdof);
-      //yp.ProjectBdrCoefficient(pressure_DBC, pressure_ess_tdof);
-
-      //fk.Assemble();
-      //sp.Assemble();
-      //ru.Assemble();
-      //rp.Assemble();
-
-      //fk.FormLinearSystem(velocity_ess_tdof, yu, ru, Fk, Xu, Ru);
-      //sp.FormLinearSystem(pressure_ess_tdof, yp, rp, Sp, Xp, Rp);
-
-      //X_NS.GetBlock(0) = Xu;
-      //X_NS.GetBlock(1) = Xp;
-      //RHS.GetBlock(0) = Ru;
-      //RHS.GetBlock(1) = Rp;
-
-/*
-      BlockOperator A(block_trueOffsets);
-
-      // Set F block for velocity.
-      A.SetBlock(0,0, &fk);
-
-      // Set coupling (B^T and B) blocks.
-      Operator* bt = new TransposeOperator(b);
-      A.SetBlock(0,1, bt);
-      A.SetBlock(1,0, &b);
-
-*/
-      // Solve.
-      /*
-      GMRESSolver gmres;
-      gmres.SetOperator(A);
-      //gmres.SetPreconditioner(*precond); 
-      gmres.SetRelTol(1e-8);
-      gmres.SetAbsTol(0.0);
-      gmres.SetMaxIter(200);
-      gmres.SetPrintLevel(0);
-      gmres.iterative_mode = false; 
-      gmres.Mult(RHS, X_NS);  
-      */
-      
-      Vector &u_sol = X.GetBlock(0);
-      Vector &p_sol = X.GetBlock(1);
-
-      xu_gf.GetTrueDofs(X.GetBlock(0));
-      xp_gf.GetTrueDofs(X.GetBlock(1));
-
-      //fk.RecoverFEMSolution(u_sol, ru, yu);
-      //sp.RecoverFEMSolution(p_sol, rp, yp);
-
-
-      // Visualisation in Paraview.
-      //if (ti || 10)
-      //{
-         visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, t);
-         visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, t);
-         ti_out += 1;
-      //}
-
-
-   //}
-
-
-   // Initialize operator for Ax = b solve.  Arguments need updating.
-   //AOperator oper(spaces, ess_bdr, block_trueOffsets);
-
-   // Do the solve.
-   //oper.Solve(y);
+   visualize(paraview_dc, order_velocity, &xu_gf, "velocity", 0, 0.0);
+   visualize(paraview_dc, order_pressure, &xp_gf, "pressure", 0, 0.0);
 
    return 0;
 }
@@ -688,130 +370,4 @@ PPreconditioner::~PPreconditioner()
    //delete stiff_pcg;
 }
 
-*/
-
-/*
-
-real_t velocity_nbc(const Vector & x)
-{
-   return 0.0;
-}
-
-real_t pressure_nbc(const Vector & x)
-{
-   return 0.0;
-}
-
-real_t pressure_dbc(const Vector & x)
-{
-   if (x(0) > 0.0)
-   { // Value at outlet.
-      return 0.0;
-   }
-   else
-   { // Value at inlet.
-      return 1.0;
-   }
-}
-
-real_t zero_dbc(const Vector & x)
-{
-   return 0.0;
-}
-
-real_t outflow_term_func(const Vector & x)
-{
-
-   real_t val = 1.0;
-
-   if (x(0) < 0.99999)
-   { // Value at inlet.
-      return 0.0;
-   }
-   else
-   { // Value at outlet.
-      return 0.5 * val;
-   }
-}
-
-
-void velocity_dbc_vec_func(const Vector & x, Vector & f)
-{
-   //real_t pi = 3.14159;
-
-   real_t r_max = 0.1;
-   real_t u_avg = 1.0;
-   
-   if (x(0) > 0.00005)
-   { // Zero on top and bottom boundaries.
-      f(0) = 0.0;
-      f(1) = 0.0;
-
-      if (x.Size() == 3)
-      {
-         f(2) = 0.0;
-      }
-   } 
-   else 
-   { // One in x-direction at inlet.
-      //f(0) = sin(5 * pi * x(1));
-      f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
-      //f(0) = 1.0;
-      f(1) = 0.0;
-
-      if (x.Size() == 3)
-      {
-         f(2) = 0.0;
-      }
-   }
-}
-
-void u_exact(const mfem::Vector & x, mfem::Vector & f)
-{
-
-   real_t r_max = 0.1;
-   real_t u_avg = 1.0;
-
-   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
-   f(1) = 0.0;
-   if (x.Size() == 3)
-   {
-      f(2) = 0.0;
-   }
-   
-}
-
-
-void checkpoint(int num)
-{
-   cout << "**********************************************" << endl;
-   cout << "**************** CHECKPOINT " << num << " ****************" << endl;
-   cout << "**********************************************" << endl;
-   cout << endl;
-}
-
-void initial_velocity(const Vector & x, Vector & f)
-{
-   real_t r_max = 0.1;
-   real_t u_avg = 1.0;
-
-   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
-}
-
-// Inline visualization
-void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, double t)
-{
-
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-
-   paraview_dc.SetCycle(ti);
-   paraview_dc.SetTime(t);
-
-   // Export field data.
-   paraview_dc.RegisterField(field_name,field);
-
-   paraview_dc.Save();
-}
 */
