@@ -2,7 +2,7 @@
 
 Repository for an inductionless liquid metal MHD solver in MFEM, detailed in [1] - deliverable for Fusion Computing Lab WP3.3.
 
-The solver in `01_fluids_solver` contains a linearised form of the Navier-Stokes equations, implemented in `01_fluids_solver.cpp`.  Currently the solver just solves the linearised equation in a preconditioner class that is ready to be incorporated into a non-linear solver.  Next step is to implement the GMRES solve and incorporate the preconditioner.
+The solver in `fluids_solver` contains `fluids_solver.cpp` which houses the `main()` function for the (work-in-progress) fluids solver.  The solver is currently a first step towards a GMRES non-linear solver.  Currently not implemented, but included, is the linearised equation in a preconditioner class that is ready to be incorporated into the non-linear solver.  Next steps are to continue to work on the GMRES solver and incorporate the preconditioner.
 
 
 References:
