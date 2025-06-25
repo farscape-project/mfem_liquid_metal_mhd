@@ -36,10 +36,6 @@ protected:
 
    int dim;
 
-   // Need to be kept alive for fk->Assemble() in Solve.
-   GridFunction ustar_n;
-   VectorGridFunctionCoefficient ustar_coef;
-
    // Vectors and coefficients used by linear forms in FluidsOperator::Solve.
    Vector zero_vector;
    Vector one_vector;
@@ -47,6 +43,11 @@ protected:
    VectorConstantCoefficient one_vector_coef;
    FunctionCoefficient velocity_nbc_coeff;
    FunctionCoefficient pressure_nbc_coeff;
+
+   // Need to be kept alive for fk->Assemble() in Solve.
+   GridFunction *ustar_n;
+   VectorFunctionCoefficient *ucoef;
+   VectorGridFunctionCoefficient *ustar_coef;
 
 
 public:

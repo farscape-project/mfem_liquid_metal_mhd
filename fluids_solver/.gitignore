@@ -7,6 +7,7 @@ old
 # Simulation files
 run_mfem.sh
 *.log
+*.vtk
 
 # Scripts
 remove.sh
