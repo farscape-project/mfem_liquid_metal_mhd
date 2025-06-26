@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_pressure[0] = 0; // Top
    ess_boundary_marker_pressure[1] = 1; // Outlet
    ess_boundary_marker_pressure[2] = 0; // Bottom
-   ess_boundary_marker_pressure[3] = 1; // Inlet
+   ess_boundary_marker_pressure[3] = 0; // Inlet
 
    // Essential (Dirichlet) boundary conditions for velocity.
    ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
    ess_boundary_marker_velocity[0] = 1; // Top
    ess_boundary_marker_velocity[1] = 0; // Outlet
    ess_boundary_marker_velocity[2] = 1; // Bottom
-   ess_boundary_marker_velocity[3] = 0; // Inlet
+   ess_boundary_marker_velocity[3] = 1; // Inlet
 
    Array<Array<int> *> ess_bdr(2);
    ess_bdr[0] = &ess_boundary_marker_velocity;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_pressure[0] = 1; // Top
    nat_boundary_marker_pressure[1] = 0; // Outlet
    nat_boundary_marker_pressure[2] = 1; // Bottom
-   nat_boundary_marker_pressure[3] = 0; // Inlet
+   nat_boundary_marker_pressure[3] = 1; // Inlet
 
    // Natural (Neumann) boundary conditions for velocity.
    nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
    nat_boundary_marker_velocity[0] = 0; // Top
    nat_boundary_marker_velocity[1] = 1; // Outlet
    nat_boundary_marker_velocity[2] = 0; // Bottom
-   nat_boundary_marker_velocity[3] = 1; // Inlet
+   nat_boundary_marker_velocity[3] = 0; // Inlet
 
    Array<Array<int> *> nat_bdr(2);
    nat_bdr[0] = &nat_boundary_marker_velocity;
@@ -155,7 +155,9 @@ int main(int argc, char *argv[])
    std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
    std::cout << "***********************************************************\n";
 
-
+   GridFunction xu_gf(&velocity_fespace);
+   GridFunction xp_gf(&pressure_fespace);
+   
    // Define block structure of the solution vector (u then p).
    Array<int> block_trueOffsets(3);
    block_trueOffsets[0] = 0;
@@ -170,11 +172,8 @@ int main(int argc, char *argv[])
 
    oper.Solve(X);
 
-   GridFunction xu_gf(&velocity_fespace);
-   GridFunction xp_gf(&pressure_fespace);
-
-   xu_gf.GetTrueDofs(X.GetBlock(0));
-   xp_gf.GetTrueDofs(X.GetBlock(1));
+   xu_gf.SetFromTrueDofs(X.GetBlock(0));
+   xp_gf.SetFromTrueDofs(X.GetBlock(1));
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);

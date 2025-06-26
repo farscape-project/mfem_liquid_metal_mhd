@@ -7,8 +7,6 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
                             int dim)
    : Operator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize()),
      block_trueOffsets(offsets),
-     xu_gf(fes[0]),
-     xp_gf(fes[1]),
      fluids_solver(),
      zero_vector(3),
      one_vector(3),
@@ -24,12 +22,6 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
 
    zero_vector = 0.0;
    one_vector = 0.0;
-
-   // Initialise grid functions with zero, then with boundary conditions.
-   xu_gf = 0.0; xp_gf = 0.0;
-
-   xu_gf.SetTrueVector();
-   xp_gf.SetTrueVector();
 
    // Set up rhs for velocity solve.
    ru = new LinearForm(spaces[0]);
@@ -82,8 +74,9 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    //gmres.SetPreconditioner(*precond); 
    fluids_solver.SetRelTol(1e-8);
    fluids_solver.SetAbsTol(0.0);
-   fluids_solver.SetMaxIter(200);
+   fluids_solver.SetMaxIter(500);
    fluids_solver.SetPrintLevel(1);
+   //fluids_solver.SetPreconditioner(BlockDiagonalPreconditioner);
    fluids_solver.iterative_mode = false;  
 
 
@@ -100,30 +93,35 @@ void FluidsOperator::Solve(Vector &X)
    // Assume X is a BlockVector
    BlockVector &Xb = dynamic_cast<BlockVector&>(X);
 
+   GridFunction xu_gf(spaces[0]), xp_gf(spaces[1]);
+   xu_gf = 0.0; xp_gf = 0.0;
+   //xu_gf.SetTrueVector();
+   //xp_gf.SetTrueVector();
+
+   xu_gf.SetFromTrueDofs(Xb.GetBlock(0));
+   xp_gf.SetFromTrueDofs(Xb.GetBlock(1));
+
    // Copy true dofs into GridFunctions
-   xu_gf.MakeRef(spaces[0], Xb.GetBlock(0), 0);
-   xp_gf.MakeRef(spaces[1], Xb.GetBlock(1), 0);
+   //xu_gf.MakeRef(spaces[0], Xb.GetBlock(0), 0);
+   //xp_gf.MakeRef(spaces[1], Xb.GetBlock(1), 0);
 
    velocity_DBC = new VectorFunctionCoefficient(dim, velocity_dbc_vec_func);
    pressure_DBC = new FunctionCoefficient(pressure_dbc);
 
-
-   std::cout << "Pressure essential boundary attributes: ";
-   for (int i = 0; i < ess_bdr_marker[1]->Size(); i++)
-   {
-      if ((*ess_bdr_marker[1])[i] != 0)
-         std::cout << i << " ";
-   }
-   std::cout << std::endl;
-
-   // Apply BCs.
+   // Project BCs onto grid functions.
    xu_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[0]);
    xp_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[1]);
 
-   // THIS COMES FROM SOHAIL'S: https://github.com/sohail69/emfsi_MFEM_app/tree/main
-   // CHECK IMPLEMENTATION.
-   applyDirchValues(xu_gf, Xb.GetBlock(0), *ess_bdr_marker[0]);
-   applyDirchValues(xp_gf, Xb.GetBlock(1), *ess_bdr_marker[1]);
+   std::cout << "Xu_true:" << std::endl;
+   Vector Xu_true(spaces[0]->GetTrueVSize());
+   xu_gf.GetTrueDofs(Xu_true);
+   Xu_true.Print();
+
+   std::cout << "Xp_true:" << std::endl;
+   Vector Xp_true(spaces[1]->GetTrueVSize());
+   xp_gf.GetTrueDofs(Xp_true);
+   Xp_true.Print();
+
 
    fk->Assemble(); fk->Finalize();
    b->Assemble(); b->Finalize();
@@ -131,116 +129,118 @@ void FluidsOperator::Solve(Vector &X)
    ru->Assemble();
    rp->Assemble();
 
-   // TESTS
-   //std::cout << "||ru|| = " << ru->Norml2() << std::endl;
-   //std::cout << "||rp|| = " << rp->Norml2() << std::endl;
 
-   SparseMatrix FkMat, P_dummy;
-   Vector Xu, Ru, Xp, Rp;
+   Array<int> ess_tdof_u, ess_tdof_p;
+   spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_u);
+   spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_p);
 
-   // TESTS
-   //std::cout << "ru.Size() = " << ru->Size() << std::endl;
-   //std::cout << "xu_gf.Size() = " << xu_gf.Size() << std::endl;
-   //std::cout << "ess_bdr_marker[0]->Size() = " << ess_bdr_marker[0]->Size() << std::endl;
+   SparseMatrix FkMat = fk->SpMat();
+   SparseMatrix BMat = b->SpMat();
 
 
-   fk->FormLinearSystem(*ess_bdr_marker[0], xu_gf, *ru, FkMat, Xu, Ru);
+   // Eliminate rows for DBC and generate rhs subtraction for velocity DBCs.
 
-   // Dummy bilinear form for applying pressure bcs.
-   BilinearForm p_dummy(spaces[1]);
-   p_dummy.Assemble();
-   p_dummy.Finalize();
-   p_dummy.FormLinearSystem(*ess_bdr_marker[1], xp_gf, *rp, P_dummy, Xp, Rp);
+   // Set up the true dofs for each grid function.
+   Vector u_true(spaces[0]->GetTrueVSize());
+   xu_gf.GetTrueDofs(u_true);
+
+   u_true.Print();
+
+   Vector p_true(spaces[1]->GetTrueVSize());
+   xp_gf.GetTrueDofs(p_true);
 
 
-   /*Array<int> trueDofsV, trueDofsP;
-   spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], trueDofsV);
-   spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], trueDofsP);
-
-   // Reduce coupling blocks to true DOFs only
-   const SparseMatrix &B = b->SpMat();
-   SparseMatrix *BtFull = Transpose(B);
-   DenseMatrix BtReduced, BReduced;
-
-   trueDofsV.Sort();
-   trueDofsV.Unique();
-   trueDofsP.Sort();
-   trueDofsP.Unique();
-
-   std::cout << "BtFull size: " << BtFull->Height() << " x " << BtFull->Width() << std::endl;
-   std::cout << "trueDofsV size: " << trueDofsV.Size() << std::endl;
-   std::cout << "trueDofsP size: " << trueDofsP.Size() << std::endl;
-   std::cout << "BtReduced size: " << BtReduced.Height() << " x " << BtReduced.Width() << std::endl;
-
-   
-   int maxV = -1;
-   for (int i = 0; i < trueDofsV.Size(); i++)
+   // Loop through essential bcs for velocity and eliminate rows in the Fk matrix and set 
+   // diagonal entries to 1.0.
+   Vector u_ess(u_true.Size());
+   u_ess = 0.0;
+   for (int i = 0; i < ess_tdof_u.Size(); i++)
    {
-      if (trueDofsV[i] > maxV) maxV = trueDofsV[i];
-   }
-   std::cout << "Max trueDofsV index: " << maxV << std::endl;
+      int tdof_u = ess_tdof_u[i];
+      // Set RHS to the Dirichlet value.
+      u_ess(tdof_u) = u_true(tdof_u); 
 
-   int maxP = -1;
-   for (int i = 0; i < trueDofsP.Size(); i++)
+      // Zero row
+      FkMat.EliminateRow(tdof_u);
+      // Set diagonal entry
+      FkMat.Set(tdof_u, tdof_u, 1.0);
+   }
+
+
+   // Loop through essential bcs for velocity and eliminate columns in the b matrix.
+   Vector b_ess_u(u_true.Size());
+   for (int i = 0; i < ess_tdof_u.Size(); i++)
    {
-      if (trueDofsP[i] > maxP) maxP = trueDofsP[i];
+      int tdof_u = ess_tdof_u[i];
+      // Copy only constrained values.
+      b_ess_u(tdof_u) = u_true(tdof_u);  
+      
+      // Zero row
+      BMat.EliminateCol(tdof_u);
+      // Set diagonal entry
+      //BtMat->Set(tdof_u, tdof_u, 1.0);
    }
-   std::cout << "Max trueDofsP index: " << maxP << std::endl;
 
-   std::cout << "trueDofsV: ";
-   for (int i = 0; i < trueDofsV.Size(); i++)
-      std::cout << trueDofsV[i] << " ";
-   std::cout << std::endl;
+   // Loop through essential bcs for pressure and eliminate rows in the b matrix.
+   Vector b_ess_p(p_true.Size());
+   for (int i = 0; i < ess_tdof_p.Size(); i++)
+   {
+      int tdof_p = ess_tdof_p[i];
+      // Copy only constrained values.
+      b_ess_p(tdof_p) = p_true(tdof_p);  
 
-   std::cout << "trueDofsP: ";
-   for (int i = 0; i < trueDofsP.Size(); i++)
-      std::cout << trueDofsP[i] << " ";
-   std::cout << std::endl;*/
+      // Zero row
+      BMat.EliminateRow(tdof_p);
+      // Set diagonal entry
+      //BtMat->Set(tdof_p, tdof_p, 1.0);
+   }
 
-   //BtFull->GetSubMatrix(trueDofsV, trueDofsP, BtReduced);
-   //checkpoint(1);
-   //B.GetSubMatrix(trueDofsP, trueDofsV, BReduced);
-   //checkpoint(2);
+   SparseMatrix *BtMat = Transpose(BMat);  // Bᵗ: pressure → velocity
 
-   /* TESTS (begin)
-   std::cout << "||xp_gf|| = " << xp_gf.Norml2() << std::endl;
+   Vector BEss(p_true.Size());
+   BMat.Mult(b_ess_u, BEss);
 
-   Vector test_vel(spaces[0]->GetTrueVSize()); test_vel.Randomize();
-   Vector div_result(spaces[1]->GetTrueVSize());
+   Vector BtEss(u_true.Size());
+   BtMat->Mult(b_ess_p, BtEss);
 
-   b->SpMat().Mult(test_vel, div_result);
-   std::cout << "||B * random_u|| = " << div_result.Norml2() << std::endl;
+   Vector FkMatEss(u_true.Size());
+   FkMat.Mult(u_ess, FkMatEss);
 
-   Vector test_pres(spaces[1]->GetTrueVSize());
-   test_pres.Randomize();
+   Vector Ru(spaces[0]->GetTrueVSize()), Rp(spaces[1]->GetTrueVSize());
+   Ru = ru->GetData();
+   Rp = rp->GetData();
 
-   Vector grad_result(spaces[0]->GetTrueVSize());
-   TransposeOperator Bt(b->SpMat());
-   Bt.Mult(test_pres, grad_result);
+   // Subtract the essential boundary conditions from the rhs.
+   // Ru = Ru - FkMat * u_ess - B^T * p_ess
+   Ru -= FkMatEss;
+   Ru -= BtEss;
 
-   std::cout << "||Bᵗ * random_p|| = " << grad_result.Norml2() << std::endl;
-   // TESTS (end) */
+   // Rp = Rp - B * u_ess
+   Rp -= BEss;
+
+   std::cout << "||Ru|| = " << Ru.Norml2() << std::endl;
+   std::cout << "||Rp|| = " << Rp.Norml2() << std::endl;
+
 
    A = new BlockOperator(block_trueOffsets);
    // Set F block for velocity.
    A->SetBlock(0,0, &FkMat); 
    // Set coupling (B^T and B) blocks.
-   Operator* BtOp = new TransposeOperator(b->SpMat());
-   A->SetBlock(0,1, BtOp);
-   A->SetBlock(1,0, &(b->SpMat()));
-   //A->SetBlock(0,1, &BtReduced);
-   //A->SetBlock(1,0, &BReduced);
+   A->SetBlock(0,1, BtMat);
+   A->SetBlock(1,0, &BMat);
 
    RHS = new BlockVector(block_trueOffsets);
    RHS->GetBlock(0) = Ru; 
    RHS->GetBlock(1) = Rp; 
 
-   // TESTS
-   //std::cout << "||Rp|| = " << RHS->GetBlock(1).Norml2() << std::endl;
-   //std::cout << "||Ru|| = " << RHS->GetBlock(0).Norml2() << std::endl;
+   BlockDiagonalPreconditioner M(block_trueOffsets);
+   M.SetDiagonalBlock(0, new GSSmoother(FkMat)); // Velocity preconditioner
 
    fluids_solver.SetOperator(*A);
+   fluids_solver.SetPreconditioner(M);
    fluids_solver.Mult(*RHS, X);
+
+   
 }
 
 // Solve AX = RHS.

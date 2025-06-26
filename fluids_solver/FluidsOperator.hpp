@@ -17,7 +17,6 @@ protected:
    // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
-   mutable GridFunction xu_gf, xp_gf;
    LinearForm *rp, *ru;
    BilinearForm *fk;
    MixedBilinearForm *b;
@@ -48,7 +47,6 @@ protected:
    GridFunction *ustar_n;
    VectorFunctionCoefficient *ucoef;
    VectorGridFunctionCoefficient *ustar_coef;
-
 
 public:
    FluidsOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<Array<int> *> &nat_bdr,

@@ -4,25 +4,6 @@ using namespace std;
 using namespace mfem;
 
 
-inline void applyDirchValues(const mfem::Vector &k, mfem::Vector &y, mfem::Array<int> dofs)
-{
-  // FROM SOHAIL'S: https://github.com/sohail69/emfsi_MFEM_app/tree/main
-  if(dofs.Size() > 0){ //Only apply if there are constrained DOF's
-    const bool use_dev = dofs.UseDevice() || k.UseDevice() || y.UseDevice();
-    const int n = dofs.Size();
-    // Use read+write access for X - we only modify some of its entries
-    auto d_X = y.ReadWrite(use_dev);
-    auto d_y = k.Read(use_dev);
-    auto d_dofs = dofs.Read(use_dev);
-    for (int i = 0; i < n; i++)
-    {
-      const int dof_i = d_dofs[i];
-      if (dof_i >= 0)   d_X[dof_i]    =  d_y[dof_i];
-      if (!(dof_i >= 0))d_X[-1-dof_i] = -d_y[-1-dof_i];
-    }
-  }
-};
-
 
 inline real_t velocity_nbc(const Vector & x)
 {
