@@ -15,6 +15,15 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
      velocity_nbc_coeff(velocity_nbc),
      pressure_nbc_coeff(pressure_nbc)
 {
+   // Sets up solve for the following system:
+   //    ( Fk  B^T ) ( xu ) = ( ru )
+   //    ( B   0   ) ( xp )   ( rp )
+   // where Fk is the velocity bilinear form, B is the mixed bilinear form, and
+   // ru and rp are the right-hand sides for the velocity and pressure solves, where
+   //     Fk <-> 2/Tau (v, v') + O(u_n; v, v') + A_AL(v, v')
+   // and
+   //     B <-> -div(v, q).
+
    fes.Copy(spaces);
 
    ess_bdr.Copy(ess_bdr_marker);
@@ -22,6 +31,12 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
 
    zero_vector = 0.0;
    one_vector = 0.0;
+
+   // Initialise grid functions with zero, then with boundary conditions.
+   //xu_gf = 0.0; xp_gf = 0.0;
+
+   //xu_gf.SetTrueVector();
+   //xp_gf.SetTrueVector();
 
    // Set up rhs for velocity solve.
    ru = new LinearForm(spaces[0]);
@@ -52,6 +67,10 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    ustar_n->ProjectCoefficient(*ucoef);
    ustar_coef = new VectorGridFunctionCoefficient(ustar_n);
 
+   // TODO
+   // TODO: work out why this delete causes a segfault and whether we really need it.
+   // TODO
+   // delete fk;
    // Bilinear form for the velocity solve.
    fk = new BilinearForm(spaces[0]);
    // Integrator for (v, v').
@@ -76,7 +95,6 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    fluids_solver.SetAbsTol(0.0);
    fluids_solver.SetMaxIter(500);
    fluids_solver.SetPrintLevel(1);
-   //fluids_solver.SetPreconditioner(BlockDiagonalPreconditioner);
    fluids_solver.iterative_mode = false;  
 
 
@@ -138,13 +156,12 @@ void FluidsOperator::Solve(Vector &X)
    SparseMatrix BMat = b->SpMat();
 
 
+   // Manually handle the essential boundary conditions (DBC) for velocity and pressure.
    // Eliminate rows for DBC and generate rhs subtraction for velocity DBCs.
 
    // Set up the true dofs for each grid function.
    Vector u_true(spaces[0]->GetTrueVSize());
    xu_gf.GetTrueDofs(u_true);
-
-   u_true.Print();
 
    Vector p_true(spaces[1]->GetTrueVSize());
    xp_gf.GetTrueDofs(p_true);
@@ -195,7 +212,7 @@ void FluidsOperator::Solve(Vector &X)
       //BtMat->Set(tdof_p, tdof_p, 1.0);
    }
 
-   SparseMatrix *BtMat = Transpose(BMat);  // Bᵗ: pressure → velocity
+   SparseMatrix *BtMat = Transpose(BMat);  // B^T: pressure → velocity
 
    Vector BEss(p_true.Size());
    BMat.Mult(b_ess_u, BEss);
@@ -233,11 +250,11 @@ void FluidsOperator::Solve(Vector &X)
    RHS->GetBlock(0) = Ru; 
    RHS->GetBlock(1) = Rp; 
 
-   BlockDiagonalPreconditioner M(block_trueOffsets);
-   M.SetDiagonalBlock(0, new GSSmoother(FkMat)); // Velocity preconditioner
+   BlockDiagonalPreconditioner P(block_trueOffsets);
+   P.SetDiagonalBlock(0, new GSSmoother(FkMat)); // Velocity preconditioner
 
    fluids_solver.SetOperator(*A);
-   fluids_solver.SetPreconditioner(M);
+   fluids_solver.SetPreconditioner(P);
    fluids_solver.Mult(*RHS, X);
 
    
