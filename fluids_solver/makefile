@@ -1,12 +1,12 @@
-MFEM_DIR ?= ../..
+MFEM_DIR ?= ../../..
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
 include $(CONFIG_MK)
 
 # Source files and executable
 TARGET = fluids_solver
-SRC = fluids_solver.cpp custom_integrators.cpp FluidsOperator.cpp constants.cpp
-INC = custom_integrators.hpp FluidsOperator.hpp constants.hpp utils.hpp
+SRC = fluids_solver.cpp custom_integrators.cpp FluidsOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp
+INC = custom_integrators.hpp FluidsOperator.hpp constants.hpp BlockTriangularPreconditioner.hpp utils.hpp
 
 # Compiler and flags
 CXX = $(MFEM_CXX)
@@ -16,7 +16,7 @@ LDFLAGS = $(MFEM_LIBS)
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $^ -g -o $@ $(LDFLAGS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

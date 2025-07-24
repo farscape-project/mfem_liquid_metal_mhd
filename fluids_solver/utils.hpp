@@ -58,7 +58,7 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    f.SetSize(dim);
 
 
-   real_t r_max = 0.1;
+   real_t r_max = 0.5;
    real_t u_avg = 1.0;
    
    if (x(0) < 1e-6)

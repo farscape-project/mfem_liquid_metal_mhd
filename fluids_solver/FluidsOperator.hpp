@@ -14,18 +14,19 @@ class FluidsOperator : public TimeDependentOperator
 {
 protected:
    // Finite element spaces
-   Array<FiniteElementSpace *> spaces;
+   Array<ParFiniteElementSpace *> spaces;
    // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
-   LinearForm *rp, *ru;
-   BilinearForm *fk, *m_p, *s_p;
-   MixedBilinearForm *b;
+   ParLinearForm *rp, *ru;
+   ParBilinearForm *fk, *m_p, *s_p;
+   ParMixedBilinearForm *b;
    BlockOperator *A;
-   Solver *P;
+   BlockTriangularPreconditioner *P;
    //BlockDiagonalPreconditioner *P;
 
-   SparseMatrix *FkMat = nullptr;
+   HypreParMatrix *FkMat = nullptr;
+   SparseMatrix *serialFkMat = nullptr;
    SparseMatrix *BMat = nullptr;
    SparseMatrix *BtMat = nullptr;
    SparseMatrix *MpMat = nullptr;
@@ -68,7 +69,7 @@ protected:
    
 
 public:
-   FluidsOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<Array<int> *> &nat_bdr,
+   FluidsOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<Array<int> *> &nat_bdr,
                   Array<int> &block_trueOffsets, int dim, double dt);
 
 

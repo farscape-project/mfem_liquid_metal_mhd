@@ -1,6 +1,6 @@
 #include "FluidsOperator.hpp"
 
-FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
+FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<Array<int> *> &nat_bdr,
                             Array<int> &offsets,
@@ -35,13 +35,13 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    one_vector = 0.0;
 
    // Set up rhs for velocity solve.
-   ru = new LinearForm(spaces[0]);
+   ru = new ParLinearForm(spaces[0]);
    ru->AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
    // Natural boundary condition.
    ru->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(velocity_nbc_coeff), *nat_bdr_marker[0]);
 
    // Set up rhs for pressure solve.
-   rp = new LinearForm(spaces[1]);
+   rp = new ParLinearForm(spaces[1]);
    rp->AddDomainIntegrator(new DomainLFIntegrator(zero));
    // Natural boundary condition.
    rp->AddBoundaryIntegrator(new BoundaryLFIntegrator(pressure_nbc_coeff), *nat_bdr_marker[1]);
@@ -51,8 +51,8 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    });
 
    // Initisalise bilinear forms.
-   fk = new BilinearForm(spaces[0]);
-   b = new MixedBilinearForm(spaces[0],spaces[1]);
+   fk = new ParBilinearForm(spaces[0]);
+   b = new ParMixedBilinearForm(spaces[0],spaces[1]);
 
    // Define ustar_n for convection integrators.
    //ustar_n = new GridFunction(spaces[0]);
@@ -67,8 +67,8 @@ FluidsOperator::FluidsOperator(Array<FiniteElementSpace *> &fes,
    fluids_solver.SetRelTol(1e-6);
    fluids_solver.SetAbsTol(0.0);
    fluids_solver.SetMaxIter(1000);
-   fluids_solver.SetPrintLevel(1);
-   fluids_solver.iterative_mode = true;  
+   fluids_solver.SetPrintLevel(0);
+   fluids_solver.iterative_mode = false;  
 
    //BlockDiagonalPreconditioner P(block_trueOffsets);
 
@@ -85,7 +85,7 @@ void FluidsOperator::Update(const Vector &X)
    // Set up the bilinear form for the velocity solve.
    delete fk;
    // Bilinear form for the velocity solve.
-   fk = new BilinearForm(spaces[0]);
+   fk = new ParBilinearForm(spaces[0]);
    // Integrator for (v, v').
    fk->AddDomainIntegrator(new VectorMassIntegrator(vectorMassCoef));
    // Integrator for A_AL(v, v').
@@ -106,7 +106,7 @@ void FluidsOperator::Update(const Vector &X)
    
    // Set up mixed bilinear form for velocity and pressure coupling.
    delete b;
-   b = new MixedBilinearForm(spaces[0],spaces[1]);
+   b = new ParMixedBilinearForm(spaces[0],spaces[1]);
    b->AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
 
    int v_space_size = spaces[0]->GetTrueVSize();
@@ -116,7 +116,7 @@ void FluidsOperator::Update(const Vector &X)
    Vector u_part(X.GetData(), v_space_size);            
    Vector p_part(X.GetData() + v_space_size, p_space_size);
 
-   GridFunction xu_gf(spaces[0]), xp_gf(spaces[1]);
+   ParGridFunction xu_gf(spaces[0]), xp_gf(spaces[1]);
    xu_gf = 0.0; xp_gf = 0.0;
    //xu_gf.SetTrueVector();
    //xp_gf.SetTrueVector();
@@ -138,8 +138,6 @@ void FluidsOperator::Update(const Vector &X)
    xu_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[0]);
    xp_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[1]);
 
-   std::cout << "ess_bdr_marker:" << std::endl;
-   ess_bdr_marker[0]->Print();  // Should be 1 on inlet boundary
 
    //std::cout << "Xu_true:" << std::endl;
    //Vector Xu_true(spaces[0]->GetTrueVSize());
@@ -151,21 +149,18 @@ void FluidsOperator::Update(const Vector &X)
    //xp_gf.GetTrueDofs(Xp_true);
    //Xp_true.Print();
 
-
    fk->Assemble(); fk->Finalize();
    b->Assemble(); b->Finalize();
 
    ru->Assemble();
    rp->Assemble();
 
-
    Array<int> ess_tdof_u, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_u);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_p);
 
-   FkMat = &(fk->SpMat());
+   serialFkMat = &(fk->SpMat());
    BMat = &(b->SpMat());
-
 
    // Manually handle the essential boundary conditions (DBC) for velocity and pressure.
    // Eliminate rows for DBC and generate rhs subtraction for velocity DBCs.
@@ -191,12 +186,19 @@ void FluidsOperator::Update(const Vector &X)
       // Set RHS to the Dirichlet value.
       u_ess(tdof_u) = u_true(tdof_u); 
 
-      // Zero row
-      FkMat->EliminateRow(tdof_u);
+      // Zero row.  TODO: Double check if this should be EliminateRow or EliminateRowCol.
+      serialFkMat->EliminateRowCol(tdof_u);
       // Set diagonal entry
-      FkMat->Set(tdof_u, tdof_u, 1.0);
+      serialFkMat->Set(tdof_u, tdof_u, 1.0);
    }
 
+   /*std::cout << "Essential velocity BCs applied (tdof : value):" << std::endl;
+   for (int i = 0; i < ess_tdof_u.Size(); i++)
+   {
+      int tdof_u = ess_tdof_u[i];
+      std::cout << "  DOF " << tdof_u << " : " << u_true(tdof_u) << std::endl;
+   }*/
+      
 
    // Loop through essential bcs for velocity and eliminate columns in the b matrix.
    Vector b_ess_u(u_true.Size());
@@ -226,6 +228,7 @@ void FluidsOperator::Update(const Vector &X)
       //BtMat->Set(tdof_p, tdof_p, 1.0);
    }
 
+
    //SparseMatrix *BtMat = Transpose(*BMat);  // B^T: pressure → velocity
    if (BtMat) { delete BtMat; } 
       BtMat = Transpose(*BMat);
@@ -237,7 +240,7 @@ void FluidsOperator::Update(const Vector &X)
    BtMat->Mult(b_ess_p, BtEss);
 
    Vector FkMatEss(u_true.Size());
-   FkMat->Mult(u_ess, FkMatEss);
+   serialFkMat->Mult(u_ess, FkMatEss);
 
    //Vector Ru(spaces[0]->GetTrueVSize()), Rp(spaces[1]->GetTrueVSize());
    //Ru = ru->GetData();
@@ -259,7 +262,7 @@ void FluidsOperator::Update(const Vector &X)
    std::cout << "||Ru|| = " << Ru.Norml2() << std::endl;
    std::cout << "||Rp|| = " << Rp.Norml2() << std::endl;
 
-   
+   HypreParMatrix *FkMat = fk->ParallelAssemble();
 
    A = new BlockOperator(block_trueOffsets);
    // Set F block for velocity.
@@ -272,8 +275,18 @@ void FluidsOperator::Update(const Vector &X)
    RHS->GetBlock(0) = Ru; 
    RHS->GetBlock(1) = Rp; 
 
-   P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces[1], v_space_size, p_space_size, vectorMassCoef, dt);
-
+   // Create preconditioner if it doesn't exist.  Update value of Fk (dependent on last value of velocity) 
+   // if it already exists.
+   /*if (!P) 
+   {
+      P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces[1], v_space_size, p_space_size, vectorMassCoef, dt);
+      P->Update(*FkMat);
+      fluids_solver.SetPreconditioner(*P);
+   }
+   else
+   {
+      P->Update(*FkMat);
+   }*/
 
    /*P = new BlockDiagonalPreconditioner(block_trueOffsets);
    P->SetDiagonalBlock(0, new GSSmoother(*FkMat)); // Velocity preconditioner
@@ -293,7 +306,7 @@ void FluidsOperator::Update(const Vector &X)
    P->SetDiagonalBlock(1, new GSSmoother(*LMat));*/
 
    fluids_solver.SetOperator(*A);
-   fluids_solver.SetPreconditioner(*P);
+   
 
 }
 
@@ -317,7 +330,6 @@ void FluidsOperator::Mult(const Vector &X, Vector &dX_dt) const
 
 FluidsOperator::~FluidsOperator()
 {
-   //delete A;
    delete fk;
    delete b;
    delete ru;
