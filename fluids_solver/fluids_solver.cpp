@@ -62,6 +62,36 @@ public:
 int main(int argc, char *argv[])
 {
 
+   // Set timestepping parameters.
+   double t_final = 0.5;
+   double dt = 5e-3;
+   int vis_steps = 10; // Visualisation every 10 steps.
+
+   int ode_solver_type = 14;
+
+   // Define the ODE solver used for time integration.
+   ODESolver *ode_solver;
+   switch (ode_solver_type)
+   {
+      // Implicit L-stable methods
+      case 1:  ode_solver = new BackwardEulerSolver; break;
+      case 2:  ode_solver = new SDIRK23Solver(2); break;
+      case 3:  ode_solver = new SDIRK33Solver; break;
+      // Explicit methods
+      case 11: ode_solver = new ForwardEulerSolver; break;
+      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 13: ode_solver = new RK3SSPSolver; break;
+      case 14: ode_solver = new RK4Solver; break;
+      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
+      // Implicit A-stable methods (not L-stable)
+      case 22: ode_solver = new ImplicitMidpointSolver; break;
+      case 23: ode_solver = new SDIRK23Solver; break;
+      case 24: ode_solver = new SDIRK34Solver; break;
+      default:
+      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
+      return 1;
+   }
+
    // Set fe_space orders.
    int order_pressure = 1;
    int order_velocity;
@@ -69,7 +99,9 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
-   Mesh mesh = Mesh::MakeCartesian2D(20, 8, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   Mesh mesh = Mesh::MakeCartesian2D(20, 8, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
+   //Mesh mesh = Mesh::MakeCartesian3D(20, 8, 8, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    int dim = mesh.Dimension();   
 
    
@@ -166,20 +198,81 @@ int main(int argc, char *argv[])
    block_trueOffsets.PartialSum();
 
    BlockVector X(block_trueOffsets);
-
-   // Initialise fluids operator.
-   FluidsOperator oper(spaces, ess_bdr, nat_bdr, block_trueOffsets, dim);
-
-   oper.Solve(X);
-
-   xu_gf.SetFromTrueDofs(X.GetBlock(0));
-   xp_gf.SetFromTrueDofs(X.GetBlock(1));
+   X = 0;
+   BlockVector Xn_1(block_trueOffsets), Xn_2(block_trueOffsets);
+   Xn_1 = 0; Xn_2 = 0;
+   Vector u_star_vec(v_space_size);
+   GridFunction u_star(&velocity_fespace);
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
    paraview_dc.SetPrefixPath("data");
-   visualize(paraview_dc, order_velocity, &xu_gf, "velocity", 0, 0.0);
-   visualize(paraview_dc, order_pressure, &xp_gf, "pressure", 0, 0.0);
+
+   // Initialise time-loop details.
+   double t = 0.0;
+   int n_steps = int(t_final / dt);
+   int ti_out = 0; // Time step output index.
+
+   std::cout << "dt (main) = " << dt << std::endl;
+
+
+   // Initialise fluids operator.
+   FluidsOperator oper(spaces, ess_bdr, nat_bdr, block_trueOffsets, dim, dt);
+
+   ode_solver->Init(oper);
+
+   for (int ti = 0; ti < n_steps; ti++)
+   {
+      t += dt;
+      std::cout << "Time step " << ti + 1 << ", time = " << t << std::endl;
+
+      // Set history and u_star.
+      if (ti == 0)
+      {
+         // Set u_star = i.c. for first timestep.
+         u_star.SetFromTrueDofs(X.GetBlock(0)); 
+      }
+      else if (ti == 1)
+      {
+         // Set history from previous time step.
+         Xn_1 = X;
+
+         // Set u_star = u_{n-1} for second time step.
+         u_star.SetFromTrueDofs(Xn_1.GetBlock(0)); 
+      }
+      else
+      {
+         // Set history from previous time steps.
+         Xn_2 = Xn_1;
+         Xn_1 = X;
+
+         // Calculate u_star = (3 * u_{n-1} - u_{n-2})/2 for the convection term.
+         u_star_vec = Xn_1.GetBlock(0);  
+         u_star_vec *= 3.0;               
+         u_star_vec -= Xn_2.GetBlock(0); 
+         u_star_vec *= 0.5;
+         u_star.SetFromTrueDofs(u_star_vec); 
+      }
+      
+      // Solve problem.
+      //oper.Solve(X, u_star);
+      oper.Set_ustar(&u_star);
+      oper.Update(X);
+      ode_solver->Step(X, t, dt);
+
+      // Grid functions for visualisation.
+      xu_gf.SetFromTrueDofs(X.GetBlock(0));
+      xp_gf.SetFromTrueDofs(X.GetBlock(1));
+
+      // Visualisation in Paraview.
+      if (ti % vis_steps == 0 || ti == n_steps - 1)
+      {
+         std::cout << "Time step " << ti + 1 << ", time = " << t << ", dt = " << dt << ", vis_steps = " << vis_steps << std::endl;
+         visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, t);
+         visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, t);
+         ti_out += 1;
+      }
+   }
 
    return 0;
 }

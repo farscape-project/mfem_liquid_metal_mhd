@@ -11,7 +11,7 @@ extern real_t reciprocal_Re;
 extern real_t alpha; // alpha = 1 (default).
 extern real_t alpha1;
 extern real_t neg_alpha1;
-extern real_t tau;
+//extern real_t tau;
 
 // Define ConstantCoefficients.
 extern ConstantCoefficient zero;
@@ -20,7 +20,7 @@ extern ConstantCoefficient half;
 extern ConstantCoefficient neg_one;
 extern ConstantCoefficient tmp_const;
 extern ConstantCoefficient reciprocal_Re_coef;
-extern ConstantCoefficient vectorMassCoef;
+extern ConstantCoefficient alpha1_coeff;
 
 
 

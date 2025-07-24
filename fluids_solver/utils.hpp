@@ -61,17 +61,7 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    real_t r_max = 0.1;
    real_t u_avg = 1.0;
    
-   if (x(0) > 0.00005)
-   { // Zero on top and bottom boundaries.
-      f(0) = 0.0;
-      f(1) = 0.0;
-
-      if (x.Size() == 3)
-      {
-         f(2) = 0.0;
-      }
-   } 
-   else 
+   if (x(0) < 1e-6)
    { // One in x-direction at inlet.
       //f(0) = sin(5 * pi * x(1));
       f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
@@ -83,6 +73,16 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
          f(2) = 0.0;
       }
    }
+   else
+   { // Zero on top and bottom boundaries.
+      f(0) = 0.0;
+      f(1) = 0.0;
+
+      if (x.Size() == 3)
+      {
+         f(2) = 0.0;
+      }
+   }    
 }
 
 inline void u_exact(const mfem::Vector & x, mfem::Vector & f)

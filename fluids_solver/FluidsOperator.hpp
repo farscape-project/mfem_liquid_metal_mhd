@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "custom_integrators.hpp"
 #include "constants.hpp"
+#include "BlockTriangularPreconditioner.hpp"
 
 
 using namespace std;
@@ -9,7 +10,7 @@ using namespace mfem;
 
 
 // Operator for solving Ax = b.
-class FluidsOperator : public Operator
+class FluidsOperator : public TimeDependentOperator
 {
 protected:
    // Finite element spaces
@@ -18,9 +19,19 @@ protected:
    Array<int> &block_trueOffsets;
 
    LinearForm *rp, *ru;
-   BilinearForm *fk;
+   BilinearForm *fk, *m_p, *s_p;
    MixedBilinearForm *b;
    BlockOperator *A;
+   Solver *P;
+   //BlockDiagonalPreconditioner *P;
+
+   SparseMatrix *FkMat = nullptr;
+   SparseMatrix *BMat = nullptr;
+   SparseMatrix *BtMat = nullptr;
+   SparseMatrix *MpMat = nullptr;
+   SparseMatrix *SpMat = nullptr;
+   SparseMatrix *LMat = nullptr; 
+
 
    // Fluids solver.
    GMRESSolver fluids_solver;
@@ -46,17 +57,35 @@ protected:
    // Need to be kept alive for fk->Assemble() in Solve.
    GridFunction *ustar_n;
    VectorFunctionCoefficient *ucoef;
-   VectorGridFunctionCoefficient *ustar_coef;
+   VectorGridFunctionCoefficient *ustar_coef = nullptr;
+
+   Vector u_old_true;  // Store previous velocity true DOFs
+
+   ConstantCoefficient vectorMassCoef;
+
+   double dt; 
+
+   
 
 public:
    FluidsOperator(Array<FiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<Array<int> *> &nat_bdr,
-                  Array<int> &block_trueOffsets, int dim);
+                  Array<int> &block_trueOffsets, int dim, double dt);
 
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+   //virtual void Mult(const Vector &x, Vector &y) const;
 
-   void Solve(Vector &X);
+   virtual void Mult(const Vector &X, Vector &dX_dt) const;
+   //void ImplicitSolve(Vector &X);
+   //void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
+
+   void Update(const Vector &X);
 
    virtual ~FluidsOperator();
+
+   void Set_ustar(GridFunction *u_star)
+    {
+      if (ustar_coef) { delete ustar_coef; }
+      ustar_coef = new VectorGridFunctionCoefficient(u_star);
+    }
 };
 
