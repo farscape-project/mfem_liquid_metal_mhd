@@ -24,6 +24,7 @@ remove.sh
 02_electrostatic3DwithUcrossB
 01_electrostatic2D_with_mfem_built_mesh
 02_electrostatic3DwithUcrossB_with_mfem_built_mesh
+stokes_solver
 
 navier_3dfoc
 navier_kovasznay
