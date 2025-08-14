@@ -35,54 +35,33 @@ inline real_t zero_dbc(const Vector & x)
 
 inline real_t outflow_term_func(const Vector & x)
 {
-
-   real_t val = 1.0;
-
-   if (x(0) < 0.99999)
-   { // Value at inlet.
-      return 0.0;
-   }
-   else
-   { // Value at outlet.
-      return 0.5 * val;
-   }
+   // Half because of eq. (2.2a) and definition of O.
+   return 0.5;
 }
 
 
 inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
-   //real_t pi = 3.14159;
+   f = 0.0;
 
-   // Ensure f is correct size for dimension of problem.
-   int dim = x.Size();
-   f.SetSize(dim);
-
-
-   real_t r_max = 0.5;
-   real_t u_avg = 1.0;
+   real_t r_mid = 0.5;
+   real_t u_max = 1.0;
    
    if (x(0) < 1e-6)
-   { // One in x-direction at inlet.
-      //f(0) = sin(5 * pi * x(1));
-      f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
-      //f(0) = 1.0;
+   { // Parabolic condition in x-direction at inlet.
+      f(0) = u_max * (1. - ((x(1) - r_mid)*(x(1) - r_mid)) / (r_mid * r_mid));
       f(1) = 0.0;
-
-      if (x.Size() == 3)
-      {
-         f(2) = 0.0;
-      }
    }
    else
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
       f(1) = 0.0;
-
-      if (x.Size() == 3)
-      {
-         f(2) = 0.0;
-      }
    }    
+
+   if (x.Size() == 3)
+   {
+      f(2) = 0.0;
+   }
 }
 
 inline void u_exact(const mfem::Vector & x, mfem::Vector & f)
@@ -109,13 +88,6 @@ inline void checkpoint(int num)
    cout << endl;
 }
 
-inline void initial_velocity(const Vector & x, Vector & f)
-{
-   real_t r_max = 0.1;
-   real_t u_avg = 1.0;
-
-   f(0) = u_avg * (1. - ((x(1)-r_max)*(x(1)-r_max)) / (r_max*r_max));
-}
 
 // Inline visualization
 inline void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, double t)

@@ -22,8 +22,8 @@ protected:
    ParBilinearForm *fk, *m_p, *s_p;
    ParMixedBilinearForm *b;
    BlockOperator *A;
-   BlockTriangularPreconditioner *P;
-   //BlockDiagonalPreconditioner *P;
+   //BlockTriangularPreconditioner *P;
+   BlockDiagonalPreconditioner *P;
 
    HypreParMatrix *FkMat = nullptr;
    SparseMatrix *serialFkMat = nullptr;
@@ -45,9 +45,7 @@ protected:
    VectorFunctionCoefficient *velocity_DBC;
    FunctionCoefficient *pressure_DBC;
 
-   int dim;
-
-   // Vectors and coefficients used by linear forms in FluidsOperator::Solve.
+   // Vectors and coefficients used by linear forms.
    Vector zero_vector;
    Vector one_vector;
    VectorConstantCoefficient zero_vector_coef;
@@ -62,9 +60,13 @@ protected:
 
    Vector u_old_true;  // Store previous velocity true DOFs
 
-   ConstantCoefficient vectorMassCoef;
+   double massCoefValue;
+   ConstantCoefficient massCoef;
 
+   int dim;
    double dt; 
+
+   ParGridFunction *max_flux;
 
    
 
@@ -75,9 +77,9 @@ public:
 
    //virtual void Mult(const Vector &x, Vector &y) const;
 
-   virtual void Mult(const Vector &X, Vector &dX_dt) const;
+   //virtual void Mult(const Vector &X, Vector &dX_dt) const;
    //void ImplicitSolve(Vector &X);
-   //void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
+   void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 
    void Update(const Vector &X);
 
@@ -88,5 +90,9 @@ public:
       if (ustar_coef) { delete ustar_coef; }
       ustar_coef = new VectorGridFunctionCoefficient(u_star);
     }
+
+   void EnforceDirichletBCs(BlockVector &X);
+
+
 };
 

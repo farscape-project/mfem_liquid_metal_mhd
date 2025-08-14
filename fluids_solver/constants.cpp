@@ -7,7 +7,7 @@ using namespace std;
 using namespace mfem;
 
 // Define constants.
-real_t Re(100.0);
+real_t Re(1.0);
 real_t reciprocal_Re(1 / Re);
 real_t alpha(1.0); // alpha = 1 (default).
 real_t alpha1(alpha + reciprocal_Re);
@@ -22,4 +22,5 @@ ConstantCoefficient neg_one(-1.0);
 ConstantCoefficient tmp_const(1.0);
 ConstantCoefficient reciprocal_Re_coef(reciprocal_Re);
 ConstantCoefficient alpha1_coeff(alpha1);
+ConstantCoefficient neg_alpha1_coeff(neg_alpha1);
 

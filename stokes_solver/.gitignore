@@ -1,0 +1,34 @@
+# Directories
+data*
+backups
+old
+
+03_navier_stokes/3dfoc/*
+03_navier_stokes/turbchan/*
+
+04_navier_stokes_solver/data/*
+
+# Simulation files
+03_navier_stokes/run_mfem.sh
+03_navier_stokes/*.e
+03_navier_stokes/*.o
+03_navier_stokes/*.log
+
+#makefile
+remove.sh
+
+*.dSYM
+
+# Executables
+01_electrostatic2D
+02_electrostatic3DwithUcrossB
+01_electrostatic2D_with_mfem_built_mesh
+02_electrostatic3DwithUcrossB_with_mfem_built_mesh
+
+navier_3dfoc
+navier_kovasznay
+navier_kovasznay_vs
+navier_mms
+navier_shear
+navier_tgv
+navier_turbchan

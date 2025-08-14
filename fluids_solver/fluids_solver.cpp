@@ -2,6 +2,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+//#include "linalg/petsc.hpp"
 
 #include "FluidsOperator.hpp"
 #include "constants.hpp"
@@ -18,12 +19,14 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
+   //MFEMInitializePetsc(NULL,NULL,"",NULL);
+
    // Set timestepping parameters.
    double t_final = 0.5;
    double dt = 5e-3;
-   int vis_steps = 5;
+   int vis_steps = 1;
 
-   int ode_solver_type = 14;
+   int ode_solver_type = 1;
 
    // Define the ODE solver used for time integration.
    ODESolver *ode_solver;
@@ -35,7 +38,7 @@ int main(int argc, char *argv[])
       case 3:  ode_solver = new SDIRK33Solver; break;
       // Explicit methods
       case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
+      case 12: ode_solver = new RK2Solver(0.5); break;
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
       case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
@@ -54,10 +57,8 @@ int main(int argc, char *argv[])
    order_velocity = order_pressure + 1;
 
    // Generate mesh.
-   //Mesh mesh = Mesh::MakeCartesian2D(10, 4, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
    Mesh mesh = Mesh::MakeCartesian2D(20, 8, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
-   //Mesh mesh = Mesh::MakeCartesian3D(20, 8, 8, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2, 0.2);
-   //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 1.0, 0.2);
+   //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
    int dim = mesh.Dimension();
    
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
@@ -170,16 +171,17 @@ int main(int argc, char *argv[])
    double t = 0.0;
    int n_steps = int(t_final / dt);
    int ti_out = 0; // Time step output index.
+   int ti = 0;
 
    // Initialise fluids operator.
    FluidsOperator oper(spaces, ess_bdr, nat_bdr, block_trueOffsets, dim, dt);
 
    ode_solver->Init(oper);
 
-   for (int ti = 0; ti < n_steps; ti++)
+   //for (int ti = 0; ti < n_steps; ti++)
+   while (t < t_final)
    {
-      t += dt;
-      std::cout << "Time step " << ti + 1 << ", time = " << t << std::endl;
+      std::cout << "Time step " << ti << ", time = " << t << std::endl;
 
       // Set history and u_star.
       if (ti == 0)
@@ -202,6 +204,7 @@ int main(int argc, char *argv[])
          Xn_1 = X;
 
          // Calculate u_star = (3 * u_{n-1} - u_{n-2})/2 for the convection term.
+         u_star_vec = 0.0;
          u_star_vec = Xn_1.GetBlock(0);  
          u_star_vec *= 3.0;               
          u_star_vec -= Xn_2.GetBlock(0); 
@@ -210,10 +213,11 @@ int main(int argc, char *argv[])
       }
       
       // Solve problem.
-      //oper.Solve(X, u_star);
       oper.Set_ustar(&u_star);
       oper.Update(X);
       ode_solver->Step(X, t, dt);
+      
+      //oper.EnforceDirichletBCs(X);
 
       // Grid functions for visualisation.
       xu_gf.SetFromTrueDofs(X.GetBlock(0));
@@ -222,11 +226,13 @@ int main(int argc, char *argv[])
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
-         std::cout << "Time step " << ti + 1 << ", time = " << t << ", dt = " << dt << ", vis_steps = " << vis_steps << std::endl;
+         std::cout << "Time step " << ti << ", time = " << t << ", dt = " << dt << ". Print step " << ti_out << std::endl;
          visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, t);
          visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, t);
          ti_out += 1;
       }
+
+      ti += 1;
    }
 
    return 0;

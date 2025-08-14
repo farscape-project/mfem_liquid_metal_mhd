@@ -16,7 +16,7 @@ LDFLAGS = $(MFEM_LIBS)
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $^ -g -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

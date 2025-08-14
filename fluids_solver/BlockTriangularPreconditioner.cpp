@@ -7,7 +7,6 @@ BlockTriangularPreconditioner::BlockTriangularPreconditioner(const HypreParMatri
             ParFiniteElementSpace *pfes_,
             int vsize_, 
             int psize_,
-            ConstantCoefficient &vectorMassCoef,
             real_t tau_)
    : Solver(vsize_ + psize_),
       F(F_), Bt(Bt_), pfes(pfes_),
@@ -27,11 +26,11 @@ BlockTriangularPreconditioner::BlockTriangularPreconditioner(const HypreParMatri
 
    M_diag = new DSmoother(*MpMat);
 
-   M_cg_solver.SetOperator(*MpMat); // mass matrix
-   M_cg_solver.SetRelTol(1e-5);
-   M_cg_solver.SetMaxIter(100);
-   M_cg_solver.SetPrintLevel(0);
-   M_cg_solver.SetPreconditioner(*M_diag);  // diagonal preconditioner
+   M_cg.SetOperator(*MpMat); // mass matrix
+   M_cg.SetRelTol(1e-5);
+   M_cg.SetMaxIter(100);
+   M_cg.SetPrintLevel(0);
+   M_cg.SetPreconditioner(*M_diag);  // diagonal preconditioner
 
    S_amg.SetOperator(*SpMat); // stiffness matrix
    S_amg.SetPrintLevel(0);
@@ -41,6 +40,7 @@ BlockTriangularPreconditioner::BlockTriangularPreconditioner(const HypreParMatri
    F_gmres.SetRelTol(1e-3);
    F_gmres.SetMaxIter(200);
    F_gmres.SetPrintLevel(0);
+   F_prec = nullptr;
    //F_gmres.SetPreconditioner(*F_prec); // additive Schwarz or other
    
 }
@@ -49,6 +49,13 @@ void BlockTriangularPreconditioner::Update(const HypreParMatrix &F)
 {
    //F_prec = Hypre_ParCSR(F);
    //F_gmres.SetPreconditioner(*F_prec);
+   //PetscLinearSolver *solver;
+
+   if (F_prec) { delete F_prec; }
+   F_prec = new HypreBoomerAMG(F);
+   F_prec->SetPrintLevel(0); 
+   F_gmres.SetPreconditioner(*F_prec);
+   
    F_gmres.SetOperator(F);
 }
 
@@ -62,9 +69,9 @@ void BlockTriangularPreconditioner::Mult(const Vector &x, Vector &y) const
    y2.MakeRef(y, vsize, psize);
 
    // Solve Mp xi = r_p
-   Vector xi(psize);
+   /*Vector xi(psize);
    xi = 0.0;
-   M_cg_solver.Mult(x2, xi);
+   M_cg.Mult(x2, xi);
 
    // Solve Sp eta = r_p
    Vector eta(psize);
@@ -73,10 +80,14 @@ void BlockTriangularPreconditioner::Mult(const Vector &x, Vector &y) const
 
    //std::cout << "tau = " << tau << ", alpha1 = " << alpha1 << std::endl;
 
-   // y_p = -L_p r_p = - alpha1*xi - eta.
+   // y_p = -L_p r_p = - alpha1*xi - (2.0/tau)*eta.
    y2 = 0.0;
    add(-alpha1, xi, -2.0/tau, eta, y2);
-   //add(-alpha1, xi, -1.0, eta, y2);
+   //add(-alpha1, xi, -1.0, eta, y2);*/
+
+   // Simpler pressure preconditioner for now.
+   S_amg.Mult(x2, y2);
+   y2 *= -1.0;
 
    // Compute tmp = ru - BT y_p
    tmp = 0.0;

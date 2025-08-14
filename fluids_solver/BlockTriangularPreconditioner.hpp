@@ -16,7 +16,7 @@ private:
    const HypreParMatrix &F;
    const Operator &Bt;
    ParFiniteElementSpace *pfes;
-   CGSolver M_cg_solver;
+   CGSolver M_cg;
    HypreBoomerAMG S_amg;
    GMRESSolver F_gmres;
 
@@ -29,6 +29,8 @@ private:
 
    real_t tau;
 
+   HypreBoomerAMG *F_prec;
+
 
    //Hypre_ParCSR *F_prec;
 
@@ -38,7 +40,6 @@ public:
                   ParFiniteElementSpace *pfes_,
                   int vsize_, 
                   int psize_,
-                  ConstantCoefficient &vectorMassCoef,
                   real_t tau_);
 
    virtual void Mult(const Vector &x, Vector &y) const override;

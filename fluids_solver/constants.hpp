@@ -21,6 +21,7 @@ extern ConstantCoefficient neg_one;
 extern ConstantCoefficient tmp_const;
 extern ConstantCoefficient reciprocal_Re_coef;
 extern ConstantCoefficient alpha1_coeff;
+extern ConstantCoefficient neg_alpha1_coeff;
 
 
 
