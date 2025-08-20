@@ -70,8 +70,9 @@ int main(int argc, char *argv[])
    int v_space_size = velocity_fespace.GetTrueVSize();
    int p_space_size = pressure_fespace.GetTrueVSize();
 
+
    // ----------------------------------------------------------------------------
-   // Define boundaries.
+   // Define locations of Dirichlet boundaries.
    // ----------------------------------------------------------------------------
 
    VectorFunctionCoefficient velocity_DBC(dim, velocity_dbc_vec_func);
@@ -114,77 +115,94 @@ int main(int argc, char *argv[])
    block_trueOffsets[2] = pressure_fespace.GetTrueVSize();
    block_trueOffsets.PartialSum();
 
-   BlockVector X(block_trueOffsets);
-   X = 0;
 
    // ----------------------------------------------------------------------------
-   // Initialise solutions as GridFunctions.
+   // Initialise solution vector and GridFunctions.
    // ----------------------------------------------------------------------------
+   BlockVector X(block_trueOffsets);
+   X = 0;
+   
    GridFunction u_gf(&velocity_fespace);
    GridFunction p_gf(&pressure_fespace);
    u_gf = 0.0;
    p_gf = 0.0;
 
-   // Set up rhs for pressure solve.
-   LinearForm rp(&pressure_fespace);
-   rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
-   rp.Assemble();
 
-   // Set up rhs for velocity solve.
+
+   // ----------------------------------------------------------------------------
+   // Set up (bi)linear forms.
+   // ----------------------------------------------------------------------------
+
+   // Set up rhs (incl. Dirichlet BC) for velocity solve.
+   VectorFunctionCoefficient fcoeff(dim, velocity_dbc_vec_func);
    LinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(forcing_vector_coef));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
    ru.Assemble();
+
+   // Set up rhs (incl. Dirichlet BC) for pressure solve.
+   FunctionCoefficient gcoeff(pressure_dbc);
+   LinearForm rp(&pressure_fespace);
+   rp.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   rp.Assemble();
 
    MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
    b.AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
    b.Assemble();
    b.Finalize();
 
+   MixedBilinearForm bT(&pressure_fespace,&velocity_fespace);
+   bT.AddDomainIntegrator(new GradientIntegrator(one));
+   bT.Assemble();
+   bT.Finalize();
+
    // Bilinear form for the velocity solve.
    BilinearForm fk(&velocity_fespace);
    fk.AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
-
    fk.Assemble(); 
    fk.Finalize();
    
-   Vector Ru, Rp;
-   Ru.SetSize(v_space_size);
-   Rp.SetSize(p_space_size);
 
-   Vector Ru_vec, Rp_vec;
-   Ru_vec.SetSize(v_space_size);
-   Rp_vec.SetSize(p_space_size);
-
-   SparseMatrix FkMat;
-   SparseMatrix *BMatFull = &(b.SpMat());
-   OperatorHandle B;
-   
-   // Apply boundaries to grid function.
+   // ----------------------------------------------------------------------------
+   // Apply Dirichlet boundary conditions and set up linear system.
+   // ----------------------------------------------------------------------------
    u_gf.ProjectBdrCoefficient(velocity_DBC, ess_boundary_marker_velocity);
-   X.GetBlock(0) = u_gf;
+   p_gf.ProjectBdrCoefficient(pressure_DBC, ess_boundary_marker_pressure);
 
-   Operator *BtMat = new TransposeOperator(*BMatFull);
+   OperatorHandle FkMat, BMat, BtMat;
+   Vector Ru, Rp, Xu, Xu_dummy, Ru_dummy, Rv;
 
-   // Set up operators and RHS and apply boundary conditions.
-   fk.FormLinearSystem(ess_tdof_u, u_gf, Ru, FkMat, X.GetBlock(0), Ru_vec);
-   b.FormRectangularLinearSystem(ess_tdof_u,ess_tdof_p, u_gf, Rp, B, X.GetBlock(0), Rp_vec);
+   fk.FormLinearSystem(ess_tdof_u, u_gf, ru, FkMat, Xu, Ru);  
 
-   SparseMatrix* BMat = B.As<SparseMatrix>();      
+   b.FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
+                               u_gf, rp, BMat,
+                               Xu_dummy, Rp);
+
+   bT.FormRectangularLinearSystem(ess_tdof_p, ess_tdof_u,
+                                p_gf, ru, BtMat,
+                                Ru_dummy, Rv);
+
+
+   // ----------------------------------------------------------------------------
+   // Set up Block Operator (matrices) and right hand side vector.
+   // ----------------------------------------------------------------------------
 
    BlockOperator A(block_trueOffsets);
    // Set F block for velocity.
-   A.SetBlock(0,0, &FkMat); 
+   A.SetBlock(0,0, FkMat.Ptr()); 
    // Set coupling (B^T and B) blocks.
-   A.SetBlock(0,1, BtMat);
-   A.SetBlock(1,0, BMat);
+   A.SetBlock(0,1, BtMat.Ptr());
+   A.SetBlock(1,0, BMat.Ptr());
  
 
    BlockVector RHS(block_trueOffsets);
-   RHS.GetBlock(0) = Ru_vec; 
-   RHS.GetBlock(1) = Rp_vec; 
+   RHS.GetBlock(0) = Ru; 
+   RHS.GetBlock(1) = Rp;
 
+
+   // ----------------------------------------------------------------------------
    // Define preconditioner.
-   /*BlockDiagonalPreconditioner blockPrec(block_trueOffsets);
+   // ----------------------------------------------------------------------------
+   BlockDiagonalPreconditioner blockPrec(block_trueOffsets);
    Solver *invF, *invS;
 
    BilinearForm L(&pressure_fespace);
@@ -193,29 +211,39 @@ int main(int argc, char *argv[])
    L.Finalize();
    SparseMatrix &LMat = L.SpMat();
 
-   invF = new DSmoother(FkMat);
+   SparseMatrix &FkMatPrec = fk.SpMat();
+
+   invF = new DSmoother(FkMatPrec);
    invS = new DSmoother(LMat);
 
    blockPrec.SetDiagonalBlock(0, invF);
-   blockPrec.SetDiagonalBlock(1, invS);*/
+   blockPrec.SetDiagonalBlock(1, invS);
 
 
-
-   MINRESSolver fluids_solver;
+   // ----------------------------------------------------------------------------
+   // Solver.
+   // ----------------------------------------------------------------------------
+   GMRESSolver fluids_solver;
    fluids_solver.SetRelTol(1e-6);
    fluids_solver.SetAbsTol(0.0);
-   fluids_solver.SetMaxIter(1000);
-   fluids_solver.SetPrintLevel(0);
+   fluids_solver.SetMaxIter(20000);
+   fluids_solver.SetPrintLevel(1);
    fluids_solver.iterative_mode = true;
    fluids_solver.SetOperator(A);
-   //fluids_solver.SetPreconditioner(blockPrec);
-
-   X.GetBlock(0) = u_gf; // keep Dirichlet values in X
+   fluids_solver.SetPreconditioner(blockPrec);
 
    fluids_solver.Mult(RHS, X);  
 
+   
    u_gf.SetFromTrueDofs(X.GetBlock(0));
    p_gf.SetFromTrueDofs(X.GetBlock(1));
+
+   //fk.RecoverFEMSolution(X.GetBlock(0), RHS.GetBlock(0), u_gf);
+   //b.RecoverFEMSolution(X.GetBlock(1), RHS.GetBlock(1), p_gf);
+
+   u_gf.ProjectBdrCoefficient(velocity_DBC, ess_boundary_marker_velocity);
+   p_gf.ProjectBdrCoefficient(pressure_DBC, ess_boundary_marker_pressure);
+
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
@@ -232,14 +260,7 @@ int main(int argc, char *argv[])
 
 real_t pressure_dbc(const Vector & x)
 {
-   if (x(0) > 0.0)
-   { // Value at outlet.
-      return 0.0;
-   }
-   else
-   { // Value at inlet.
-      return 1.0;
-   }
+   return 0.0;
 }
 
 
