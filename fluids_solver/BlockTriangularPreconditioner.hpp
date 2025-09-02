@@ -15,8 +15,9 @@ class BlockTriangularPreconditioner : public Solver
 private:
    const HypreParMatrix &F;
    const Operator &Bt;
-   ParFiniteElementSpace *pfes;
+   Array<ParFiniteElementSpace *> spaces;
    CGSolver M_cg;
+   HypreBoomerAMG *F_prec;
    HypreBoomerAMG S_amg;
    GMRESSolver F_gmres;
 
@@ -24,27 +25,29 @@ private:
 
    int vsize, psize;
 
-   DSmoother *M_diag;
-   GSSmoother *S_gs;
+   //DSmoother *M_diag;
+   //GSSmoother *S_gs;
 
    real_t tau;
 
-   HypreBoomerAMG *F_prec;
+
+   ParBilinearForm *m, *s;
+   HypreParMatrix *MMat, *SMat, *Fmat;
 
 
    //Hypre_ParCSR *F_prec;
 
 public:
    BlockTriangularPreconditioner(const HypreParMatrix &F_,
-                  const Operator &Bt_,
-                  ParFiniteElementSpace *pfes_,
+                  const HypreParMatrix &Bt_,
+                  Array<ParFiniteElementSpace *> &fes,
+                  Array<int> ess_tdof_p,
                   int vsize_, 
                   int psize_,
                   real_t tau_);
 
    virtual void Mult(const Vector &x, Vector &y) const override;
    virtual void SetOperator(const Operator &op) override;
-   void Update(const HypreParMatrix &F);
 
    virtual ~BlockTriangularPreconditioner();
 };

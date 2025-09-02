@@ -22,8 +22,8 @@ protected:
    ParBilinearForm *fk, *m, *s;
    ParMixedBilinearForm *b, *bT;
    BlockOperator *A;
-   //BlockTriangularPreconditioner *P;
-   BlockDiagonalPreconditioner *P;
+   BlockTriangularPreconditioner *P;
+   //BlockDiagonalPreconditioner *P;
    Solver *invF, *invS;
 
    HypreParMatrix *FkMat = nullptr;

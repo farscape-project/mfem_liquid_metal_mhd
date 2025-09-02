@@ -140,7 +140,7 @@ void FluidsOperator::Update(const Vector &X)
 
 
    // Preconditioner.
-   P = new BlockDiagonalPreconditioner(block_trueOffsets);
+   /*P = new BlockDiagonalPreconditioner(block_trueOffsets);
 
    s = new ParBilinearForm(spaces[1]);
    s->AddDomainIntegrator(new DiffusionIntegrator());  
@@ -154,7 +154,10 @@ void FluidsOperator::Update(const Vector &X)
    invS = new HypreSmoother(*SMat);
 
    P->SetDiagonalBlock(0, invF);
-   P->SetDiagonalBlock(1, invS);
+   P->SetDiagonalBlock(1, invS);*/
+
+   P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces, ess_tdof_p, v_space_size, p_space_size, dt);
+   P->SetOperator(*FkMat);
 
    fluids_solver.SetPreconditioner(*P);
    fluids_solver.SetOperator(*A);
