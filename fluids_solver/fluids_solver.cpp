@@ -12,7 +12,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
@@ -23,10 +22,20 @@ int main(int argc, char *argv[])
 
    // Set timestepping parameters.
    double t_final = 0.5;
-   double dt = 5e-3;
-   int vis_steps = 1;
+   double dt = 1e-2;
+   int vis_steps = 5;
 
    int ode_solver_type = 1;
+
+   // Command line options.
+   OptionsParser args(argc, argv);
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
+   args.AddOption(&dt, "-dt", "--time-step",
+                  "Time step.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+   args.Parse();
 
    // Define the ODE solver used for time integration.
    ODESolver *ode_solver;
@@ -146,8 +155,8 @@ int main(int argc, char *argv[])
    std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
    std::cout << "***********************************************************\n";
 
-   ParGridFunction xu_gf(&velocity_fespace);
-   ParGridFunction xp_gf(&pressure_fespace);
+   ParGridFunction u_gf(&velocity_fespace);
+   ParGridFunction p_gf(&pressure_fespace);
    
    // Define block structure of the solution vector (u then p).
    Array<int> block_trueOffsets(3);
@@ -220,15 +229,15 @@ int main(int argc, char *argv[])
       //oper.EnforceDirichletBCs(X);
 
       // Grid functions for visualisation.
-      xu_gf.SetFromTrueDofs(X.GetBlock(0));
-      xp_gf.SetFromTrueDofs(X.GetBlock(1));
+      u_gf.SetFromTrueDofs(X.GetBlock(0));
+      p_gf.SetFromTrueDofs(X.GetBlock(1));
 
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
-         std::cout << "Time step " << ti << ", time = " << t << ", dt = " << dt << ". Print step " << ti_out << std::endl;
-         visualize(paraview_dc, order_velocity, &xu_gf, "velocity", ti_out, t);
-         visualize(paraview_dc, order_pressure, &xp_gf, "pressure", ti_out, t);
+         std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl;
+         visualize(paraview_dc, order_velocity, &u_gf, "velocity", ti_out, t);
+         visualize(paraview_dc, order_pressure, &p_gf, "pressure", ti_out, t);
          ti_out += 1;
       }
 

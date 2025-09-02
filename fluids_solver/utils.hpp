@@ -64,6 +64,11 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    }
 }
 
+inline void zero_func(const Vector & x, Vector & f)
+{
+   f = 0.0;
+}
+
 inline void u_exact(const mfem::Vector & x, mfem::Vector & f)
 {
 

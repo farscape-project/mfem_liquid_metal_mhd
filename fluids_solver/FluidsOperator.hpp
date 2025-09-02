@@ -20,19 +20,21 @@ protected:
 
    ParLinearForm *rp, *ru;
    ParBilinearForm *fk, *m_p, *s_p;
-   ParMixedBilinearForm *b;
+   ParMixedBilinearForm *b, *bT;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
    BlockDiagonalPreconditioner *P;
+   Solver *invF, *invS;
 
-   HypreParMatrix *FkMat = nullptr;
+   //HypreParMatrix *FkMat = nullptr;
    SparseMatrix *serialFkMat = nullptr;
-   SparseMatrix *BMat = nullptr;
-   SparseMatrix *BtMat = nullptr;
+   //SparseMatrix *BMat = nullptr;
+   //SparseMatrix *BtMat = nullptr;
    SparseMatrix *MpMat = nullptr;
    SparseMatrix *SpMat = nullptr;
-   SparseMatrix *LMat = nullptr; 
+   //SparseMatrix *LMat = nullptr; 
 
+   OperatorHandle *FkMat, *BMat, *BtMat, *LMat;
 
    // Fluids solver.
    GMRESSolver fluids_solver;
@@ -43,12 +45,13 @@ protected:
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
 
    VectorFunctionCoefficient *velocity_DBC;
+   VectorFunctionCoefficient *zero_coeff;
    FunctionCoefficient *pressure_DBC;
 
    // Vectors and coefficients used by linear forms.
    Vector zero_vector;
    Vector one_vector;
-   VectorConstantCoefficient zero_vector_coef;
+   //VectorConstantCoefficient zero_vector_coef;
    VectorConstantCoefficient one_vector_coef;
    FunctionCoefficient velocity_nbc_coeff;
    FunctionCoefficient pressure_nbc_coeff;
@@ -60,11 +63,13 @@ protected:
 
    Vector u_old_true;  // Store previous velocity true DOFs
 
-   double massCoefValue;
-   ConstantCoefficient massCoef;
+   real_t massCoefValue;
+   ConstantCoefficient *massCoef;
+
+   ConstantCoefficient *zero_coef;
 
    int dim;
-   double dt; 
+   real_t dt; 
 
    ParGridFunction *max_flux;
 
