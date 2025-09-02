@@ -19,7 +19,7 @@ protected:
    Array<int> &block_trueOffsets;
 
    ParLinearForm *rp, *ru;
-   ParBilinearForm *fk, *m_p, *s_p, *l;
+   ParBilinearForm *fk, *m, *s;
    ParMixedBilinearForm *b, *bT;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
@@ -27,14 +27,9 @@ protected:
    Solver *invF, *invS;
 
    HypreParMatrix *FkMat = nullptr;
-   SparseMatrix *serialFkMat = nullptr;
    HypreParMatrix *BMat = nullptr;
    HypreParMatrix *BtMat = nullptr;
-   SparseMatrix *MpMat = nullptr;
-   SparseMatrix *SpMat = nullptr;
-   HypreParMatrix *LMat = nullptr; 
-
-   //OperatorHandle *FkMat, *BMat, *BtMat, *LMat;
+   HypreParMatrix *SMat = nullptr;
 
    // Fluids solver.
    GMRESSolver fluids_solver;
@@ -51,10 +46,7 @@ protected:
    // Vectors and coefficients used by linear forms.
    Vector zero_vector;
    Vector one_vector;
-   //VectorConstantCoefficient zero_vector_coef;
    VectorConstantCoefficient one_vector_coef;
-   FunctionCoefficient velocity_nbc_coeff;
-   FunctionCoefficient pressure_nbc_coeff;
 
    // Need to be kept alive for fk->Assemble() in Solve.
    GridFunction *ustar_n;
@@ -76,14 +68,9 @@ protected:
    
 
 public:
-   FluidsOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr, Array<Array<int> *> &nat_bdr,
+   FluidsOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
                   Array<int> &block_trueOffsets, int dim, double dt);
 
-
-   //virtual void Mult(const Vector &x, Vector &y) const;
-
-   //virtual void Mult(const Vector &X, Vector &dX_dt) const;
-   //void ImplicitSolve(Vector &X);
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 
    void Update(const Vector &X);
@@ -95,9 +82,6 @@ public:
       if (ustar_coef) { delete ustar_coef; }
       ustar_coef = new VectorGridFunctionCoefficient(u_star);
     }
-
-   void EnforceDirichletBCs(BlockVector &X);
-
 
 };
 

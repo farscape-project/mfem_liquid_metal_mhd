@@ -2,7 +2,6 @@
 
 FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
-                            Array<Array<int> *> &nat_bdr,
                             Array<int> &offsets,
                             int dim_,
                             double dt_)
@@ -12,8 +11,6 @@ FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
      zero_vector(3),
      one_vector(3),
      one_vector_coef(one_vector),
-     velocity_nbc_coeff(velocity_nbc),
-     pressure_nbc_coeff(pressure_nbc),
      dim(dim_),
      dt(dt_)
 {
@@ -27,9 +24,7 @@ FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
    //     B <-> -div(v, q).
 
    fes.Copy(spaces);
-
    ess_bdr.Copy(ess_bdr_marker);
-   //nat_bdr.Copy(nat_bdr_marker);
 
    zero_vector = 0.0;
    one_vector = 0.0;
@@ -48,12 +43,10 @@ FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Set up rhs for velocity solve.
    ru = new ParLinearForm(spaces[0]);
-   //ru->AddDomainIntegrator(new VectorDomainLFIntegrator(*velocity_DBC));
    ru->AddDomainIntegrator(new VectorDomainLFIntegrator(*zero_coeff));
 
    // Set up rhs for pressure solve.
    rp = new ParLinearForm(spaces[1]);
-   //rp->AddDomainIntegrator(new DomainLFIntegrator(*pressure_DBC));
    rp->AddDomainIntegrator(new DomainLFIntegrator(*zero_coef));
 
    // Initisalise bilinear forms.
@@ -89,11 +82,9 @@ void FluidsOperator::Update(const Vector &X)
    fk->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
    // Integrator for A_AL(v, v').
    fk->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
-
    // Integrator for O(u_n; v, v').
    fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
-
 
    // Set up mixed bilinear form for velocity and pressure coupling.
    delete b;
@@ -115,7 +106,7 @@ void FluidsOperator::Update(const Vector &X)
    int p_space_size = spaces[1]->GetTrueVSize(); 
 
 
-   // Project BCs onto grid functions.
+   // Project BCs onto grid functions and set up HypreParMatrices.
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[0]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[1]);
 
@@ -148,32 +139,30 @@ void FluidsOperator::Update(const Vector &X)
    RHS->GetBlock(1) = Rp; 
 
 
-   // IMPLEMENT PRECONDITIONER.
+   // Preconditioner.
    P = new BlockDiagonalPreconditioner(block_trueOffsets);
 
-   l = new ParBilinearForm(spaces[1]);
-   l->AddDomainIntegrator(new DiffusionIntegrator());  
-   l->Assemble();
-   l->Finalize();
+   s = new ParBilinearForm(spaces[1]);
+   s->AddDomainIntegrator(new DiffusionIntegrator());  
+   s->Assemble();
+   s->Finalize();
 
-   LMat = new HypreParMatrix();
-   l->FormLinearSystem(ess_tdof_p, p_gf, *rp, *LMat, Xu_dummy, Rp);  
+   SMat = new HypreParMatrix();
+   s->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SMat, Xu_dummy, Rp);
 
    invF = new HypreSmoother(*FkMat);
-   invS = new HypreSmoother(*LMat);
+   invS = new HypreSmoother(*SMat);
 
    P->SetDiagonalBlock(0, invF);
    P->SetDiagonalBlock(1, invS);
 
-
-   fluids_solver.SetOperator(*A);
    fluids_solver.SetPreconditioner(*P);
+   fluids_solver.SetOperator(*A);
    
 }
 
 
 
-//void FluidsOperator::Mult(const Vector &X, Vector &dX_dt) const
 void FluidsOperator::ImplicitSolve(const real_t dt,
                                 const Vector &X, Vector &dX_dt)
 {
@@ -192,29 +181,4 @@ FluidsOperator::~FluidsOperator()
    delete b;
    delete ru;
    delete rp;
-}
-
-
-void FluidsOperator::EnforceDirichletBCs(BlockVector &X)
-{
-   int v_size = spaces[0]->GetTrueVSize();
-   //int p_size = spaces[1]->GetTrueVSize();
-
-   Vector u(X.GetData(), v_size);
-   //Vector p(X.GetData() + v_size, p_size);
-
-   ParGridFunction xu(spaces[0]);
-   //ParGridFunction xp(spaces[1]);
-
-   xu = 0.0;
-   //xp = 0.0;
-
-   xu.SetFromTrueDofs(u);
-   //xp.SetFromTrueDofs(p);
-
-   xu.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[0]);
-   //xp.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[1]);
-
-   xu.GetTrueDofs(u);
-   //xp.GetTrueDofs(p);
 }

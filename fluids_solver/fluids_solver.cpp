@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 
    // Set timestepping parameters.
    double t_final = 0.5;
-   double dt = 1e-2;
+   double dt = 5e-2;
    int vis_steps = 5;
 
    int ode_solver_type = 1;
@@ -96,8 +96,6 @@ int main(int argc, char *argv[])
    // Define boundaries.
    // ----------------------------------------------------------------------------
    
-   //FunctionCoefficient zero_DBC(zero_dbc);
-
    // Essential (Dirichlet) boundary conditions for pressure.
    Array<int> ess_boundary_marker_pressure, ess_boundary_marker_velocity; 
    ess_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
@@ -121,32 +119,10 @@ int main(int argc, char *argv[])
    ess_bdr[0] = &ess_boundary_marker_velocity;
    ess_bdr[1] = &ess_boundary_marker_pressure;
 
-   // Natural (Neumann) boundary conditions for pressure.
-   Array<int> nat_boundary_marker_pressure, nat_boundary_marker_velocity; 
-   nat_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-   nat_boundary_marker_pressure = 0;
-   // Set natural bcs for pressure.
-   nat_boundary_marker_pressure[0] = 1; // Top
-   nat_boundary_marker_pressure[1] = 0; // Outlet
-   nat_boundary_marker_pressure[2] = 1; // Bottom
-   nat_boundary_marker_pressure[3] = 1; // Inlet
-
-   // Natural (Neumann) boundary conditions for velocity.
-   nat_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
-   nat_boundary_marker_velocity = 0;
-   // Set natural bcs for velocity.
-   nat_boundary_marker_velocity[0] = 0; // Top
-   nat_boundary_marker_velocity[1] = 1; // Outlet
-   nat_boundary_marker_velocity[2] = 0; // Bottom
-   nat_boundary_marker_velocity[3] = 0; // Inlet
-
-   Array<Array<int> *> nat_bdr(2);
-   nat_bdr[0] = &nat_boundary_marker_velocity;
-   nat_bdr[1] = &nat_boundary_marker_pressure;
-
    Array<int> pressure_ess_tdof, velocity_ess_tdof;
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
+
 
    // Print mesh statistics.
    std::cout << "***********************************************************\n";
@@ -183,7 +159,7 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise fluids operator.
-   FluidsOperator oper(spaces, ess_bdr, nat_bdr, block_trueOffsets, dim, dt);
+   FluidsOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt);
 
    ode_solver->Init(oper);
 
@@ -226,8 +202,6 @@ int main(int argc, char *argv[])
       oper.Update(X);
       ode_solver->Step(X, t, dt);
       
-      //oper.EnforceDirichletBCs(X);
-
       // Grid functions for visualisation.
       u_gf.SetFromTrueDofs(X.GetBlock(0));
       p_gf.SetFromTrueDofs(X.GetBlock(1));
