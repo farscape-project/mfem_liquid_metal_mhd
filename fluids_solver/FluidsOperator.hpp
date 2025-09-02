@@ -19,22 +19,22 @@ protected:
    Array<int> &block_trueOffsets;
 
    ParLinearForm *rp, *ru;
-   ParBilinearForm *fk, *m_p, *s_p;
+   ParBilinearForm *fk, *m_p, *s_p, *l;
    ParMixedBilinearForm *b, *bT;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
    BlockDiagonalPreconditioner *P;
    Solver *invF, *invS;
 
-   //HypreParMatrix *FkMat = nullptr;
+   HypreParMatrix *FkMat = nullptr;
    SparseMatrix *serialFkMat = nullptr;
-   //SparseMatrix *BMat = nullptr;
-   //SparseMatrix *BtMat = nullptr;
+   HypreParMatrix *BMat = nullptr;
+   HypreParMatrix *BtMat = nullptr;
    SparseMatrix *MpMat = nullptr;
    SparseMatrix *SpMat = nullptr;
-   //SparseMatrix *LMat = nullptr; 
+   HypreParMatrix *LMat = nullptr; 
 
-   OperatorHandle *FkMat, *BMat, *BtMat, *LMat;
+   //OperatorHandle *FkMat, *BMat, *BtMat, *LMat;
 
    // Fluids solver.
    GMRESSolver fluids_solver;

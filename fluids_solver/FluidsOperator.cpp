@@ -119,9 +119,9 @@ void FluidsOperator::Update(const Vector &X)
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[0]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[1]);
 
-   FkMat = new OperatorHandle();
-   BMat = new OperatorHandle();
-   BtMat = new OperatorHandle();
+   FkMat = new HypreParMatrix();
+   BMat = new HypreParMatrix();
+   BtMat = new HypreParMatrix();
 
    Vector Ru, Rp, Xu_dummy, Ru_dummy;
 
@@ -138,10 +138,10 @@ void FluidsOperator::Update(const Vector &X)
 
    A = new BlockOperator(block_trueOffsets);
    // Set F block for velocity.
-   A->SetBlock(0,0, FkMat->Ptr()); 
+   A->SetBlock(0,0, FkMat); 
    // Set coupling (B^T and B) blocks.
-   A->SetBlock(0,1, BtMat->Ptr());
-   A->SetBlock(1,0, BMat->Ptr());
+   A->SetBlock(0,1, BtMat);
+   A->SetBlock(1,0, BMat);
 
    RHS = new BlockVector(block_trueOffsets);
    RHS->GetBlock(0) = Ru; 
@@ -149,32 +149,25 @@ void FluidsOperator::Update(const Vector &X)
 
 
    // IMPLEMENT PRECONDITIONER.
-   /*P = new BlockDiagonalPreconditioner(block_trueOffsets);
+   P = new BlockDiagonalPreconditioner(block_trueOffsets);
 
-   ParBilinearForm L(spaces[1]);
-   L.AddDomainIntegrator(new DiffusionIntegrator());  
-   L.Assemble();
-   L.Finalize();
-   //HypreParMatrix *LMat = L.ParallelAssemble();
+   l = new ParBilinearForm(spaces[1]);
+   l->AddDomainIntegrator(new DiffusionIntegrator());  
+   l->Assemble();
+   l->Finalize();
 
-   //SparseMatrix &FkMatPrec = fk->SpMat();
-   //HypreParMatrix *FkMatPrec = fk->ParallelAssemble();
+   LMat = new HypreParMatrix();
+   l->FormLinearSystem(ess_tdof_p, p_gf, *rp, *LMat, Xu_dummy, Rp);  
 
-   LMat = new OperatorHandle();
-
-   //invF = new DSmoother(FkMatPrec);
-   invF = new HypreSmoother(*FkMat->As<HypreParMatrix>());
-   //invF = new DSmoother(FkMat->Ptr());
-   
-   //invS = new DSmoother(LMat->Ptr());
-   invS = new HypreSmoother(*LMat->As<HypreParMatrix>());
+   invF = new HypreSmoother(*FkMat);
+   invS = new HypreSmoother(*LMat);
 
    P->SetDiagonalBlock(0, invF);
-   P->SetDiagonalBlock(1, invS);*/
+   P->SetDiagonalBlock(1, invS);
 
 
    fluids_solver.SetOperator(*A);
-   //fluids_solver.SetPreconditioner(*P);
+   fluids_solver.SetPreconditioner(*P);
    
 }
 
