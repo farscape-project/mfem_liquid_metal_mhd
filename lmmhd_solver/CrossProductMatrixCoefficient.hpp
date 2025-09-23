@@ -10,7 +10,7 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip) override
    {
-      M.SetSize(3); // assuming 3D
+      M.SetSize(3);
       double bx = B(0), by = B(1), bz = B(2);
 
       M(0,0) = 0.0;   M(0,1) = -bz;   M(0,2) =  by;

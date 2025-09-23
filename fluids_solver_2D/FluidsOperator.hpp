@@ -1,9 +1,8 @@
 #include "mfem.hpp"
 #include "utils.hpp"
-#include "VectorConvectionIntegrator.hpp"
+#include "custom_integrators.hpp"
 #include "constants.hpp"
 #include "BlockTriangularPreconditioner.hpp"
-#include "CrossProductMatrixCoefficient.hpp"
 
 
 using namespace std;
@@ -11,7 +10,7 @@ using namespace mfem;
 
 
 // Operator for solving Ax = b.
-class LmmhdOperator : public TimeDependentOperator
+class FluidsOperator : public TimeDependentOperator
 {
 protected:
    // Finite element spaces
@@ -19,42 +18,30 @@ protected:
    // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
-   ParLinearForm *rp, *ru, *rj, *rphi;
-   ParBilinearForm *fk, *m, *sp, *mj, *mphi, *dj;
-   ParMixedBilinearForm *b, *bT, *g, *gT, *k;
+   ParLinearForm *rp, *ru;
+   ParBilinearForm *fk, *m, *s;
+   ParMixedBilinearForm *b, *bT;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
    BlockDiagonalPreconditioner *P;
-   Solver *invF, *invSp, *invMphi, *invM, *invDj;
+   Solver *invF, *invS;
 
    HypreParMatrix *FkMat = nullptr;
    HypreParMatrix *BMat = nullptr;
    HypreParMatrix *BtMat = nullptr;
-   HypreParMatrix *SpMat = nullptr;
-   HypreParMatrix *MphiMat = nullptr;
-   HypreParMatrix *DjMat = nullptr;
+   HypreParMatrix *SMat = nullptr;
 
-   HypreParMatrix *MjMat = nullptr;
-   HypreParMatrix *GMat = nullptr;
-   HypreParMatrix *GTMat = nullptr;
-   HypreParMatrix *KMat = nullptr;
-   HypreParMatrix *KtMat = nullptr;
-
-   // Liquid-metal MHD solver.
-   GMRESSolver lmmhd_solver;
+   // Fluids solver.
+   GMRESSolver fluids_solver;
 
    mutable BlockVector *RHS;
 
    // Boundary conditions.
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
 
-   VectorFunctionCoefficient *currentD_DBC;
-   FunctionCoefficient *electPot_DBC;
    VectorFunctionCoefficient *velocity_DBC;
-   VectorFunctionCoefficient *magnetic_field_coef;
-   FunctionCoefficient *pressure_DBC;
-
    VectorFunctionCoefficient *zero_coeff;
+   FunctionCoefficient *pressure_DBC;
 
    // Vectors and coefficients used by linear forms.
    Vector zero_vector;
@@ -78,28 +65,30 @@ protected:
 
    ParGridFunction *max_flux;
 
-   Vector *magnetic_field;
+   Vector Xu_dummy, Ru_dummy;
 
-   MatrixCoefficient *C;
-   Vector *B;
+   //ParGridFunction *p_gf;
+   
 
    
 
 public:
-   LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
+   FluidsOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
                   Array<int> &block_trueOffsets, int dim, double dt);
 
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 
    void Update(const Vector &X);
 
-   virtual ~LmmhdOperator();
+   virtual ~FluidsOperator();
 
    void Set_ustar(GridFunction *u_star)
     {
       if (ustar_coef) { delete ustar_coef; }
       ustar_coef = new VectorGridFunctionCoefficient(u_star);
     }
+
+   void UpdateXwithBCs(BlockVector &X);
 
 };
 

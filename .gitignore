@@ -2,6 +2,7 @@
 data*
 backups
 old
+fluids_solver_backup
 
 03_navier_stokes/3dfoc/*
 03_navier_stokes/turbchan/*

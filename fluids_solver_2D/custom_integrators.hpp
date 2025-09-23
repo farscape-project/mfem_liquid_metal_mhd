@@ -1,5 +1,3 @@
-// custom_integrators.hpp
-
 #ifndef VECTOR_CONVECTION_INTEGRATORS_HPP
 #define VECTOR_CONVECTION_INTEGRATORS_HPP
 
@@ -11,7 +9,7 @@ using namespace mfem;
 class VectorConvectionIntegrator : public BilinearFormIntegrator
 {
 private:
-   VectorCoefficient &velocity_coeff;  // Rename to vel_coeff or similar to be clear it's a coefficient.
+   VectorCoefficient &velocity_coeff; 
    real_t alpha;
 
 public:
@@ -32,21 +30,3 @@ public:
 };
 
 #endif // VECTOR_CONVECTION_INTEGRATORS_HPP
-
-
-
-
-// Experiment to try using pre-exisitng ConvectionIntegrator rather than defining a new one.
-/*class VectorConvectionIntegratorCoefficient : public VectorCoefficient
-{
-private:
-   int dim;
-   VectorCoefficient &convection_field;
-
-public:
-   VectorConvectionIntegratorCoefficient(int dim_, VectorCoefficient &vel_coeff);
-
-   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override;
-
-   virtual ~VectorConvectionIntegratorCoefficient() {}
-};*/

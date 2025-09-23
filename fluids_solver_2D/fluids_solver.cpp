@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
    // Set timestepping parameters.
    double t_final = 0.5;
    double dt = 5e-2;
-   int vis_steps = 5;
+   int vis_steps = 2;
 
    int ode_solver_type = 1;
 
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
    order_velocity = order_pressure + 1;
 
    // Generate mesh.
-   Mesh mesh = Mesh::MakeCartesian3D(10, 8, 8, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian2D(20, 8, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
    //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
    int dim = mesh.Dimension();
    
@@ -96,28 +96,11 @@ int main(int argc, char *argv[])
    // Define boundaries.
    // ----------------------------------------------------------------------------
    
-   // Essential (Dirichlet) boundary conditions for pressure.
-   Array<int> ess_boundary_marker_pressure, ess_boundary_marker_velocity; 
-   ess_boundary_marker_pressure.SetSize(pressure_fespace.GetMesh()->bdr_attributes.Max());
-   ess_boundary_marker_pressure = 0; 
-   // Dirichlet boundary condition for pressure.
-   ess_boundary_marker_pressure[0] = 0; // z1
-   ess_boundary_marker_pressure[1] = 0; // y0
-   ess_boundary_marker_pressure[2] = 1; // x1 (Outlet)
-   ess_boundary_marker_pressure[3] = 0; // y1
-   ess_boundary_marker_pressure[4] = 0; // x0 (Inlet)
-   ess_boundary_marker_pressure[5] = 0; // z0
+   // Essential (Dirichlet) boundary conditions for velocity and pressure.
+   // {Top Outlet Bottom Inlet}
+   Array<int> ess_boundary_marker_pressure{0, 1, 0, 0};
+   Array<int> ess_boundary_marker_velocity{1, 0, 1, 1};
 
-   // Essential (Dirichlet) boundary conditions for velocity.
-   ess_boundary_marker_velocity.SetSize(velocity_fespace.GetMesh()->bdr_attributes.Max());
-   ess_boundary_marker_velocity = 0;
-   // Dirichlet boundary conditions for velocity.
-   ess_boundary_marker_velocity[0] = 1; // z1
-   ess_boundary_marker_velocity[1] = 1; // y0
-   ess_boundary_marker_velocity[2] = 0; // x1 (Outlet)
-   ess_boundary_marker_velocity[3] = 1; // y1
-   ess_boundary_marker_velocity[4] = 1; // x0 (Inlet)
-   ess_boundary_marker_velocity[5] = 1; // z0
 
    Array<Array<int> *> ess_bdr(2);
    ess_bdr[0] = &ess_boundary_marker_velocity;
@@ -158,9 +141,8 @@ int main(int argc, char *argv[])
 
    // Initialise time-loop details.
    double t = 0.0;
-   int n_steps = int(t_final / dt);
-   int ti_out = 0; // Time step output index.
-   int ti = 0;
+   int ti_out = 1; // Time step output index.
+   int ti = 1;
 
    // Initialise fluids operator.
    FluidsOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt);
@@ -205,21 +187,23 @@ int main(int argc, char *argv[])
       oper.Set_ustar(&u_star);
       oper.Update(X);
       ode_solver->Step(X, t, dt);
+      //oper.UpdateXwithBCs(X);
       
+
       // Grid functions for visualisation.
       u_gf.SetFromTrueDofs(X.GetBlock(0));
       p_gf.SetFromTrueDofs(X.GetBlock(1));
 
       // Visualisation in Paraview.
-      if (ti % vis_steps == 0 || ti == n_steps - 1)
+      if (ti % vis_steps == 0 || t + dt >= t_final)
       {
          std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl;
          visualize(paraview_dc, order_velocity, &u_gf, "velocity", ti_out, t);
          visualize(paraview_dc, order_pressure, &p_gf, "pressure", ti_out, t);
          ti_out += 1;
       }
-
       ti += 1;
+      
    }
 
    return 0;

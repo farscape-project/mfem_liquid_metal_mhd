@@ -4,9 +4,9 @@ CONFIG_MK = $(MFEM_DIR)/config/config.mk
 include $(CONFIG_MK)
 
 # Source files and executable
-TARGET = lmmhd_solver
-SRC = lmmhd_solver.cpp VectorConvectionIntegrator.cpp LmmhdOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp
-INC = VectorConvectionIntegrator.hpp LmmhdOperator.hpp constants.hpp BlockTriangularPreconditioner.hpp utils.hpp CrossProductMatrixCoefficient.hpp
+TARGET = fluids_solver
+SRC = fluids_solver.cpp custom_integrators.cpp FluidsOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp
+INC = custom_integrators.hpp FluidsOperator.hpp constants.hpp BlockTriangularPreconditioner.hpp utils.hpp
 
 # Compiler and flags
 CXX = $(MFEM_CXX)

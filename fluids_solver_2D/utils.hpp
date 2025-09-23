@@ -15,18 +15,35 @@ inline real_t pressure_nbc(const Vector & x)
    return 0.0;
 }
 
-
 inline real_t pressure_dbc(const Vector & x)
+{
+   return 1.0;
+}
+
+/*inline real_t pressure_dbc(const Vector & x)
 {
    if (x(0) > 0.0)
    { // Value at outlet.
-      return 0.0;
+      return 1.0;
    }
    else
    { // Value at inlet.
       return 1.0;
    }
+}*/
+
+inline void magnetic_field_func(const Vector & x, Vector & f)
+{
+   f = 0.0;
+
+   f(0) = 0.0;
+   f(1) = 0.0;
+   if (x.Size() == 3)
+   {
+      f(2) = 1.0;
+   }
 }
+
 
 inline real_t zero_dbc(const Vector & x)
 {
@@ -44,14 +61,12 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    f = 0.0;
 
-   real_t y_mid = 0.5;
-   real_t z_mid = 0.5;
+   real_t r_mid = 0.5;
    real_t u_max = 1.0;
    
    if (x(0) < 1e-6)
    { // Parabolic condition in x-direction at inlet.
-      f(0) = (9. / 4.) * u_max * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
-                     (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid));
+      f(0) = u_max * (1. - ((x(1) - r_mid)*(x(1) - r_mid)) / (r_mid * r_mid));
       f(1) = 0.0;
    }
    else
@@ -65,6 +80,8 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
       f(2) = 0.0;
    }
 }
+
+
 
 inline void zero_func(const Vector & x, Vector & f)
 {

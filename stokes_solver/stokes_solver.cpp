@@ -136,13 +136,15 @@ int main(int argc, char *argv[])
    // Set up rhs (incl. Dirichlet BC) for velocity solve.
    VectorFunctionCoefficient fcoeff(dim, velocity_dbc_vec_func);
    LinearForm ru(&velocity_fespace);
-   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+   //ru.AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+   ru.AddDomainIntegrator(new VectorDomainLFIntegrator(zero_vector_coef));
    ru.Assemble();
 
    // Set up rhs (incl. Dirichlet BC) for pressure solve.
    FunctionCoefficient gcoeff(pressure_dbc);
    LinearForm rp(&pressure_fespace);
-   rp.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   //rp.AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+   rp.AddDomainIntegrator(new DomainLFIntegrator(zero));
    rp.Assemble();
 
    MixedBilinearForm b(&velocity_fespace,&pressure_fespace);
@@ -169,9 +171,9 @@ int main(int argc, char *argv[])
    p_gf.ProjectBdrCoefficient(pressure_DBC, ess_boundary_marker_pressure);
 
    OperatorHandle FkMat, BMat, BtMat;
-   Vector Ru, Rp, Xu, Xu_dummy, Ru_dummy, Rv;
+   Vector Ru, Rp, Xu_dummy, Ru_dummy;
 
-   fk.FormLinearSystem(ess_tdof_u, u_gf, ru, FkMat, Xu, Ru);  
+   fk.FormLinearSystem(ess_tdof_u, u_gf, ru, FkMat, Xu_dummy, Ru);  
 
    b.FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
                                u_gf, rp, BMat,
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])
 
    bT.FormRectangularLinearSystem(ess_tdof_p, ess_tdof_u,
                                 p_gf, ru, BtMat,
-                                Ru_dummy, Rv);
+                                Ru_dummy, Xu_dummy);
 
 
    // ----------------------------------------------------------------------------

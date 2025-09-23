@@ -14,14 +14,19 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
      dim(dim_),
      dt(dt_)
 {
-   // Sets up solve for the following system:
-   //    ( Fk  B^T ) ( xu ) = ( ru )
-   //    ( B   0   ) ( xp )   ( rp )
-   // where Fk is the velocity bilinear form, B is the mixed bilinear form, and
-   // ru and rp are the right-hand sides for the velocity and pressure solves, where
-   //     Fk <-> 2/Tau (v, v') + O(u_n; v, v') + A_AL(v, v')
-   // and
-   //     B <-> -div(v, q).
+   // Sets up the linear system for the coupled MHD solve:
+   //
+   //       [  Mj    G^T    K^T       0   ] [ xj   ]   [ rj   ]
+   //       [  G     0      0         0   ] [ xphi ]   [ rphi ]
+   //       [ -K     0      Fk       B^T  ] [ xu   ] = [ ru   ]
+   //       [  0     0      B         0   ] [ xp   ]   [ rp   ]
+   //
+   // where:
+   //   - Mj    : current-density bilinear form: (d,d')
+   //   - G     : coupling between current and electric potential: -(div d, phi)
+   //   - K     : coupling between current and velocity: (d, B x v')
+   //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
+   //   - B     : coupling between velocity and pressure: -(div v, q)
 
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
@@ -99,9 +104,8 @@ void LmmhdOperator::Update(const Vector &X)
    ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), u_gf(spaces[2]), p_gf(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; u_gf = 0.0; p_gf = 0.0;
 
-   // Set up the bilinear form for the velocity solve.
+   // Bilinear form for the velocity.
    delete fk;
-   // Bilinear form for the velocity solve.
    fk = new ParBilinearForm(spaces[2]);
    // Integrator for (v, v').
    fk->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
@@ -111,7 +115,7 @@ void LmmhdOperator::Update(const Vector &X)
    fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
 
-   // Set up mixed bilinear form for velocity and pressure coupling.
+   // Mixed bilinear form for velocity and pressure coupling.
    delete b;
    b = new ParMixedBilinearForm(spaces[2],spaces[3]);
    b->AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
@@ -120,10 +124,12 @@ void LmmhdOperator::Update(const Vector &X)
    bT = new ParMixedBilinearForm(spaces[3],spaces[2]);
    bT->AddDomainIntegrator(new GradientIntegrator(one));
 
+   // Bilinear form for current density.
    delete mj;
    mj = new ParBilinearForm(spaces[0]);
    mj->AddDomainIntegrator(new VectorFEMassIntegrator(one));
 
+   // Mixed bilinear form for current density and electric potential coupling.
    delete g;
    g = new ParMixedBilinearForm(spaces[0],spaces[1]);
    g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(neg_one));
@@ -132,14 +138,10 @@ void LmmhdOperator::Update(const Vector &X)
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
    gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
 
+   // Mixed bilinear form for current density and velocity coupling.
    delete k;
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
-   //k->AddDomainIntegrator(new MixedCrossProductIntegrator(*magnetic_field_coef));
    k->AddDomainIntegrator(new VectorFEMassIntegrator(*C));
-
-   //delete Ptmp;
-   //Ptmp = new ParBilinearForm(spaces[1]);
-   //Ptmp->AddDomainIntegrator(new MassIntegrator(*massCoef));
 
    fk->Assemble(); fk->Finalize();
    b->Assemble(); b->Finalize();
@@ -149,19 +151,11 @@ void LmmhdOperator::Update(const Vector &X)
    g->Assemble(); g->Finalize();
    gT->Assemble(); gT->Finalize();
    k->Assemble(); k->Finalize();
-   //Ptmp->Assemble(); Ptmp->Finalize();
 
    ru->Assemble();
    rp->Assemble();
    rj->Assemble();
    rphi->Assemble();
-
-   
-
-   //int j_space_size = spaces[0]->GetTrueVSize();
-   //int phi_space_size = spaces[1]->GetTrueVSize();
-   //int v_space_size = spaces[2]->GetTrueVSize();
-   //int p_space_size = spaces[3]->GetTrueVSize(); 
 
    // Project BCs onto grid functions and set up HypreParMatrices.
    j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
@@ -177,14 +171,6 @@ void LmmhdOperator::Update(const Vector &X)
    GTMat = new HypreParMatrix();
    KMat = new HypreParMatrix();
    KtMat = new HypreParMatrix();
-   
-   //MjMat = new HypreParMatrix();
-   //PtmpMat = new HypreParMatrix();
-
-   //HypreParMatrix *MjMat = mj->ParallelAssemble();
-   //HypreParMatrix *PtmpMat = Ptmp->ParallelAssemble();
-   //HypreParMatrix *GMat = g->ParallelAssemble();
-   //HypreParMatrix *GTMat = gT->ParallelAssemble();
 
    Vector Rj, Rphi, Ru, Rp, Xu_dummy, Ru_dummy;
 
@@ -212,18 +198,8 @@ void LmmhdOperator::Update(const Vector &X)
                                 j_gf, *ru, *KMat,
                                 Ru_dummy, Xu_dummy);
 
-   //std::cout << "block_trueOffsets: " << block_trueOffsets << std::endl;
-   //block_trueOffsets.Print(std::cout, 8);
-
    
    KtMat = KMat->Transpose();
-
-   /*std::cout << "KMat size: " << KMat->Height() << " x " << KMat->Width() << std::endl;
-   std::cout << "KtMat size: " << KtMat->Height() << " x " << KtMat->Width() << std::endl;
-
-   std::cout << "FkMat size: " << FkMat->Height() << " x " << FkMat->Width() << std::endl;
-   std::cout << "BMat size: " << BMat->Height() << " x " << BMat->Width() << std::endl;
-   std::cout << "BtMat size: " << BtMat->Height() << " x " << BtMat->Width() << std::endl;*/
 
 
    A = new BlockOperator(block_trueOffsets);
@@ -240,8 +216,6 @@ void LmmhdOperator::Update(const Vector &X)
    A->SetBlock(2,0, KMat);
    A->SetBlock(0,2, KtMat);
 
-   //Vector Rphi(phi_space_size);
-   //Rphi = 0.0;
 
    RHS = new BlockVector(block_trueOffsets);
    RHS->GetBlock(0) = Rj;
