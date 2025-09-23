@@ -244,5 +244,6 @@ int main(int argc, char *argv[])
       ti += 1;
    }
 
+   if (Mpi::Root()) { std::cout << "Total simulation time: " << mfem::toc() << std::endl; }
    return 0;
 }

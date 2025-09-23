@@ -66,6 +66,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    rphi = new ParLinearForm(spaces[1]);
    rphi->AddDomainIntegrator(new DomainLFIntegrator(*zero_coef));
 
+   ru->Assemble(); rp->Assemble(); rj->Assemble(); rphi->Assemble();
+
+
    // Initisalise bilinear forms.
    fk = new ParBilinearForm(spaces[2]);
    b = new ParMixedBilinearForm(spaces[2],spaces[3]);
@@ -82,68 +85,37 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    (*B)(2) = 1.0;
    C = new CrossProductMatrixCoefficient(*B);
 
-   // Set solver parameters.
-   lmmhd_solver.SetRelTol(1e-6);
-   lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(1000);
-   lmmhd_solver.SetPrintLevel(1);
-   lmmhd_solver.iterative_mode = false;  
-
-}
-
-void LmmhdOperator::Update(const Vector &X)
-{
-
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
-   spaces[2]->GetEssentialTrueDofs(*ess_bdr_marker[2], ess_tdof_u);
    spaces[3]->GetEssentialTrueDofs(*ess_bdr_marker[3], ess_tdof_p);
 
 
    ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), u_gf(spaces[2]), p_gf(spaces[3]);
-   j_gf = 0.0; phi_gf = 0.0; u_gf = 0.0; p_gf = 0.0;
-
-   // Bilinear form for the velocity.
-   delete fk;
-   fk = new ParBilinearForm(spaces[2]);
-   // Integrator for (v, v').
-   fk->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
-   // Integrator for A_AL(v, v').
-   fk->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
-   // Integrator for O(u_n; v, v').
-   fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
-   fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
+   j_gf = 0.0; phi_gf = 0.0; p_gf = 0.0;
 
    // Mixed bilinear form for velocity and pressure coupling.
-   delete b;
    b = new ParMixedBilinearForm(spaces[2],spaces[3]);
    b->AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
 
-   delete bT;
    bT = new ParMixedBilinearForm(spaces[3],spaces[2]);
    bT->AddDomainIntegrator(new GradientIntegrator(one));
 
    // Bilinear form for current density.
-   delete mj;
    mj = new ParBilinearForm(spaces[0]);
    mj->AddDomainIntegrator(new VectorFEMassIntegrator(one));
 
    // Mixed bilinear form for current density and electric potential coupling.
-   delete g;
    g = new ParMixedBilinearForm(spaces[0],spaces[1]);
    g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(neg_one));
 
-   delete gT;
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
    gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
 
    // Mixed bilinear form for current density and velocity coupling.
-   delete k;
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
    k->AddDomainIntegrator(new VectorFEMassIntegrator(*C));
 
-   fk->Assemble(); fk->Finalize();
    b->Assemble(); b->Finalize();
    bT->Assemble(); bT->Finalize();
 
@@ -152,19 +124,13 @@ void LmmhdOperator::Update(const Vector &X)
    gT->Assemble(); gT->Finalize();
    k->Assemble(); k->Finalize();
 
-   ru->Assemble();
-   rp->Assemble();
-   rj->Assemble();
-   rphi->Assemble();
-
-   // Project BCs onto grid functions and set up HypreParMatrices.
+   
+   // Project BCs onto grid functions.
    j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
-   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 
    MjMat = new HypreParMatrix();
-   FkMat = new HypreParMatrix();
    BMat = new HypreParMatrix();
    BtMat = new HypreParMatrix();
    GMat = new HypreParMatrix();
@@ -173,8 +139,6 @@ void LmmhdOperator::Update(const Vector &X)
    KtMat = new HypreParMatrix();
 
    Vector Rj, Rphi, Ru, Rp, Xu_dummy, Ru_dummy;
-
-   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru);  
 
    b->FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
                                u_gf, *rp, *BMat,
@@ -201,14 +165,11 @@ void LmmhdOperator::Update(const Vector &X)
    
    KtMat = KMat->Transpose();
 
-
+   // Set up operator matrix.
    A = new BlockOperator(block_trueOffsets);
    A->SetBlock(0,0, MjMat);
    A->SetBlock(0,1, GTMat);
    A->SetBlock(1,0, GMat);
-   //A->SetBlock(1,1, PtmpMat);
-   // Set F block for velocity.
-   A->SetBlock(2,2, FkMat); 
    // Set coupling (B^T and B) blocks.
    A->SetBlock(2,3, BtMat);
    A->SetBlock(3,2, BMat);
@@ -216,11 +177,10 @@ void LmmhdOperator::Update(const Vector &X)
    A->SetBlock(2,0, KMat);
    A->SetBlock(0,2, KtMat);
 
-
+   // Set RHS.
    RHS = new BlockVector(block_trueOffsets);
    RHS->GetBlock(0) = Rj;
    RHS->GetBlock(1) = Rphi;
-   RHS->GetBlock(2) = Ru; 
    RHS->GetBlock(3) = Rp; 
 
 
@@ -254,16 +214,59 @@ void LmmhdOperator::Update(const Vector &X)
 
    invDj = new HypreSmoother(*DjMat);
    invMphi = new HypreSmoother(*MphiMat);
-   invF = new HypreSmoother(*FkMat);
    invSp = new HypreSmoother(*SpMat);
 
    //P->SetDiagonalBlock(0, invDj);
    //P->SetDiagonalBlock(1, invMphi);
-   P->SetDiagonalBlock(2, invF);
    P->SetDiagonalBlock(3, invSp);
 
-   //P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces, ess_tdof_p, v_space_size, p_space_size, dt);
-   //P->SetOperator(*FkMat);
+
+   // Set solver parameters.
+   lmmhd_solver.SetRelTol(1e-6);
+   lmmhd_solver.SetAbsTol(0.0);
+   lmmhd_solver.SetMaxIter(1000);
+   lmmhd_solver.SetPrintLevel(1);
+   lmmhd_solver.iterative_mode = false;  
+
+}
+
+void LmmhdOperator::Update(const Vector &X)
+{
+   Array<int> ess_tdof_u;
+   spaces[2]->GetEssentialTrueDofs(*ess_bdr_marker[2], ess_tdof_u);
+
+   ParGridFunction u_gf(spaces[2]);
+   u_gf = 0.0;
+
+   // Bilinear form for the velocity.
+   delete fk;
+   fk = new ParBilinearForm(spaces[2]);
+   // Integrator for (v, v').
+   fk->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
+   // Integrator for A_AL(v, v').
+   fk->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
+   // Integrator for O(u_n; v, v').
+   fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
+   fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
+
+   fk->Assemble(); fk->Finalize();
+
+   // Project BCs onto grid functions and set up HypreParMatrices.
+   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+
+   FkMat = new HypreParMatrix();
+
+   Vector Ru, Xu_dummy;
+   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru);  
+
+   // Set F block and RHS for velocity.
+   A->SetBlock(2,2, FkMat); 
+   RHS->GetBlock(2) = Ru; 
+
+   // Preconditioner.
+   invF = new HypreSmoother(*FkMat);
+
+   P->SetDiagonalBlock(2, invF);
 
    lmmhd_solver.SetPreconditioner(*P);
    lmmhd_solver.SetOperator(*A);
