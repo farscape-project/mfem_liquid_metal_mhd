@@ -18,3 +18,4 @@ setup_mfem.sh
 02_gmres_fluids_solver
 03_gmres_solver_restructure
 fluids_solver
+lmmhd_solver
