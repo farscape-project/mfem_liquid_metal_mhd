@@ -72,12 +72,16 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
    //Ptmp = new ParBilinearForm(spaces[1]);
 
+   B = new Vector(dim);
+   *B = 0.0;
+   (*B)(2) = 1.0;
+   C = new CrossProductMatrixCoefficient(*B);
 
    // Set solver parameters.
    lmmhd_solver.SetRelTol(1e-6);
    lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(20000);
-   lmmhd_solver.SetPrintLevel(0);
+   lmmhd_solver.SetMaxIter(1000);
+   lmmhd_solver.SetPrintLevel(1);
    lmmhd_solver.iterative_mode = false;  
 
 }
@@ -130,33 +134,21 @@ void LmmhdOperator::Update(const Vector &X)
 
    delete k;
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
-   k->AddDomainIntegrator(new MixedCrossProductIntegrator(*magnetic_field_coef));
-
-   checkpoint(1);   
+   //k->AddDomainIntegrator(new MixedCrossProductIntegrator(*magnetic_field_coef));
+   k->AddDomainIntegrator(new VectorFEMassIntegrator(*C));
 
    //delete Ptmp;
    //Ptmp = new ParBilinearForm(spaces[1]);
    //Ptmp->AddDomainIntegrator(new MassIntegrator(*massCoef));
 
-   checkpoint(2);
-
    fk->Assemble(); fk->Finalize();
-   checkpoint(3);
    b->Assemble(); b->Finalize();
-   checkpoint(4);
    bT->Assemble(); bT->Finalize();
-   checkpoint(5);
 
    mj->Assemble(); mj->Finalize();
-   checkpoint(6);
    g->Assemble(); g->Finalize();
-   checkpoint(7);
    gT->Assemble(); gT->Finalize();
-   checkpoint(8);
-   k->Assemble(); 
-   checkpoint(9);
-   k->Finalize();
-   checkpoint(10);
+   k->Assemble(); k->Finalize();
    //Ptmp->Assemble(); Ptmp->Finalize();
 
    ru->Assemble();
@@ -224,14 +216,14 @@ void LmmhdOperator::Update(const Vector &X)
    //block_trueOffsets.Print(std::cout, 8);
 
    
-   //KtMat = KMat->Transpose();
+   KtMat = KMat->Transpose();
 
-   std::cout << "KMat size: " << KMat->Height() << " x " << KMat->Width() << std::endl;
+   /*std::cout << "KMat size: " << KMat->Height() << " x " << KMat->Width() << std::endl;
    std::cout << "KtMat size: " << KtMat->Height() << " x " << KtMat->Width() << std::endl;
 
    std::cout << "FkMat size: " << FkMat->Height() << " x " << FkMat->Width() << std::endl;
    std::cout << "BMat size: " << BMat->Height() << " x " << BMat->Width() << std::endl;
-   std::cout << "BtMat size: " << BtMat->Height() << " x " << BtMat->Width() << std::endl;
+   std::cout << "BtMat size: " << BtMat->Height() << " x " << BtMat->Width() << std::endl;*/
 
 
    A = new BlockOperator(block_trueOffsets);
@@ -244,7 +236,7 @@ void LmmhdOperator::Update(const Vector &X)
    // Set coupling (B^T and B) blocks.
    A->SetBlock(2,3, BtMat);
    A->SetBlock(3,2, BMat);
-   // Set K block for coupling J and U.
+   // Set K blocks for coupling J and U.
    A->SetBlock(2,0, KMat);
    A->SetBlock(0,2, KtMat);
 
@@ -261,19 +253,40 @@ void LmmhdOperator::Update(const Vector &X)
    // Preconditioner.
    P = new BlockDiagonalPreconditioner(block_trueOffsets);
 
-   s = new ParBilinearForm(spaces[3]);
-   s->AddDomainIntegrator(new DiffusionIntegrator());  
-   s->Assemble();
-   s->Finalize();
+   // Current density preconditioner.
+   dj = new ParBilinearForm(spaces[0]);
+   dj->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   dj->AddDomainIntegrator(new DivDivIntegrator(one));
+   dj->Assemble(); dj->Finalize();
 
-   SMat = new HypreParMatrix();
-   s->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SMat, Xu_dummy, Rp);
+   DjMat = new HypreParMatrix();
+   dj->FormLinearSystem(ess_tdof_j, j_gf, *rj, *DjMat, Xu_dummy, Rj);
 
+   // Electric potential preconditioner.
+   mphi = new ParBilinearForm(spaces[1]);
+   mphi->AddDomainIntegrator(new MassIntegrator(neg_one));
+   mphi->Assemble(); mphi->Finalize();
+
+   MphiMat = new HypreParMatrix();
+   mphi->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MphiMat, Xu_dummy, Rp);
+
+   // Pressure preconditioner.
+   sp = new ParBilinearForm(spaces[3]);
+   sp->AddDomainIntegrator(new DiffusionIntegrator(neg_one));  
+   sp->Assemble(); sp->Finalize();
+
+   SpMat = new HypreParMatrix();
+   sp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMat, Xu_dummy, Rphi);
+
+   invDj = new HypreSmoother(*DjMat);
+   invMphi = new HypreSmoother(*MphiMat);
    invF = new HypreSmoother(*FkMat);
-   invS = new HypreSmoother(*SMat);
+   invSp = new HypreSmoother(*SpMat);
 
+   //P->SetDiagonalBlock(0, invDj);
+   //P->SetDiagonalBlock(1, invMphi);
    P->SetDiagonalBlock(2, invF);
-   P->SetDiagonalBlock(3, invS);
+   P->SetDiagonalBlock(3, invSp);
 
    //P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces, ess_tdof_p, v_space_size, p_space_size, dt);
    //P->SetOperator(*FkMat);

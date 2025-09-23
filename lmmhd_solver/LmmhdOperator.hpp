@@ -3,6 +3,7 @@
 #include "custom_integrators.hpp"
 #include "constants.hpp"
 #include "BlockTriangularPreconditioner.hpp"
+#include "CrossProductMatrixCoefficient.hpp"
 
 
 using namespace std;
@@ -19,17 +20,19 @@ protected:
    Array<int> &block_trueOffsets;
 
    ParLinearForm *rp, *ru, *rj, *rphi;
-   ParBilinearForm *fk, *m, *s, *mj, *Ptmp;
+   ParBilinearForm *fk, *m, *sp, *mj, *Ptmp, *mphi, *dj;
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
    BlockDiagonalPreconditioner *P;
-   Solver *invF, *invS;
+   Solver *invF, *invSp, *invMphi, *invM, *invDj;
 
    HypreParMatrix *FkMat = nullptr;
    HypreParMatrix *BMat = nullptr;
    HypreParMatrix *BtMat = nullptr;
-   HypreParMatrix *SMat = nullptr;
+   HypreParMatrix *SpMat = nullptr;
+   HypreParMatrix *MphiMat = nullptr;
+   HypreParMatrix *DjMat = nullptr;
 
    HypreParMatrix *MjMat = nullptr;
    HypreParMatrix *GMat = nullptr;
@@ -77,6 +80,9 @@ protected:
    ParGridFunction *max_flux;
 
    Vector *magnetic_field;
+
+   MatrixCoefficient *C;
+   Vector *B;
 
    
 

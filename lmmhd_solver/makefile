@@ -6,7 +6,7 @@ include $(CONFIG_MK)
 # Source files and executable
 TARGET = lmmhd_solver
 SRC = lmmhd_solver.cpp custom_integrators.cpp LmmhdOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp
-INC = custom_integrators.hpp LmmhdOperator.hpp constants.hpp BlockTriangularPreconditioner.hpp utils.hpp
+INC = custom_integrators.hpp LmmhdOperator.hpp constants.hpp BlockTriangularPreconditioner.hpp utils.hpp CrossProductMatrixCoefficient.hpp
 
 # Compiler and flags
 CXX = $(MFEM_CXX)

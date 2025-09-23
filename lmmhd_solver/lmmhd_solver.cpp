@@ -18,6 +18,8 @@ int main(int argc, char *argv[])
    int myid = Mpi::WorldRank();
    Hypre::Init();
 
+   mfem::tic();
+
    //MFEMInitializePetsc(NULL,NULL,"",NULL);
 
    // Set timestepping parameters.
@@ -68,7 +70,8 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    //Mesh mesh = Mesh::MakeCartesian3D(10, 8, 8, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
-   Mesh mesh = Mesh::MakeCartesian3D(4, 2, 2, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
+   //Mesh mesh = Mesh::MakeCartesian3D(4, 2, 2, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(8, 4, 4, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
    //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
    int dim = mesh.Dimension();
    
@@ -132,15 +135,18 @@ int main(int argc, char *argv[])
 
 
    // Print mesh statistics.
-   std::cout << "***********************************************************\n";
-   std::cout << "dim(j) = " << j_space_size << "\n";
-   std::cout << "dim(phi) = " << phi_space_size << "\n";
-   std::cout << "dim(j+phi) = " << j_space_size + phi_space_size << "\n";
-   std::cout << "dim(u) = " << v_space_size << "\n";
-   std::cout << "dim(p) = " << p_space_size << "\n";
-   std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
-   std::cout << "dim(j+phi+u+p) = " << j_space_size + phi_space_size + v_space_size + p_space_size << "\n";
-   std::cout << "***********************************************************\n";
+   if (Mpi::Root())
+   {
+      std::cout << "***********************************************************\n";
+      std::cout << "dim(j) = " << j_space_size << "\n";
+      std::cout << "dim(phi) = " << phi_space_size << "\n";
+      std::cout << "dim(j+phi) = " << j_space_size + phi_space_size << "\n";
+      std::cout << "dim(u) = " << v_space_size << "\n";
+      std::cout << "dim(p) = " << p_space_size << "\n";
+      std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
+      std::cout << "dim(j+phi+u+p) = " << j_space_size + phi_space_size + v_space_size + p_space_size << "\n";
+      std::cout << "***********************************************************\n";
+   }
 
    ParGridFunction j_gf(&currentD_fespace);
    ParGridFunction phi_gf(&electPot_fespace);
@@ -164,7 +170,7 @@ int main(int argc, char *argv[])
    ParGridFunction u_star(&velocity_fespace);
 
    // Set up visualisation in Paraview.
-   ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
+   ParaViewDataCollection paraview_dc("lmmhd", pmesh);
    paraview_dc.SetPrefixPath("data");
 
    // Initialise time-loop details.
@@ -181,7 +187,7 @@ int main(int argc, char *argv[])
    //for (int ti = 0; ti < n_steps; ti++)
    while (t < t_final)
    {
-      std::cout << "Time step " << ti << ", time = " << t << std::endl;
+      if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
 
       // Set history and u_star.
       if (ti == 0)
@@ -227,7 +233,7 @@ int main(int argc, char *argv[])
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
-         std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl;
+         if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl; }
          visualize(paraview_dc, order, &j_gf, "current density", ti_out, t);
          visualize(paraview_dc, order, &phi_gf, "electric potential", ti_out, t);
          visualize(paraview_dc, order_velocity, &u_gf, "velocity", ti_out, t);
