@@ -3,6 +3,7 @@ data*
 backups
 old
 *.dSYM
+mesh
 
 # Simulation files
 run_mfem.sh

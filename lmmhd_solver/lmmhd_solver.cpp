@@ -10,6 +10,14 @@
 using namespace std;
 using namespace mfem;
 
+// Clustering function (symmetric around center)
+real_t cluster_symmetric(real_t xi, real_t factor)
+{
+    // xi in [0,1], cluster away from 0.5
+    real_t x_shifted = xi - 0.5;
+    return 0.5 + 0.5 * tanh(factor * x_shifted) / tanh(factor / 2.0);
+}
+
 int main(int argc, char *argv[])
 {
    // Initialize MPI and HYPRE.
@@ -23,11 +31,24 @@ int main(int argc, char *argv[])
    //MFEMInitializePetsc(NULL,NULL,"",NULL);
 
    // Set timestepping parameters.
-   double t_final = 0.5;
-   double dt = 5e-2;
+   real_t t_final = 0.5;
+   real_t dt = 5e-2;
    int vis_steps = 5;
 
    int ode_solver_type = 1;
+
+   // Set mesh sizes.
+   int nx = 8;
+   int ny = 8;
+   int nz = 8;
+
+   real_t clusterY = 4.0; // clustering intensity y
+   real_t clusterZ = 4.0; // clustering intensity z
+
+   // Set domain sizes.
+   real_t Lx = 2.5;
+   real_t Ly = 1.0;
+   real_t Lz = 1.0;
 
    // Command line options.
    OptionsParser args(argc, argv);
@@ -37,6 +58,21 @@ int main(int argc, char *argv[])
                   "Time step.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
+   args.AddOption(&nx, "-nx", "--num-elements-x",
+                  "Number of elements in the x direction.");
+   args.AddOption(&ny, "-ny", "--num-elements-y",
+                  "Number of elements in the y direction.");
+   args.AddOption(&nz, "-nz", "--num-elements-z",
+                  "Number of elements in the z direction.");
+   args.AddOption(&Lx, "-lx", "--length-x",
+                  "Length of the domain in the x direction.");
+   args.AddOption(&Ly, "-ly", "--length-y",
+                  "Length of the domain in the y direction.");
+   args.AddOption(&Lz, "-lz", "--length-z",
+                  "Length of the domain in the z direction.");
+   args.AddOption(&clusterY, "-cy", "--cluster-y", "Clustering intensity in y direction.");
+   args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
+   
    args.Parse();
 
    // Define the ODE solver used for time integration.
@@ -69,12 +105,24 @@ int main(int argc, char *argv[])
    int order = 1;
 
    // Generate mesh.
-   //Mesh mesh = Mesh::MakeCartesian3D(10, 8, 8, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
-   //Mesh mesh = Mesh::MakeCartesian3D(4, 2, 2, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
-   Mesh mesh = Mesh::MakeCartesian3D(8, 4, 4, mfem::Element::Type::HEXAHEDRON, 2.5, 1.0, 1.0);
-   //Mesh mesh = Mesh::MakeCartesian2D(40, 16, mfem::Element::Type::QUADRILATERAL, true, 5.0, 1.0);
+   Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
+   //const char *mesh_file = "./mesh/cuboid_clustered.msh";
+   //Mesh mesh = Mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    
+   /*
+   // Cluster vertices in y and z.
+   int numVertices = mesh.GetNV();
+   for (int i = 0; i < numVertices; i++)
+   {
+      double *v = mesh.GetVertex(i);
+      double yi = v[1] / Ly; // Normalize y
+      double zi = v[2] / Lz; // Normalize z
+
+      v[1] = cluster_symmetric(yi, clusterY) * Ly;
+      v[2] = cluster_symmetric(zi, clusterZ) * Lz;
+   }*/
+
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
    
@@ -116,7 +164,7 @@ int main(int argc, char *argv[])
    
    // Essential (Dirichlet) boundary conditions.
    //                                     {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
-   Array<int> ess_boundary_marker_currentD{0,  0,  0,           0,  0,          0};
+   Array<int> ess_boundary_marker_currentD{1,  1,  1,           1,  1,          1};
    Array<int> ess_boundary_marker_electPot{0,  0,  0,           0,  0,          0};
    Array<int> ess_boundary_marker_pressure{0,  0,  1,           0,  0,          0};
    Array<int> ess_boundary_marker_velocity{1,  1,  0,           1,  1,          1};

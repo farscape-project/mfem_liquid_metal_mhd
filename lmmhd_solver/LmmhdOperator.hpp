@@ -4,6 +4,7 @@
 #include "constants.hpp"
 #include "BlockTriangularPreconditioner.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
+#include "BlockOperatorPreconditioner.hpp"
 
 
 using namespace std;
@@ -24,8 +25,9 @@ protected:
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
    BlockOperator *A;
    //BlockTriangularPreconditioner *P;
-   BlockDiagonalPreconditioner *P;
-   Solver *invF, *invSp, *invMphi, *invM, *invDj;
+   //BlockDiagonalPreconditioner *P;
+   BlockOperatorPreconditioner *P;
+   Solver *invF, *invSp, *invMphi, *invM, *invDj, *invGT;
 
    HypreParMatrix *FkMat = nullptr;
    HypreParMatrix *BMat = nullptr;

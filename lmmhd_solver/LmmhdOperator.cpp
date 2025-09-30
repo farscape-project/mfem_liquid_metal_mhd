@@ -185,7 +185,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
 
    // Preconditioner.
-   P = new BlockDiagonalPreconditioner(block_trueOffsets);
+   P = new BlockOperatorPreconditioner(block_trueOffsets);
 
    // Current density preconditioner.
    dj = new ParBilinearForm(spaces[0]);
@@ -216,15 +216,20 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    invMphi = new HypreSmoother(*MphiMat);
    invSp = new HypreSmoother(*SpMat);
 
-   //P->SetDiagonalBlock(0, invDj);
-   //P->SetDiagonalBlock(1, invMphi);
-   P->SetDiagonalBlock(3, invSp);
+   invGT = new HypreSmoother(*GTMat);
+
+   //P->SetBlock(0, 0, invDj);
+   //P->SetBlock(0, 1, GTMat);
+   //P->SetBlock(0, 2, KtMat);
+   //P->SetBlock(1, 1, invMphi);
+   //P->SetBlock(2, 3, BtMat);
+   P->SetBlock(3, 3, invSp);
 
 
    // Set solver parameters.
    lmmhd_solver.SetRelTol(1e-6);
    lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(1000);
+   lmmhd_solver.SetMaxIter(30000);
    lmmhd_solver.SetPrintLevel(1);
    lmmhd_solver.iterative_mode = false;  
 
@@ -266,7 +271,7 @@ void LmmhdOperator::Update(const Vector &X)
    // Preconditioner.
    invF = new HypreSmoother(*FkMat);
 
-   P->SetDiagonalBlock(2, invF);
+   P->SetBlock(2, 2, invF);
 
    lmmhd_solver.SetPreconditioner(*P);
    lmmhd_solver.SetOperator(*A);
