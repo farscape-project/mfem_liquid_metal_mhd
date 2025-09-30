@@ -17,7 +17,13 @@ where the blocks are defined as:
 - **Fk** : velocity bilinear form `2/Tau * (v, v') + O(u*_n; v, v') + A_AL(v, v')`
 - **B**  : coupling between velocity and pressure `-(div v, q)`
 
-Work on the preconditioner [1] is required to improve solver efficiency and stability.
+Work on the preconditioner [1] is required to improve solver efficiency and stability.  
+
+The `lmmhd_solver` is run using the command, with options,
+
+      ./lmmhd_solver -tf 0.5 -vs 5 -nx 8 -ny 10 -nz 10
+
+where `ni` is number of elements in direction `i = x,y,z`, `tf` is final time, and `vs` is visualisation step.  Other options are `ci` and `li` for clustering intensity (not currently enabled) in direction `i = y,z` and domain size for `i = x,y,z`.
 
 
 References:
