@@ -4,7 +4,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<int> &offsets,
                             int dim_,
-                            double dt_)
+                            real_t dt_)
    : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
      block_trueOffsets(offsets),
      lmmhd_solver(),
@@ -242,6 +242,8 @@ void LmmhdOperator::Update(const Vector &X)
 
    ParGridFunction u_gf(spaces[2]);
    u_gf = 0.0;
+
+   // Need to introduce Fu and add (Kv, Kv') to Fk, where K = B x v.
 
    // Bilinear form for the velocity.
    delete fk;

@@ -29,7 +29,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
         Trans.SetIntPoint(&ip);
 
         // Calculate Jacobian weight to scale contribution.
-        double w = ip.weight * Trans.Weight();
+        real_t w = ip.weight * Trans.Weight();
         // Evaluate convection field (Q in hpp file or w in paper).
         velocity_coeff.Eval(vel, Trans, ip);
         // Evaluate shape function values.
@@ -40,7 +40,7 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
         // Loop through DOFs (for test (phi_j)).
         for (int j = 0; j < nd; j++)
         {
-            double dot = 0.0;
+            real_t dot = 0.0;
             for (int d = 0; d < dim; d++)
                 dot += vel(d) * dshape(j, d); // Calculate dot product Q \cdot \nabla phi_j (basis function).
 

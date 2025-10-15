@@ -82,14 +82,14 @@ protected:
 
    Vector *magnetic_field;
 
-   MatrixCoefficient *C;
+   CrossProductMatrixCoefficient *C;
    Vector *B;
 
    
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, double dt);
+                  Array<int> &block_trueOffsets, int dim, real_t dt);
 
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 

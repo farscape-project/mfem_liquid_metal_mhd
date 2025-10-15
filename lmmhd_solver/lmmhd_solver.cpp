@@ -39,8 +39,8 @@ int main(int argc, char *argv[])
 
    // Set mesh sizes.
    int nx = 8;
-   int ny = 8;
-   int nz = 8;
+   int ny = 10;
+   int nz = 10;
 
    real_t clusterY = 4.0; // clustering intensity y
    real_t clusterZ = 4.0; // clustering intensity z
@@ -115,9 +115,9 @@ int main(int argc, char *argv[])
    int numVertices = mesh.GetNV();
    for (int i = 0; i < numVertices; i++)
    {
-      double *v = mesh.GetVertex(i);
-      double yi = v[1] / Ly; // Normalize y
-      double zi = v[2] / Lz; // Normalize z
+      real_t *v = mesh.GetVertex(i);
+      real_t yi = v[1] / Ly; // Normalize y
+      real_t zi = v[2] / Lz; // Normalize z
 
       v[1] = cluster_symmetric(yi, clusterY) * Ly;
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    paraview_dc.SetPrefixPath("data");
 
    // Initialise time-loop details.
-   double t = 0.0;
+   real_t t = 0.0;
    int n_steps = int(t_final / dt);
    int ti_out = 0; // Time step output index.
    int ti = 0;

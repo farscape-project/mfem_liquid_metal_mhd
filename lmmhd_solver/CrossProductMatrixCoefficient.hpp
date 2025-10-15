@@ -11,7 +11,7 @@ public:
                      const IntegrationPoint &ip) override
    {
       M.SetSize(3);
-      double bx = B(0), by = B(1), bz = B(2);
+      real_t bx = B(0), by = B(1), bz = B(2);
 
       M(0,0) = 0.0;   M(0,1) = -bz;   M(0,2) =  by;
       M(1,0) =  bz;   M(1,1) = 0.0;   M(1,2) = -bx;
