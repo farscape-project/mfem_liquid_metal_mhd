@@ -83,7 +83,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Set up cross product coefficient for K integrator (d, B x v').
    B = new Vector(dim);
    *B = 0.0;
-   (*B)(2) = 1.0;
+   (*B)(2) = 1.0 * kappa_val;
    C = new CrossProductMatrixCoefficient(*B);
 
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
@@ -104,14 +104,14 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Bilinear form for current density.
    mj = new ParBilinearForm(spaces[0]);
-   mj->AddDomainIntegrator(new VectorFEMassIntegrator(one));
+   mj->AddDomainIntegrator(new VectorFEMassIntegrator(kappa));
 
    // Mixed bilinear form for current density and electric potential coupling.
    g = new ParMixedBilinearForm(spaces[0],spaces[1]);
-   g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(neg_one));
+   g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(neg_kappa));
 
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
-   gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(one));
+   gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(kappa));
 
    // Mixed bilinear form for current density and velocity coupling.
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
@@ -240,7 +240,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Set solver parameters.
    lmmhd_solver.SetRelTol(1e-4);
    lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(12000);
+   lmmhd_solver.SetMaxIter(500);
    lmmhd_solver.SetPrintLevel(1);
    lmmhd_solver.iterative_mode = false;  
 

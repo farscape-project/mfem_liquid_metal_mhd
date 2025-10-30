@@ -1,4 +1,6 @@
 #include "mfem.hpp"
+#include "constants.hpp"
+
 using namespace mfem;
 using namespace std;
 
@@ -193,10 +195,7 @@ public:
         Sp->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
         Vector &yp = yblock.GetBlock(3);
-        yp = xi;
-        yp *= 1.0; // alpha currently 1.0.  Update later.
-        yp += eta;
-        yp *= -1.0;        
+        yp = xi;  yp *= alpha1;  yp += eta;  yp *= -1.0;        
 
 
         // Electric potential solve.

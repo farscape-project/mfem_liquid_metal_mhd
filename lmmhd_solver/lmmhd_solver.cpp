@@ -39,11 +39,11 @@ int main(int argc, char *argv[])
 
    // Set mesh sizes.
    int nx = 8;
-   int ny = 10;
-   int nz = 10;
+   int ny = 12;
+   int nz = 12;
 
-   real_t clusterY = 4.0; // clustering intensity y
-   real_t clusterZ = 4.0; // clustering intensity z
+   real_t clusterY = 3.0; // clustering intensity y
+   real_t clusterZ = 3.0; // clustering intensity z
 
    // Set domain sizes.
    real_t Lx = 2.5;
