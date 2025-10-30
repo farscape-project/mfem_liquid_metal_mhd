@@ -2,8 +2,8 @@
 #include "utils.hpp"
 #include "VectorConvectionIntegrator.hpp"
 #include "constants.hpp"
-#include "BlockTriangularPreconditioner.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
+#include "LiPreconditioner.hpp"
 #include "BlockOperatorPreconditioner.hpp"
 
 
@@ -21,17 +21,16 @@ protected:
    Array<int> &block_trueOffsets;
 
    ParLinearForm *rp, *ru, *rj, *rphi;
-   ParBilinearForm *fk, *m, *sp, *mj, *mphi, *dj;
+   ParBilinearForm *fu, *fk, *m, *sp, *mj, *mphi, *dj, *mp;
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
    BlockOperator *A;
-   //BlockTriangularPreconditioner *P;
-   //BlockDiagonalPreconditioner *P;
-   BlockOperatorPreconditioner *P;
-   Solver *invF, *invSp, *invMphi, *invM, *invDj, *invGT;
+   LiPreconditioner *P;
 
+   HypreParMatrix *FuMat = nullptr;
    HypreParMatrix *FkMat = nullptr;
    HypreParMatrix *BMat = nullptr;
    HypreParMatrix *BtMat = nullptr;
+   HypreParMatrix *MpMat = nullptr;
    HypreParMatrix *SpMat = nullptr;
    HypreParMatrix *MphiMat = nullptr;
    HypreParMatrix *DjMat = nullptr;
@@ -55,6 +54,7 @@ protected:
    VectorFunctionCoefficient *velocity_DBC;
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
+   MatrixConstantCoefficient *BxVcoeff;
 
    VectorFunctionCoefficient *zero_coeff;
 

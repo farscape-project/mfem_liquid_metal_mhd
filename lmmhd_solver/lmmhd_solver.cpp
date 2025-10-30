@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
    //MFEMInitializePetsc(NULL,NULL,"",NULL);
 
    // Set timestepping parameters.
-   real_t t_final = 0.5;
+   real_t t_final = 0.1;
    real_t dt = 5e-2;
    int vis_steps = 5;
 

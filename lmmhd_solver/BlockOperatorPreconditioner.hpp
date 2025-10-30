@@ -7,7 +7,7 @@ class BlockOperatorPreconditioner : public Solver
 protected:
     int nBlocks;
     Array<int> offsets;
-    std::vector<std::vector<Operator*>> op; 
+    std::vector<std::vector<Solver*>> solvers; 
     bool owns_blocks;
 
 public:
@@ -17,20 +17,41 @@ public:
           offsets(0), owns_blocks(owns_blocks_)
     {
         offsets.MakeRef(offsets_);
-        op.resize(nBlocks);
-        for (int i=0; i<nBlocks; ++i) op[i].resize(nBlocks, nullptr);
+        solvers.resize(nBlocks);
+        for (int i=0; i<nBlocks; ++i)
+        {
+            solvers[i].resize(nBlocks, nullptr);
+        }
     }
 
-    // Set a block operator (can be off-diagonal)
-    void SetBlock(int i, int j, Operator *opt)
+    class OperatorSolver : public Solver
     {
-        // Optional: verify block dimensions match
+        Operator *A;
+    public:
+        OperatorSolver(Operator *A_) : Solver(A_->Height(), A_->Width()), A(A_) {}
+        
+        virtual void Mult(const Vector &x, Vector &y) const override { A->Mult(x, y); }
+
+        virtual void SetOperator(const Operator &op) override { }
+    };
+
+    // Set a block solver (can be off-diagonal)
+    void SetBlockSolver(int i, int j, Solver *solver)
+    {
+        MFEM_VERIFY(solver != nullptr, "Null solver passed to block preconditioner");
+        // Verify block dimensions match
         int hi = offsets[i+1]-offsets[i];
         int hj = offsets[j+1]-offsets[j];
-        MFEM_VERIFY(opt->Height() == hi && opt->Width() == hj,
-                    "Operator dimensions do not match block size");
+        MFEM_VERIFY(solver->Height() == hi && solver->Width() == hj,
+                    "Solver dimensions do not match block size");
 
-        op[i][j] = opt;
+        solvers[i][j] = solver;
+    }
+
+    void SetBlock(int i, int j, Operator *A)
+    {
+        Solver *wrapper = new OperatorSolver(A);
+        SetBlockSolver(i, j, wrapper);
     }
 
     // Apply the block operator as a preconditioner
@@ -49,10 +70,10 @@ public:
 
             for (int j=0; j<nBlocks; ++j)
             {
-                if (op[i][j])
+                if (solvers[i][j])
                 {
-                    Vector tmp(op[i][j]->Height());
-                    op[i][j]->Mult(xblock.GetBlock(j), tmp);
+                    Vector tmp(solvers[i][j]->Height());
+                    solvers[i][j]->Mult(xblock.GetBlock(j), tmp);
                     yblock.GetBlock(i) += tmp;
                     if (i == j) diagonal_exists = true;
                 }
@@ -67,7 +88,7 @@ public:
     }
 
     // Apply transpose
-    virtual void MultTranspose(const Vector &x, Vector &y) const override
+    /*virtual void MultTranspose(const Vector &x, Vector &y) const override
     {
         MFEM_ASSERT(x.Size() == height, "incorrect input Vector size");
         MFEM_ASSERT(y.Size() == width, "incorrect output Vector size");
@@ -82,10 +103,10 @@ public:
 
             for (int j=0; j<nBlocks; ++j)
             {
-                if (op[i][j])
+                if (solvers[i][j])
                 {
-                    Vector tmp(op[i][j]->Width());
-                    op[i][j]->MultTranspose(xblock.GetBlock(j), tmp);
+                    Vector tmp(solvers[i][j]->Width());
+                    solvers[i][j]->MultTranspose(xblock.GetBlock(j), tmp);
                     yblock.GetBlock(i) += tmp;
                 }
             }
@@ -96,7 +117,7 @@ public:
                 yblock.GetBlock(i) = xblock.GetBlock(i);
             }
         }
-    }
+    }*/
 
     virtual void SetOperator(const Operator &op) override { }
 
@@ -106,7 +127,7 @@ public:
         {
             for (int i=0; i<nBlocks; ++i)
                 for (int j=0; j<nBlocks; ++j)
-                    delete op[i][j];
+                    delete solvers[i][j];
         }
     }
 };

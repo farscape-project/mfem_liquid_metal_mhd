@@ -70,6 +70,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
 
    // Initisalise bilinear forms.
+   fu = new ParBilinearForm(spaces[2]);
    fk = new ParBilinearForm(spaces[2]);
    b = new ParMixedBilinearForm(spaces[2],spaces[3]);
    bT = new ParMixedBilinearForm(spaces[3],spaces[2]);
@@ -78,8 +79,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    g = new ParMixedBilinearForm(spaces[0],spaces[1]);
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
-   //Ptmp = new ParBilinearForm(spaces[1]);
 
+   // Set up cross product coefficient for K integrator (d, B x v').
    B = new Vector(dim);
    *B = 0.0;
    (*B)(2) = 1.0;
@@ -184,8 +185,17 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    RHS->GetBlock(3) = Rp; 
 
 
-   // Preconditioner.
-   P = new BlockOperatorPreconditioner(block_trueOffsets);
+   // Implementation of (Kv, Kv') where K(v) = B x v for fk in preconditioner.
+   DenseMatrix BxV(dim);
+   real_t Bnorm2 = (*B) * (*B);
+
+   // Build M = |B|^2 I - B B^T (equivalent to (B x v, B x v') ).
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+         BxV(i,j) = (i == j ? Bnorm2 : 0.0) - (*B)(i) * (*B)(j);
+   }
+   BxVcoeff = new MatrixConstantCoefficient(BxV);
 
    // Current density preconditioner.
    dj = new ParBilinearForm(spaces[0]);
@@ -198,38 +208,39 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Electric potential preconditioner.
    mphi = new ParBilinearForm(spaces[1]);
-   mphi->AddDomainIntegrator(new MassIntegrator(neg_one));
+   mphi->AddDomainIntegrator(new MassIntegrator(one));
    mphi->Assemble(); mphi->Finalize();
 
    MphiMat = new HypreParMatrix();
    mphi->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MphiMat, Xu_dummy, Rp);
 
-   // Pressure preconditioner.
+   // Pressure preconditioner (part 1).
+   mp = new ParBilinearForm(spaces[3]);
+   mp->AddDomainIntegrator(new MassIntegrator(one));  
+   mp->Assemble(); mp->Finalize();
+
+   MpMat = new HypreParMatrix();
+   mp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMat, Xu_dummy, Rphi);
+
+   // Pressure preconditioner (part 2).
    sp = new ParBilinearForm(spaces[3]);
-   sp->AddDomainIntegrator(new DiffusionIntegrator(neg_one));  
+   sp->AddDomainIntegrator(new DiffusionIntegrator(one));  
    sp->Assemble(); sp->Finalize();
 
    SpMat = new HypreParMatrix();
    sp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMat, Xu_dummy, Rphi);
 
-   invDj = new HypreSmoother(*DjMat);
-   invMphi = new HypreSmoother(*MphiMat);
-   invSp = new HypreSmoother(*SpMat);
+   // Preconditioner.
+   P = new LiPreconditioner(spaces, block_trueOffsets);
 
-   invGT = new HypreSmoother(*GTMat);
-
-   //P->SetBlock(0, 0, invDj);
-   //P->SetBlock(0, 1, GTMat);
-   //P->SetBlock(0, 2, KtMat);
-   //P->SetBlock(1, 1, invMphi);
-   //P->SetBlock(2, 3, BtMat);
-   P->SetBlock(3, 3, invSp);
-
+   P->SetPressurePreconditioner(MpMat, SpMat);
+   P->SetElectricPotentialPreconditioner(MphiMat);
+   P->SetCurrentDensityPreconditioner(DjMat, GTMat, KtMat);
 
    // Set solver parameters.
-   lmmhd_solver.SetRelTol(1e-6);
+   lmmhd_solver.SetRelTol(1e-4);
    lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(30000);
+   lmmhd_solver.SetMaxIter(12000);
    lmmhd_solver.SetPrintLevel(1);
    lmmhd_solver.iterative_mode = false;  
 
@@ -243,9 +254,20 @@ void LmmhdOperator::Update(const Vector &X)
    ParGridFunction u_gf(spaces[2]);
    u_gf = 0.0;
 
-   // Need to introduce Fu and add (Kv, Kv') to Fk, where K = B x v.
-
    // Bilinear form for the velocity.
+   delete fu;
+   fu = new ParBilinearForm(spaces[2]);
+   // Integrator for (v, v').
+   fu->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
+   // Integrator for A_AL(v, v').
+   fu->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
+   // Integrator for O(u_n; v, v').
+   fu->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
+   fu->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
+
+   fu->Assemble(); fu->Finalize();
+
+   // Bilinear form for velocity preconditioner.
    delete fk;
    fk = new ParBilinearForm(spaces[2]);
    // Integrator for (v, v').
@@ -256,24 +278,27 @@ void LmmhdOperator::Update(const Vector &X)
    fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
 
+   fk->AddDomainIntegrator(new VectorMassIntegrator(*BxVcoeff));
+
    fk->Assemble(); fk->Finalize();
 
    // Project BCs onto grid functions and set up HypreParMatrices.
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
 
+   FuMat = new HypreParMatrix();
    FkMat = new HypreParMatrix();
 
-   Vector Ru, Xu_dummy;
-   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru);  
+   Vector Ru, Xu_dummy, Ru_dummy;
+   fu->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FuMat, Xu_dummy, Ru);  
 
    // Set F block and RHS for velocity.
-   A->SetBlock(2,2, FkMat); 
+   A->SetBlock(2,2, FuMat); 
    RHS->GetBlock(2) = Ru; 
 
    // Preconditioner.
-   invF = new HypreSmoother(*FkMat);
+   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru_dummy);  
 
-   P->SetBlock(2, 2, invF);
+   P->SetVelocityPreconditioner(FkMat, BtMat);
 
    lmmhd_solver.SetPreconditioner(*P);
    lmmhd_solver.SetOperator(*A);
@@ -296,7 +321,7 @@ void LmmhdOperator::ImplicitSolve(const real_t dt,
 
 LmmhdOperator::~LmmhdOperator()
 {
-   delete fk;
+   delete fu;
    delete b;
    delete ru;
    delete rp;
