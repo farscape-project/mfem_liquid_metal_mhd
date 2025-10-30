@@ -74,6 +74,7 @@ protected:
     // Velocity preconditioner solvers.
     OperatorSolver *Fk;
     GMRESSolver *FkSolver;
+    HypreBoomerAMG *FkPrec;
 
     HypreParMatrix *Bt = nullptr;
 
@@ -101,7 +102,7 @@ public:
         MpSolver = new CGSolver(MPI_COMM_WORLD);
         MpSolver->SetRelTol(1e-8);
         MpSolver->SetMaxIter(10);
-        MpSolver->SetPrintLevel(0);
+        MpSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
 
         MpSolver->SetOperator(*MpMat);
 
@@ -112,9 +113,9 @@ public:
         Mp = new OperatorSolver(MpSolver);
 
         SpSolver = new HypreBoomerAMG(*SpMat);
-        SpSolver->SetPrintLevel(0);      
+        SpSolver->SetPrintLevel(0);
         SpSolver->SetCycleType(1);
-        SpSolver->SetRelaxType(6); // 6 = Symmetric Gauss-Seidel (common choice)
+        SpSolver->SetRelaxType(6); // 6 = Symmetric Gauss-Seidel
         SpSolver->SetMaxLevels(25);
 
         SpSolver->SetOperator(*SpMat);
@@ -128,7 +129,7 @@ public:
         MphiSolver = new CGSolver(MPI_COMM_WORLD);
         MphiSolver->SetRelTol(1e-8);
         MphiSolver->SetMaxIter(10);
-        MphiSolver->SetPrintLevel(0);
+        MphiSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
 
         MphiSolver->SetOperator(*MphiMat);
 
@@ -148,6 +149,10 @@ public:
         
         FkSolver->SetOperator(*FkMat);
 
+        FkPrec = new HypreBoomerAMG(*FkMat);
+        FkPrec->SetPrintLevel(0);
+        FkSolver->SetPreconditioner(*FkPrec);
+
         Fk = new OperatorSolver(FkSolver);
 
         Bt = BtMat;
@@ -158,7 +163,7 @@ public:
         DjSolver = new CGSolver(MPI_COMM_WORLD);
         DjSolver->SetRelTol(1e-8);
         DjSolver->SetMaxIter(5);
-        DjSolver->SetPrintLevel(0);
+        DjSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
 
         DjSolver->SetOperator(*DjMat);
 

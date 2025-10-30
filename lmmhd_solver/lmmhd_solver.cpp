@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
    //Mesh mesh = Mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    
-   /*
+   
    // Cluster vertices in y and z.
    int numVertices = mesh.GetNV();
    for (int i = 0; i < numVertices; i++)
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 
       v[1] = cluster_symmetric(yi, clusterY) * Ly;
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
-   }*/
+   }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
 
