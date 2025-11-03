@@ -54,3 +54,29 @@ real_t cluster_symmetric(real_t xi, real_t factor)
     real_t x_shifted = xi - 0.5;
     return 0.5 + 0.5 * tanh(factor * x_shifted) / tanh(factor / 2.0);
 }
+
+void checkpoint(int num)
+{
+   cout << "**********************************************" << endl;
+   cout << "**************** CHECKPOINT " << num << " ****************" << endl;
+   cout << "**********************************************" << endl;
+   cout << endl;
+}
+
+
+// Inline visualization
+void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t)
+{
+
+   paraview_dc.SetLevelsOfDetail(order);
+   paraview_dc.SetDataFormat(VTKFormat::BINARY);
+   paraview_dc.SetHighOrderOutput(true);
+
+   paraview_dc.SetCycle(ti);
+   paraview_dc.SetTime(t);
+
+   // Export field data.
+   paraview_dc.RegisterField(field_name,field);
+
+   paraview_dc.Save();
+}

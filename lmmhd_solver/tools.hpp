@@ -17,3 +17,9 @@ void PrintFESpaces(int j_space_size, int phi_space_size,
 
 // Clustering function (symmetric around center).
 real_t cluster_symmetric(real_t xi, real_t factor);
+
+// Checkpoint function for debugging.
+void checkpoint(int num);
+
+// Visualisation function.
+void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t);

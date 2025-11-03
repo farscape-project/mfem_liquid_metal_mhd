@@ -3,8 +3,6 @@
 using namespace std;
 using namespace mfem;
 
-
-
 inline real_t velocity_nbc(const Vector & x)
 {
    return 0.0;
@@ -93,6 +91,7 @@ inline void zero_func(const Vector & x, Vector & f)
    f = 0.0;
 }
 
+
 inline void u_exact(const mfem::Vector & x, mfem::Vector & f)
 {
 
@@ -106,46 +105,4 @@ inline void u_exact(const mfem::Vector & x, mfem::Vector & f)
       f(2) = 0.0;
    }
    
-}
-
-
-inline void checkpoint(int num)
-{
-   cout << "**********************************************" << endl;
-   cout << "**************** CHECKPOINT " << num << " ****************" << endl;
-   cout << "**********************************************" << endl;
-   cout << endl;
-}
-
-
-// Inline visualization
-inline void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t)
-{
-
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-
-   paraview_dc.SetCycle(ti);
-   paraview_dc.SetTime(t);
-
-   // Export field data.
-   paraview_dc.RegisterField(field_name,field);
-
-   paraview_dc.Save();
-}
-
-inline void CheckConvectionIntegrals(const DenseMatrix &elmat, const DenseMatrix &elmat_conservative, const FiniteElement &el) {
-   int num_dofs = el.GetDof();
-   
-   for (int i = 0; i < num_dofs; i++) {
-      for (int j = 0; j < num_dofs; j++) {
-         real_t diff = elmat(i, j) + elmat_conservative(i, j); // Should ideally be 0 if they are transposed.
-         
-         if (std::abs(diff) > 1e-6) {
-            std::cerr << "Error: Convection terms do not cancel out. Difference at (" 
-                      << i << ", " << j << "): " << diff << std::endl;
-         }
-      }
-   }
 }
