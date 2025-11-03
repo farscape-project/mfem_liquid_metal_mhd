@@ -6,17 +6,65 @@
 
 #include "LmmhdOperator.hpp"
 #include "constants.hpp"
+#include "InputParser.hpp"
+#include "tools.hpp"
 
 using namespace std;
 using namespace mfem;
 
 // Clustering function (symmetric around center)
-real_t cluster_symmetric(real_t xi, real_t factor)
+/*real_t cluster_symmetric(real_t xi, real_t factor)
 {
     // xi in [0,1], cluster away from 0.5
     real_t x_shifted = xi - 0.5;
     return 0.5 + 0.5 * tanh(factor * x_shifted) / tanh(factor / 2.0);
 }
+
+// Print all parameters in a nice table
+void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
+                 real_t clusterY, real_t clusterZ,
+                 real_t t_final, real_t dt, int vis_steps, real_t Re, real_t Ha)
+{
+   std::cout << " " << std::endl;
+   std::cout << "================ Simulation Parameters ================" << std::endl;
+   std::cout << "----------- Mesh Parameters -----------" << std::endl;
+   std::cout << "nx = " << nx << std::endl;
+   std::cout << "ny = " << ny << std::endl;
+   std::cout << "nz = " << nz << std::endl;
+   std::cout << "Lx = " << Lx << std::endl;
+   std::cout << "Ly = " << Ly << std::endl;
+   std::cout << "Lz = " << Lz << std::endl;
+   std::cout << "clusterY = " << clusterY << std::endl;
+   std::cout << "clusterZ = " << clusterZ << std::endl;
+   std::cout << " " << std::endl;
+
+   std::cout << "------ Timestepping Parameters --------" << std::endl;
+   std::cout << "t_final = " << t_final << std::endl;
+   std::cout << "dt = " << dt << std::endl;
+   std::cout << "vis_steps = " << vis_steps << std::endl;
+   std::cout << " " << std::endl;
+   
+   std::cout << "------ Dimensionless Parameters -------" << std::endl;
+   std::cout << "Re = " << Re << std::endl;
+   std::cout << "Ha = " << Ha << std::endl;
+   std::cout << "=======================================================" << std::endl;
+   std::cout << " " << std::endl;
+   std::cout << " " << std::endl;
+}
+
+void PrintFESpaces(int j_space_size, int phi_space_size, int v_space_size, int p_space_size)
+{
+   std::cout << "=============== Finite Element Spaces =================" << std::endl;
+   std::cout << "dim(j) = " << j_space_size << std::endl;
+   std::cout << "dim(phi) = " << phi_space_size << std::endl;
+   std::cout << "dim(j+phi) = " << j_space_size + phi_space_size << std::endl;
+   std::cout << "dim(u) = " << v_space_size << std::endl;
+   std::cout << "dim(p) = " << p_space_size << std::endl;
+   std::cout << "dim(u+p) = " << v_space_size + p_space_size << std::endl;
+   std::cout << "dim(j+phi+u+p) = " << j_space_size + phi_space_size + v_space_size + p_space_size << std::endl;
+   std::cout << "=======================================================" << std::endl;
+   std::cout << " " << std::endl;
+}*/
 
 int main(int argc, char *argv[])
 {
@@ -28,27 +76,32 @@ int main(int argc, char *argv[])
 
    mfem::tic();
 
-   //MFEMInitializePetsc(NULL,NULL,"",NULL);
-
-   // Set timestepping parameters.
-   real_t t_final = 0.1;
-   real_t dt = 5e-2;
-   int vis_steps = 5;
-
    int ode_solver_type = 1;
 
-   // Set mesh sizes.
-   int nx = 8;
-   int ny = 12;
-   int nz = 12;
+   InputParser input("params.in");
 
-   real_t clusterY = 3.0; // clustering intensity y
-   real_t clusterZ = 3.0; // clustering intensity z
+   // Mesh parameters
+   int nx = input.GetInt("nx");
+   int ny = input.GetInt("ny");
+   int nz = input.GetInt("nz");
 
-   // Set domain sizes.
-   real_t Lx = 2.5;
-   real_t Ly = 1.0;
-   real_t Lz = 1.0;
+   real_t Lx = input.GetReal("Lx");
+   real_t Ly = input.GetReal("Ly");
+   real_t Lz = input.GetReal("Lz");
+
+   real_t clusterY = input.GetReal("clusterY");
+   real_t clusterZ = input.GetReal("clusterZ");
+
+   // Timestepping
+   real_t t_final = input.GetReal("t_final");
+   real_t dt = input.GetReal("dt");
+   int vis_steps = input.GetInt("vis_steps");
+
+   // Dimensionless parameters
+   Re = input.GetReal("Re");
+   Ha = input.GetReal("Ha");
+
+   if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
 
    // Command line options.
    OptionsParser args(argc, argv);
@@ -183,18 +236,7 @@ int main(int argc, char *argv[])
 
 
    // Print mesh statistics.
-   if (Mpi::Root())
-   {
-      std::cout << "***********************************************************\n";
-      std::cout << "dim(j) = " << j_space_size << "\n";
-      std::cout << "dim(phi) = " << phi_space_size << "\n";
-      std::cout << "dim(j+phi) = " << j_space_size + phi_space_size << "\n";
-      std::cout << "dim(u) = " << v_space_size << "\n";
-      std::cout << "dim(p) = " << p_space_size << "\n";
-      std::cout << "dim(u+p) = " << v_space_size + p_space_size << "\n";
-      std::cout << "dim(j+phi+u+p) = " << j_space_size + phi_space_size + v_space_size + p_space_size << "\n";
-      std::cout << "***********************************************************\n";
-   }
+   if (Mpi::Root()) PrintFESpaces(j_space_size, phi_space_size, v_space_size, p_space_size);
 
    ParGridFunction j_gf(&currentD_fespace);
    ParGridFunction phi_gf(&electPot_fespace);

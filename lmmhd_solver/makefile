@@ -5,8 +5,8 @@ include $(CONFIG_MK)
 
 # Source files and executable
 TARGET = lmmhd_solver
-SRC = lmmhd_solver.cpp VectorConvectionIntegrator.cpp LmmhdOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp
-INC = VectorConvectionIntegrator.hpp LmmhdOperator.hpp constants.hpp LiPreconditioner.hpp BlockTriangularPreconditioner.hpp utils.hpp CrossProductMatrixCoefficient.hpp
+SRC = lmmhd_solver.cpp VectorConvectionIntegrator.cpp LmmhdOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp tools.cpp
+INC = VectorConvectionIntegrator.hpp LmmhdOperator.hpp constants.hpp LiPreconditioner.hpp BlockTriangularPreconditioner.hpp utils.hpp CrossProductMatrixCoefficient.hpp tools.hpp InputParser.hpp
 
 # Compiler and flags
 CXX = $(MFEM_CXX)
