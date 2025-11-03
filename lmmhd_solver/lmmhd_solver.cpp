@@ -48,6 +48,21 @@ int main(int argc, char *argv[])
    Re = input.GetReal("Re");
    Ha = input.GetReal("Ha");
 
+   // Update constants.
+   reciprocal_Re = 1.0 / Re;
+   kappa_val = Ha * Ha / Re;
+   neg_kappa_val = -kappa_val;
+   alpha1 = alpha + reciprocal_Re;
+   neg_alpha1 = -alpha1;
+
+   // Update coefficients.
+   alpha1_coeff.constant = alpha1;
+   neg_alpha1_coeff.constant = neg_alpha1;
+   reciprocal_Re_coeff.constant = reciprocal_Re;
+   kappa.constant = kappa_val;
+   neg_kappa.constant = neg_kappa_val;
+
+
    if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
 
    // Command line options.

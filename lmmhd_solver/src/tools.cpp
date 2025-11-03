@@ -27,6 +27,7 @@ void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
    std::cout << "------ Dimensionless Parameters -------" << std::endl;
    std::cout << "Re = " << Re << std::endl;
    std::cout << "Ha = " << Ha << std::endl;
+   std::cout << "kappa = " << Ha * Ha / Re << std::endl;
    std::cout << "=======================================================" << std::endl;
    std::cout << " " << std::endl;
    std::cout << " " << std::endl;

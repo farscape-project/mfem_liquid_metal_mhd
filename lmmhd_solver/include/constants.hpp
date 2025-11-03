@@ -13,7 +13,7 @@ extern real_t alpha; // alpha = 1 (default).
 extern real_t alpha1;
 extern real_t neg_alpha1;
 extern real_t kappa_val;
-//extern real_t tau;
+extern real_t neg_kappa_val;
 
 // Define ConstantCoefficients.
 extern ConstantCoefficient zero;
@@ -21,7 +21,7 @@ extern ConstantCoefficient one;
 extern ConstantCoefficient half;
 extern ConstantCoefficient neg_one;
 extern ConstantCoefficient tmp_const;
-extern ConstantCoefficient reciprocal_Re_coef;
+extern ConstantCoefficient reciprocal_Re_coeff;
 extern ConstantCoefficient alpha1_coeff;
 extern ConstantCoefficient neg_alpha1_coeff;
 

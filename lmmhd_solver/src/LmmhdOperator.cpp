@@ -260,7 +260,7 @@ void LmmhdOperator::Update(const Vector &X)
    // Integrator for (v, v').
    fu->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
    // Integrator for A_AL(v, v').
-   fu->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
+   fu->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coeff));
    // Integrator for O(u_n; v, v').
    fu->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fu->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
@@ -273,7 +273,7 @@ void LmmhdOperator::Update(const Vector &X)
    // Integrator for (v, v').
    fk->AddDomainIntegrator(new VectorMassIntegrator(*massCoef));
    // Integrator for A_AL(v, v').
-   fk->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coef));
+   fk->AddDomainIntegrator(new VectorDiffusionIntegrator(reciprocal_Re_coeff));
    // Integrator for O(u_n; v, v').
    fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
