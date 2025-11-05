@@ -17,6 +17,10 @@ real_t neg_alpha1(-alpha1);
 real_t kappa_val(Ha * Ha / Re);     // Stuart number.
 real_t neg_kappa_val(-kappa_val);
 
+real_t Bx(0.0);
+real_t By(0.0);
+real_t Bz(1.0);
+
 // Define ConstantCoefficients.
 ConstantCoefficient zero(0.0);
 ConstantCoefficient one(1.0);

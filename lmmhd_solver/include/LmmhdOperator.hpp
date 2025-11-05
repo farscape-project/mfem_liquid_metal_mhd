@@ -4,7 +4,6 @@
 #include "constants.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
 #include "LiPreconditioner.hpp"
-#include "BlockOperatorPreconditioner.hpp"
 
 
 using namespace std;
@@ -15,9 +14,8 @@ using namespace mfem;
 class LmmhdOperator : public TimeDependentOperator
 {
 protected:
-   // Finite element spaces
+
    Array<ParFiniteElementSpace *> spaces;
-   // Block offsets for variable access
    Array<int> &block_trueOffsets;
 
    ParLinearForm *rp, *ru, *rj, *rphi;
@@ -55,6 +53,8 @@ protected:
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
    MatrixConstantCoefficient *BxVcoeff;
+   CrossProductMatrixCoefficient *C;
+   Vector *B;
 
    VectorFunctionCoefficient *zero_coeff;
 
@@ -68,23 +68,12 @@ protected:
    VectorFunctionCoefficient *ucoef;
    VectorGridFunctionCoefficient *ustar_coef = nullptr;
 
-   Vector u_old_true;  // Store previous velocity true DOFs
-
    real_t massCoefValue;
    ConstantCoefficient *massCoef;
-
    ConstantCoefficient *zero_coef;
 
    int dim;
    real_t dt; 
-
-   ParGridFunction *max_flux;
-
-   Vector *magnetic_field;
-
-   CrossProductMatrixCoefficient *C;
-   Vector *B;
-
    
 
 public:
@@ -102,6 +91,4 @@ public:
       if (ustar_coef) { delete ustar_coef; }
       ustar_coef = new VectorGridFunctionCoefficient(u_star);
     }
-
 };
-

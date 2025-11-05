@@ -13,7 +13,6 @@ SRC = lmmhd_solver.cpp \
       src/VectorConvectionIntegrator.cpp \
       src/LmmhdOperator.cpp \
       src/constants.cpp \
-      src/BlockTriangularPreconditioner.cpp \
       src/tools.cpp
 
 # Header files (for reference only)
@@ -21,7 +20,6 @@ INC = include/VectorConvectionIntegrator.hpp \
       include/LmmhdOperator.hpp \
       include/constants.hpp \
       include/LiPreconditioner.hpp \
-      include/BlockTriangularPreconditioner.hpp \
       include/CrossProductMatrixCoefficient.hpp \
       include/tools.hpp \
       include/BoundaryConditions.hpp \

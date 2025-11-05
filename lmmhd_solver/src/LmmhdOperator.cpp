@@ -50,6 +50,31 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    velocity_DBC = new VectorFunctionCoefficient(dim, velocity_dbc_vec_func);
    magnetic_field_coef = new VectorFunctionCoefficient(dim, magnetic_field_func);
 
+   // Set up magnetic field vector B.
+   B = new Vector(dim);
+   *B = 0.0;
+   (*B)(0) = Bx;
+   (*B)(1) = By;
+   (*B)(2) = Bz;
+   *B *= kappa_val;
+
+   // Implementation of (B x v, B x v').
+   DenseMatrix BxV(dim);
+   real_t Bnorm2 = (*B) * (*B);
+
+   // Build M = |B|^2 I - B B^T (equivalent to K where K(v) = (B x v, B x v') ).
+   for (int i = 0; i < dim; i++)
+   {
+      for (int j = 0; j < dim; j++)
+         BxV(i,j) = (i == j ? Bnorm2 : 0.0) - (*B)(i) * (*B)(j);
+   }
+
+   // Set up cross product coefficients for K integrator (d, B x v') and 
+   // for (Kv, Kv') where Kv = B x v for fk in preconditioner.
+   C = new CrossProductMatrixCoefficient(*B);
+   BxVcoeff = new MatrixConstantCoefficient(BxV);
+
+
    // Set up rhs for velocity solve.
    ru = new ParLinearForm(spaces[2]);
    ru->AddDomainIntegrator(new VectorDomainLFIntegrator(*zero_coeff));
@@ -80,11 +105,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
 
-   // Set up cross product coefficient for K integrator (d, B x v').
-   B = new Vector(dim);
-   *B = 0.0;
-   (*B)(2) = 1.0 * kappa_val;
-   C = new CrossProductMatrixCoefficient(*B);
+   
 
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
@@ -185,22 +206,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    RHS->GetBlock(3) = Rp; 
 
 
-   // Implementation of (Kv, Kv') where K(v) = B x v for fk in preconditioner.
-   DenseMatrix BxV(dim);
-   real_t Bnorm2 = (*B) * (*B);
-
-   // Build M = |B|^2 I - B B^T (equivalent to (B x v, B x v') ).
-   for (int i = 0; i < dim; i++)
-   {
-      for (int j = 0; j < dim; j++)
-         BxV(i,j) = (i == j ? Bnorm2 : 0.0) - (*B)(i) * (*B)(j);
-   }
-   BxVcoeff = new MatrixConstantCoefficient(BxV);
-
    // Current density preconditioner.
    dj = new ParBilinearForm(spaces[0]);
-   dj->AddDomainIntegrator(new VectorFEMassIntegrator(one));
-   dj->AddDomainIntegrator(new DivDivIntegrator(one));
+   dj->AddDomainIntegrator(new VectorFEMassIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
+   dj->AddDomainIntegrator(new DivDivIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
    dj->Assemble(); dj->Finalize();
 
    DjMat = new HypreParMatrix();
@@ -208,7 +217,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Electric potential preconditioner.
    mphi = new ParBilinearForm(spaces[1]);
-   mphi->AddDomainIntegrator(new MassIntegrator(one));
+   mphi->AddDomainIntegrator(new MassIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
    mphi->Assemble(); mphi->Finalize();
 
    MphiMat = new HypreParMatrix();

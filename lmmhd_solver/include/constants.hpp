@@ -15,6 +15,10 @@ extern real_t neg_alpha1;
 extern real_t kappa_val;
 extern real_t neg_kappa_val;
 
+extern real_t Bx;
+extern real_t By;
+extern real_t Bz;
+
 // Define ConstantCoefficients.
 extern ConstantCoefficient zero;
 extern ConstantCoefficient one;
