@@ -64,18 +64,6 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    }
 }
 
-inline void magnetic_field_func(const Vector & x, Vector & f)
-{
-   f = 0.0;
-
-   f(0) = 0.0;
-   f(1) = 0.0;
-   if (x.Size() == 3)
-   {
-      f(2) = 1.0;
-   }
-}
-
 inline void currentD_dbc_vec_func(const Vector & x, Vector & f)
 {
    f = 0.0;

@@ -28,9 +28,10 @@ protected:
    ParBilinearForm *fu, *fk, *m, *sp, *mj, *mphi, *dj, *mp;
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
 
-   // Vectors used for bilinear form coefficients.
+   // Vectors and numbers used for bilinear form coefficients.
    Vector *B;
    Vector *kCoeffVec;
+   real_t massCoeffValue;
 
    // Coefficients used in bilinear forms.
    ConstantCoefficient *bCoeff;
@@ -44,6 +45,8 @@ protected:
    ConstantCoefficient *mpCoeff;
    ConstantCoefficient *spCoeff;
    MatrixConstantCoefficient *fkBxVBxVcoeff;
+   ConstantCoefficient *fReciprocalReCoeff;
+   ConstantCoefficient *fMassCoeff;
 
    // HypreParMatrices for operator blocks.
    HypreParMatrix *FuMat = nullptr;
@@ -68,15 +71,10 @@ protected:
    VectorFunctionCoefficient *velocity_DBC;
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
-
-   // Vectors and coefficients used by linear forms.
-   Vector zero_vector;
-   Vector one_vector;
-   VectorConstantCoefficient one_vector_coef;
-   real_t massCoefValue;
-   ConstantCoefficient *massCoef;
-   ConstantCoefficient *zero_coef;
-   VectorFunctionCoefficient *zero_coeff;
+   
+   // Coefficients for zero RHS terms.
+   ConstantCoefficient *zeroCoeff;
+   VectorFunctionCoefficient *vectorZeroCoeff;
 
    // Need to be kept alive for fk->Assemble() in Solve.
    GridFunction *ustar_n;

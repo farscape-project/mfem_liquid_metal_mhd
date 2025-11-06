@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
 
    int ode_solver_type = 1;
 
+   // Read in parameters from file.
    InputParser input("params.in");
 
    // Mesh parameters
@@ -54,13 +55,6 @@ int main(int argc, char *argv[])
    neg_kappa_val = -kappa_val;
    alpha1 = alpha + reciprocal_Re;
    neg_alpha1 = -alpha1;
-
-   // Update coefficients.
-   alpha1_coeff.constant = alpha1;
-   neg_alpha1_coeff.constant = neg_alpha1;
-   reciprocal_Re_coeff.constant = reciprocal_Re;
-   kappa.constant = kappa_val;
-   neg_kappa.constant = neg_kappa_val;
 
 
    if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);

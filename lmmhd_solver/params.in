@@ -17,4 +17,4 @@ vis_steps       5    // visualisation step frequency
 
 ******** Dimensionless parameters ********
 Re            10.0    // Reynolds number
-Ha	      10.0    // Hartmann number
+Ha	      20.0    // Hartmann number

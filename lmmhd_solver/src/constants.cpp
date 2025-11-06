@@ -20,16 +20,3 @@ real_t neg_kappa_val(-kappa_val);
 real_t Bx(0.0);
 real_t By(0.0);
 real_t Bz(1.0);
-
-// Define ConstantCoefficients.
-ConstantCoefficient zero(0.0);
-ConstantCoefficient one(1.0);
-ConstantCoefficient half(0.5);
-ConstantCoefficient neg_one(-1.0);
-ConstantCoefficient tmp_const(1.0);
-ConstantCoefficient reciprocal_Re_coeff(reciprocal_Re);
-ConstantCoefficient alpha1_coeff(alpha1);
-ConstantCoefficient neg_alpha1_coeff(neg_alpha1);
-
-ConstantCoefficient kappa(kappa_val);
-ConstantCoefficient neg_kappa(neg_kappa_val);
