@@ -48,7 +48,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    zero_coef = new ConstantCoefficient(0.0);
 
    velocity_DBC = new VectorFunctionCoefficient(dim, velocity_dbc_vec_func);
-   magnetic_field_coef = new VectorFunctionCoefficient(dim, magnetic_field_func);
 
    // Set up magnetic field vector B.
    B = new Vector(dim);
@@ -56,57 +55,56 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    (*B)(0) = Bx;
    (*B)(1) = By;
    (*B)(2) = Bz;
-   *B *= kappa_val;
 
-   // Implementation of (B x v, B x v').
-   DenseMatrix BxV(dim);
+   // Set up Matrix coefficient for the integrator (Kv, Kv') where 
+   // Kv = B x v for fk in preconditioner.
+   DenseMatrix BxVBxV(dim);
    real_t Bnorm2 = (*B) * (*B);
-
    // Build M = |B|^2 I - B B^T (equivalent to K where K(v) = (B x v, B x v') ).
    for (int i = 0; i < dim; i++)
    {
       for (int j = 0; j < dim; j++)
-         BxV(i,j) = (i == j ? Bnorm2 : 0.0) - (*B)(i) * (*B)(j);
+         BxVBxV(i,j) = (i == j ? Bnorm2 : 0.0) - (*B)(i) * (*B)(j);
    }
-
-   // Set up cross product coefficients for K integrator (d, B x v') and 
-   // for (Kv, Kv') where Kv = B x v for fk in preconditioner.
-   C = new CrossProductMatrixCoefficient(*B);
-   BxVcoeff = new MatrixConstantCoefficient(BxV);
+   DenseMatrix kappaBxVBxV(dim);
+   kappaBxVBxV = BxVBxV;
+   kappaBxVBxV *= kappa_val;
+   fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
 
    // Set up rhs for velocity solve.
    ru = new ParLinearForm(spaces[2]);
    ru->AddDomainIntegrator(new VectorDomainLFIntegrator(*zero_coeff));
+   ru->Assemble();
 
    // Set up rhs for pressure solve.
    rp = new ParLinearForm(spaces[3]);
    rp->AddDomainIntegrator(new DomainLFIntegrator(*zero_coef));
+   rp->Assemble();
 
    // Set up rhs for current density solve.
    rj = new ParLinearForm(spaces[0]);
    rj->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*zero_coeff));
+   rj->Assemble();
 
    // Set up rhs for electric potential solve.
    rphi = new ParLinearForm(spaces[1]);
    rphi->AddDomainIntegrator(new DomainLFIntegrator(*zero_coef));
-
-   ru->Assemble(); rp->Assemble(); rj->Assemble(); rphi->Assemble();
+   rphi->Assemble();
 
 
    // Initisalise bilinear forms.
    fu = new ParBilinearForm(spaces[2]);
    fk = new ParBilinearForm(spaces[2]);
+
    b = new ParMixedBilinearForm(spaces[2],spaces[3]);
    bT = new ParMixedBilinearForm(spaces[3],spaces[2]);
-
    mj = new ParBilinearForm(spaces[0]);
    g = new ParMixedBilinearForm(spaces[0],spaces[1]);
    gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
    k = new ParMixedBilinearForm(spaces[0],spaces[2]);
 
    
-
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
@@ -117,33 +115,47 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    j_gf = 0.0; phi_gf = 0.0; p_gf = 0.0;
 
    // Mixed bilinear form for velocity and pressure coupling.
-   b = new ParMixedBilinearForm(spaces[2],spaces[3]);
-   b->AddDomainIntegrator(new VectorDivergenceIntegrator(neg_one));
-
-   bT = new ParMixedBilinearForm(spaces[3],spaces[2]);
-   bT->AddDomainIntegrator(new GradientIntegrator(one));
-
-   // Bilinear form for current density.
-   mj = new ParBilinearForm(spaces[0]);
-   mj->AddDomainIntegrator(new VectorFEMassIntegrator(kappa));
-
-   // Mixed bilinear form for current density and electric potential coupling.
-   g = new ParMixedBilinearForm(spaces[0],spaces[1]);
-   g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(neg_kappa));
-
-   gT = new ParMixedBilinearForm(spaces[1],spaces[0]);
-   gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(kappa));
-
-   // Mixed bilinear form for current density and velocity coupling.
-   k = new ParMixedBilinearForm(spaces[0],spaces[2]);
-   k->AddDomainIntegrator(new VectorFEMassIntegrator(*C));
-
+   bCoeff = new ConstantCoefficient(-1.0);
+   cout << "bCoeff value = " << bCoeff->constant << endl;
+   b->AddDomainIntegrator(new VectorDivergenceIntegrator(*bCoeff));
    b->Assemble(); b->Finalize();
+
+   bTCoeff = new ConstantCoefficient(1.0);
+   //bTCoeff = new ConstantCoefficient(-1.0);
+   cout << "bTCoeff value = " << bTCoeff->constant << endl;
+   bT->AddDomainIntegrator(new GradientIntegrator(*bTCoeff));
    bT->Assemble(); bT->Finalize();
 
+   // Bilinear form for current density.
+   mjCoeff = new ConstantCoefficient(kappa_val);
+   cout << "mjCoeff value = " << mjCoeff->constant << endl;
+   mj->AddDomainIntegrator(new VectorFEMassIntegrator(*mjCoeff));
    mj->Assemble(); mj->Finalize();
+
+   // Mixed bilinear form for current density and electric potential coupling.
+   gCoeff = new ConstantCoefficient(-kappa_val);
+   cout << "gCoeff value = " << gCoeff->constant << endl;
+   g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(*gCoeff));
    g->Assemble(); g->Finalize();
+
+   gTCoeff = new ConstantCoefficient(kappa_val);
+   //gTCoeff = new ConstantCoefficient(-kappa_val);
+   cout << "gTCoeff value = " << gTCoeff->constant << endl;
+   gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(*gTCoeff));
    gT->Assemble(); gT->Finalize();
+
+   // Mixed bilinear form for current density and velocity coupling.
+   // VectorFEMassIntegrator(lambda) applies (lambda d, v').  In order to 
+   // apply (d, B x v') we rearrange the identity to (-B x d, v') using the 
+   // identities a . (b x c) = c . (a x b) and (a x b) = - (b x a).  We also 
+   // multiply by kappa to include Hartmann number scaling.
+   kCoeffVec = new Vector(dim);
+   *kCoeffVec = 0.0;
+   *kCoeffVec -= *B;
+   *kCoeffVec *= kappa_val;
+   std::cout << "kCoeffVec: " << (*kCoeffVec)(0) << ", " << (*kCoeffVec)(1) << ", " << (*kCoeffVec)(2) << std::endl;
+   kCoeff = new CrossProductMatrixCoefficient(*kCoeffVec);
+   k->AddDomainIntegrator(new VectorFEMassIntegrator(*kCoeff));
    k->Assemble(); k->Finalize();
 
    
@@ -184,8 +196,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                                 j_gf, *ru, *KMat,
                                 Ru_dummy, Xu_dummy);
 
-   
    KtMat = KMat->Transpose();
+   (*KtMat) *= -1.0;
 
    // Set up operator matrix.
    A = new BlockOperator(block_trueOffsets);
@@ -206,38 +218,48 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    RHS->GetBlock(3) = Rp; 
 
 
+   /// Define integrators for preconditioner.
    // Current density preconditioner.
+   djCoeff = new ConstantCoefficient(kappa_val); // Including kappa here although not present in algorithm 4.1.
+   cout << "djCoeff value = " << djCoeff->constant << endl;
    dj = new ParBilinearForm(spaces[0]);
-   dj->AddDomainIntegrator(new VectorFEMassIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
-   dj->AddDomainIntegrator(new DivDivIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
+   dj->AddDomainIntegrator(new VectorFEMassIntegrator(*djCoeff));  
+   dj->AddDomainIntegrator(new DivDivIntegrator(*djCoeff));  
    dj->Assemble(); dj->Finalize();
 
-   DjMat = new HypreParMatrix();
-   dj->FormLinearSystem(ess_tdof_j, j_gf, *rj, *DjMat, Xu_dummy, Rj);
-
    // Electric potential preconditioner.
+   mphiCoeff = new ConstantCoefficient(kappa_val); // Including kappa here although not present in algorithm 4.1.
+   //mphiCoeff = new ConstantCoefficient(-kappa_val); // Including kappa here although not present in algorithm 4.1.
+   cout << "mphiCoeff value = " << mphiCoeff->constant << endl;
    mphi = new ParBilinearForm(spaces[1]);
-   mphi->AddDomainIntegrator(new MassIntegrator(kappa));  // Including kappa here although not present in algorithm 4.1.
+   mphi->AddDomainIntegrator(new MassIntegrator(*mphiCoeff));
    mphi->Assemble(); mphi->Finalize();
 
-   MphiMat = new HypreParMatrix();
-   mphi->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MphiMat, Xu_dummy, Rp);
-
    // Pressure preconditioner (part 1).
+   mpCoeff = new ConstantCoefficient(1.0);
+   cout << "mpCoeff value = " << mpCoeff->constant << endl;
    mp = new ParBilinearForm(spaces[3]);
-   mp->AddDomainIntegrator(new MassIntegrator(one));  
+   mp->AddDomainIntegrator(new MassIntegrator(*mpCoeff));
    mp->Assemble(); mp->Finalize();
 
-   MpMat = new HypreParMatrix();
-   mp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMat, Xu_dummy, Rphi);
-
    // Pressure preconditioner (part 2).
+   spCoeff = new ConstantCoefficient(1.0);
+   cout << "spCoeff value = " << spCoeff->constant << endl;
    sp = new ParBilinearForm(spaces[3]);
-   sp->AddDomainIntegrator(new DiffusionIntegrator(one));  
+   sp->AddDomainIntegrator(new DiffusionIntegrator(*spCoeff));
    sp->Assemble(); sp->Finalize();
 
+
+   DjMat = new HypreParMatrix();
+   MphiMat = new HypreParMatrix();
+   MpMat = new HypreParMatrix();
    SpMat = new HypreParMatrix();
+   
+   dj->FormLinearSystem(ess_tdof_j, j_gf, *rj, *DjMat, Xu_dummy, Rj);
+   mphi->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MphiMat, Xu_dummy, Rp);
+   mp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMat, Xu_dummy, Rphi);
    sp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMat, Xu_dummy, Rphi);
+
 
    // Preconditioner.
    P = new LiPreconditioner(spaces, block_trueOffsets);
@@ -263,6 +285,9 @@ void LmmhdOperator::Update(const Vector &X)
    ParGridFunction u_gf(spaces[2]);
    u_gf = 0.0;
 
+   // Project BCs onto grid functions and set up HypreParMatrices.
+   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+
    // Bilinear form for the velocity.
    delete fu;
    fu = new ParBilinearForm(spaces[2]);
@@ -273,9 +298,19 @@ void LmmhdOperator::Update(const Vector &X)
    // Integrator for O(u_n; v, v').
    fu->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fu->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
-
    fu->Assemble(); fu->Finalize();
 
+   FuMat = new HypreParMatrix();
+   
+   Vector Ru, Xu_dummy, Ru_dummy;
+   fu->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FuMat, Xu_dummy, Ru);  
+
+   // Set F block and RHS for velocity.
+   A->SetBlock(2,2, FuMat); 
+   RHS->GetBlock(2) = Ru; 
+
+
+   /// Preconditioner component.
    // Bilinear form for velocity preconditioner.
    delete fk;
    fk = new ParBilinearForm(spaces[2]);
@@ -286,25 +321,11 @@ void LmmhdOperator::Update(const Vector &X)
    // Integrator for O(u_n; v, v').
    fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
-
-   fk->AddDomainIntegrator(new VectorMassIntegrator(*BxVcoeff));
-
+   fk->AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
    fk->Assemble(); fk->Finalize();
 
-   // Project BCs onto grid functions and set up HypreParMatrices.
-   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
-
-   FuMat = new HypreParMatrix();
    FkMat = new HypreParMatrix();
 
-   Vector Ru, Xu_dummy, Ru_dummy;
-   fu->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FuMat, Xu_dummy, Ru);  
-
-   // Set F block and RHS for velocity.
-   A->SetBlock(2,2, FuMat); 
-   RHS->GetBlock(2) = Ru; 
-
-   // Preconditioner.
    fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru_dummy);  
 
    P->SetVelocityPreconditioner(FkMat, BtMat);

@@ -18,12 +18,34 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
    Array<int> &block_trueOffsets;
 
+   GMRESSolver lmmhd_solver;
+   BlockOperator *A;
+   mutable BlockVector *RHS;
+   LiPreconditioner *P;
+
+   // Linear and bilinear forms for operator blocks.
    ParLinearForm *rp, *ru, *rj, *rphi;
    ParBilinearForm *fu, *fk, *m, *sp, *mj, *mphi, *dj, *mp;
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
-   BlockOperator *A;
-   LiPreconditioner *P;
 
+   // Vectors used for bilinear form coefficients.
+   Vector *B;
+   Vector *kCoeffVec;
+
+   // Coefficients used in bilinear forms.
+   ConstantCoefficient *bCoeff;
+   ConstantCoefficient *bTCoeff;
+   ConstantCoefficient *mjCoeff;
+   ConstantCoefficient *gCoeff;
+   ConstantCoefficient *gTCoeff;
+   CrossProductMatrixCoefficient *kCoeff;
+   ConstantCoefficient *djCoeff;
+   ConstantCoefficient *mphiCoeff;
+   ConstantCoefficient *mpCoeff;
+   ConstantCoefficient *spCoeff;
+   MatrixConstantCoefficient *fkBxVBxVcoeff;
+
+   // HypreParMatrices for operator blocks.
    HypreParMatrix *FuMat = nullptr;
    HypreParMatrix *FkMat = nullptr;
    HypreParMatrix *BMat = nullptr;
@@ -39,38 +61,27 @@ protected:
    HypreParMatrix *KMat = nullptr;
    HypreParMatrix *KtMat = nullptr;
 
-   // Liquid-metal MHD solver.
-   GMRESSolver lmmhd_solver;
-
-   mutable BlockVector *RHS;
-
    // Boundary conditions.
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
-
    VectorFunctionCoefficient *currentD_DBC;
    FunctionCoefficient *electPot_DBC;
    VectorFunctionCoefficient *velocity_DBC;
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
-   MatrixConstantCoefficient *BxVcoeff;
-   CrossProductMatrixCoefficient *C;
-   Vector *B;
-
-   VectorFunctionCoefficient *zero_coeff;
 
    // Vectors and coefficients used by linear forms.
    Vector zero_vector;
    Vector one_vector;
    VectorConstantCoefficient one_vector_coef;
+   real_t massCoefValue;
+   ConstantCoefficient *massCoef;
+   ConstantCoefficient *zero_coef;
+   VectorFunctionCoefficient *zero_coeff;
 
    // Need to be kept alive for fk->Assemble() in Solve.
    GridFunction *ustar_n;
    VectorFunctionCoefficient *ucoef;
    VectorGridFunctionCoefficient *ustar_coef = nullptr;
-
-   real_t massCoefValue;
-   ConstantCoefficient *massCoef;
-   ConstantCoefficient *zero_coef;
 
    int dim;
    real_t dt; 

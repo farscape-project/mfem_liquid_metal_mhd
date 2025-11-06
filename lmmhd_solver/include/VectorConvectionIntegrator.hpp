@@ -1,5 +1,5 @@
-#ifndef VECTOR_CONVECTION_INTEGRATORS_HPP
-#define VECTOR_CONVECTION_INTEGRATORS_HPP
+#ifndef VECTOR_CONVECTION_INTEGRATOR_HPP
+#define VECTOR_CONVECTION_INTEGRATOR_HPP
 
 #include "mfem.hpp"
 
@@ -29,4 +29,4 @@ public:
       : TransposeIntegrator(new VectorConvectionIntegrator(q, -a)) { }
 };
 
-#endif // VECTOR_CONVECTION_INTEGRATORS_HPP
+#endif // VECTOR_CONVECTION_INTEGRATOR_HPP
