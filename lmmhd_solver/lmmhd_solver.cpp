@@ -172,11 +172,15 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    
    // Essential (Dirichlet) boundary conditions.
-   //                                     {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
-   Array<int> ess_boundary_marker_currentD{1,  1,  1,           1,  1,          1};
-   Array<int> ess_boundary_marker_electPot{0,  0,  0,           0,  0,          0};
-   Array<int> ess_boundary_marker_pressure{0,  0,  1,           0,  0,          0};
-   Array<int> ess_boundary_marker_velocity{1,  1,  0,           1,  1,          1};
+   //                 {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
+   int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
+   int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
+   int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
+   int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
+   Array<int> ess_boundary_marker_currentD(currentD_bcs, 6);
+   Array<int> ess_boundary_marker_electPot(electPot_bcs, 6);
+   Array<int> ess_boundary_marker_pressure(pressure_bcs, 6);
+   Array<int> ess_boundary_marker_velocity(velocity_bcs, 6);
 
    Array<Array<int> *> ess_bdr(4);
    ess_bdr[0] = &ess_boundary_marker_currentD;
