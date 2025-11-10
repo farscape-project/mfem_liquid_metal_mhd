@@ -42,8 +42,8 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    f = 0.0;
 
-   real_t y_mid = 0.5;
-   real_t z_mid = 0.5;
+   real_t y_mid = 1.0;
+   real_t z_mid = 1.0;
    real_t u_max = 1.0;
    
    if (x(0) < 1e-6)
