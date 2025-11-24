@@ -125,8 +125,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    b->AddDomainIntegrator(new VectorDivergenceIntegrator(*bCoeff));
    b->Assemble(); b->Finalize();
 
-   bTCoeff = new ConstantCoefficient(1.0);
-   //bTCoeff = new ConstantCoefficient(-1.0);
+   //bTCoeff = new ConstantCoefficient(1.0);
+   bTCoeff = new ConstantCoefficient(-1.0);
    //cout << "bTCoeff value = " << bTCoeff->constant << endl;
    bT->AddDomainIntegrator(new GradientIntegrator(*bTCoeff));
    bT->Assemble(); bT->Finalize();
@@ -143,8 +143,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    g->AddDomainIntegrator(new MixedScalarDivergenceIntegrator(*gCoeff));
    g->Assemble(); g->Finalize();
 
-   gTCoeff = new ConstantCoefficient(kappa_val);
-   //gTCoeff = new ConstantCoefficient(-kappa_val);
+   //gTCoeff = new ConstantCoefficient(kappa_val);
+   gTCoeff = new ConstantCoefficient(-kappa_val);
    //cout << "gTCoeff value = " << gTCoeff->constant << endl;
    gT->AddDomainIntegrator(new MixedVectorGradientIntegrator(*gTCoeff));
    gT->Assemble(); gT->Finalize();
@@ -158,6 +158,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    *kCoeffVec = 0.0;
    *kCoeffVec -= *B;
    *kCoeffVec *= kappa_val;
+   *kCoeffVec *= -1.0;
    //std::cout << "kCoeffVec: " << (*kCoeffVec)(0) << ", " << (*kCoeffVec)(1) << ", " << (*kCoeffVec)(2) << std::endl;
    kCoeff = new CrossProductMatrixCoefficient(*kCoeffVec);
    k->AddDomainIntegrator(new VectorFEMassIntegrator(*kCoeff));
@@ -195,6 +196,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                                 j_gf, *ru, *KMat,
                                 Ru_dummy, Xu_dummy);
 
+   // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
    KtMat = KMat->Transpose();
    (*KtMat) *= -1.0;
 
