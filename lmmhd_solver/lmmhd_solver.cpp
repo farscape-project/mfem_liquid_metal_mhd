@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
    }
 
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    
    // ----------------------------------------------------------------------------
