@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
    // Initialise time-loop details.
    double t = 0.0;
    int ti_out = 1; // Time step output index.
-   int ti = 1;
+   int ti = 0;
 
    // Initialise fluids operator.
    FluidsOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt);
