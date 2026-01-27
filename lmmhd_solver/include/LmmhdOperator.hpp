@@ -18,7 +18,7 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
    Array<int> &block_trueOffsets;
 
-   GMRESSolver lmmhd_solver;
+   GMRESSolver *lmmhd_solver;
    BlockOperator *A;
    mutable BlockVector *RHS;
    LiPreconditioner *P;

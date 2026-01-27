@@ -25,6 +25,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
+   lmmhd_solver = new GMRESSolver(MPI_COMM_WORLD);
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
 
@@ -270,11 +271,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    P->SetCurrentDensityPreconditioner(DjMat, GTMat, KtMat);
 
    // Set solver parameters.
-   lmmhd_solver.SetRelTol(1e-4);
-   lmmhd_solver.SetAbsTol(0.0);
-   lmmhd_solver.SetMaxIter(500);
-   lmmhd_solver.SetPrintLevel(1);
-   lmmhd_solver.iterative_mode = false;  
+   lmmhd_solver->SetRelTol(1e-4);
+   lmmhd_solver->SetAbsTol(0.0);
+   lmmhd_solver->SetMaxIter(500);
+   lmmhd_solver->SetPrintLevel(1);
+   lmmhd_solver->iterative_mode = false;  
 
 }
 
@@ -331,8 +332,8 @@ void LmmhdOperator::Update(const Vector &X)
 
    P->SetVelocityPreconditioner(FkMat, BtMat);
 
-   lmmhd_solver.SetPreconditioner(*P);
-   lmmhd_solver.SetOperator(*A);
+   lmmhd_solver->SetPreconditioner(*P);
+   lmmhd_solver->SetOperator(*A);
    
 }
 
@@ -341,7 +342,7 @@ void LmmhdOperator::Update(const Vector &X)
 void LmmhdOperator::ImplicitSolve(const real_t dt,
                                 const Vector &X, Vector &dX_dt)
 {
-   lmmhd_solver.Mult(*RHS, dX_dt); 
+   lmmhd_solver->Mult(*RHS, dX_dt); 
 
    // The solver actually calculates Xn+1, not dX/dt.  
    // The derivative is calculated below:
