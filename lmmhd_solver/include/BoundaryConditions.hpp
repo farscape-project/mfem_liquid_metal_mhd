@@ -78,7 +78,7 @@ inline void currentD_dbc_vec_func(const Vector & x, Vector & f)
 
 inline real_t electPot_dbc(const Vector & x)
 {
-   return 1.0;
+   return 0.0;
 }
 
 inline void zero_func(const Vector & x, Vector & f)

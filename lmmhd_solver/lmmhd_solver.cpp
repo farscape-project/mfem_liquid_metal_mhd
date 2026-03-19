@@ -112,6 +112,7 @@ int main(int argc, char *argv[])
    int order_velocity;
    order_velocity = order_pressure + 1;
    int order = 1;
+   int order_zero = 0;
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
@@ -144,7 +145,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace currentD_fespace(pmesh, &currentD_fec);
 
    // H1 continuous Lagrange finite elements of given order for electric scalar potential.
-   H1_FECollection electPot_fec(order_pressure, dim);
+   L2_FECollection electPot_fec(order, dim);
    ParFiniteElementSpace electPot_fespace(pmesh, &electPot_fec);
 
    // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
@@ -291,13 +292,6 @@ int main(int argc, char *argv[])
       u_gf.SetFromTrueDofs(X.GetBlock(2));
       p_gf.SetFromTrueDofs(X.GetBlock(3));
 
-      // Calculate relative L2-norm of grid functions between this and previous time-step.
-      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
-      std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;
-      
-      real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
-      std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;
-
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
@@ -308,6 +302,13 @@ int main(int argc, char *argv[])
          visualise(paraview_dc, order_pressure, &p_gf, "pressure", ti_out, t);
          ti_out += 1;
       }
+
+      // Calculate relative L2-norm of grid functions between this and previous time-step.
+      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
+      
+      real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;}
 
       ti += 1;
    }
