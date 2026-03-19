@@ -171,12 +171,20 @@ int main(int argc, char *argv[])
    // Define boundaries.
    // ----------------------------------------------------------------------------
    
-   // Essential (Dirichlet) boundary conditions.
-   //                 {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
+   // Essential (Dirichlet) boundary conditions for duct flow.
+   //                  {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
+   //int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
+   //int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
+   //int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
+   //int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
+
+   // Essential (Dirichlet) boundary conditions for lid-driven cavity.
+   //                  {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
    int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
    int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
-   int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
-   int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
+   int pressure_bcs[] = {0,  0,  0,           0,  0,          0};
+   int velocity_bcs[] = {1,  1,  1,           1,  1,          1};
+
    Array<int> ess_boundary_marker_currentD(currentD_bcs, 6);
    Array<int> ess_boundary_marker_electPot(electPot_bcs, 6);
    Array<int> ess_boundary_marker_pressure(pressure_bcs, 6);
@@ -202,6 +210,9 @@ int main(int argc, char *argv[])
    ParGridFunction phi_gf(&electPot_fespace);
    ParGridFunction u_gf(&velocity_fespace);
    ParGridFunction p_gf(&pressure_fespace);
+
+   ParGridFunction uN_1(&velocity_fespace);
+   GridFunction du(&velocity_fespace);
 
    // Define block structure of the solution vector (u then p).
    Array<int> block_trueOffsets(5);
@@ -279,6 +290,12 @@ int main(int argc, char *argv[])
       u_gf.SetFromTrueDofs(X.GetBlock(2));
       p_gf.SetFromTrueDofs(X.GetBlock(3));
 
+      // Calculate relative L2-norm of grid functions between this and previous time-step.
+      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
+      std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;
+      
+      real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
+      std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;
 
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)

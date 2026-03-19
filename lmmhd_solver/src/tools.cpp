@@ -81,3 +81,22 @@ void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *fie
 
    paraview_dc.Save();
 }
+
+// Calculate relative L2-norm of grid functions.
+real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace)
+{
+   ParGridFunction gf(&fespace);
+   ParGridFunction gfN_1(&fespace);
+   ParGridFunction diff_gf(&fespace);
+   gf.SetFromTrueDofs(X);
+   gfN_1.SetFromTrueDofs(Xn_1);
+   diff_gf = gf;
+   diff_gf -= gfN_1;
+
+   real_t l2_diff = diff_gf.Norml2();
+   real_t l2 = gf.Norml2();
+
+   real_t rel_l2 = l2_diff / (l2 + 1e-16);
+
+   return rel_l2;
+}

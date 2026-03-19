@@ -294,7 +294,7 @@ void LmmhdOperator::Update(const Vector &X)
    fu->AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
    // Integrator for A_AL(v, v').
    fu->AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   // Integrator for O(u_n; v, v').
+   // Integrator for O(u_n; v, v').  ADD BOUNDARY TERM HERE.
    fu->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    fu->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
    fu->Assemble(); fu->Finalize();
