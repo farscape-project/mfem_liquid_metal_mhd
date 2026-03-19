@@ -32,7 +32,7 @@ protected:
    HypreParMatrix *SMat = nullptr;
 
    // Fluids solver.
-   GMRESSolver fluids_solver;
+   GMRESSolver *fluids_solver;
 
    mutable BlockVector *RHS;
 

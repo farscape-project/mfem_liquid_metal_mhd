@@ -23,6 +23,8 @@ FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
    // and
    //     B <-> -div(v, q).
 
+   fluids_solver = new GMRESSolver(MPI_COMM_WORLD);
+
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
 
@@ -55,11 +57,11 @@ FluidsOperator::FluidsOperator(Array<ParFiniteElementSpace *> &fes,
    bT = new ParMixedBilinearForm(spaces[1],spaces[0]);
 
    // Set solver parameters.
-   fluids_solver.SetRelTol(1e-6);
-   fluids_solver.SetAbsTol(0.0);
-   fluids_solver.SetMaxIter(20000);
-   fluids_solver.SetPrintLevel(0);
-   fluids_solver.iterative_mode = false;  
+   fluids_solver->SetRelTol(1e-6);
+   fluids_solver->SetAbsTol(0.0);
+   fluids_solver->SetMaxIter(20000);
+   fluids_solver->SetPrintLevel(1);
+   fluids_solver->iterative_mode = false;  
 
 }
 
@@ -172,8 +174,8 @@ void FluidsOperator::Update(const Vector &X)
    //P = new BlockTriangularPreconditioner(*FkMat, *BtMat, spaces, ess_tdof_p, v_space_size, p_space_size, dt);
    //P->SetOperator(*FkMat);
 
-   fluids_solver.SetPreconditioner(*P);
-   fluids_solver.SetOperator(*A);
+   fluids_solver->SetPreconditioner(*P);
+   fluids_solver->SetOperator(*A);
    
 }
 
@@ -182,7 +184,7 @@ void FluidsOperator::Update(const Vector &X)
 void FluidsOperator::ImplicitSolve(const real_t dt,
                                 const Vector &X, Vector &dX_dt)
 {
-   fluids_solver.Mult(*RHS, dX_dt); 
+   fluids_solver->Mult(*RHS, dX_dt); 
 
    // The solver actually calculates Xn+1, not dX/dt.  
    // The derivative is calculated below:

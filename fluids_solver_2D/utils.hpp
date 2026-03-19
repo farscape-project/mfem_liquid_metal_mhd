@@ -114,7 +114,7 @@ inline void checkpoint(int num)
 
 
 // Inline visualization
-inline void visualize(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, double t)
+inline void visualize(ParaViewDataCollection &paraview_dc, int order, ParGridFunction *field, const char *field_name, int ti, double t)
 {
 
    paraview_dc.SetLevelsOfDetail(order);

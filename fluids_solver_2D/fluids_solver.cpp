@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
    
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
 
    
    // ----------------------------------------------------------------------------
@@ -136,13 +137,13 @@ int main(int argc, char *argv[])
    ParGridFunction u_star(&velocity_fespace);
 
    // Set up visualisation in Paraview.
-   ParaViewDataCollection paraview_dc("navier_stokes", &mesh);
+   ParaViewDataCollection paraview_dc("navier_stokes", pmesh);
    paraview_dc.SetPrefixPath("data");
 
    // Initialise time-loop details.
    double t = 0.0;
    int ti_out = 1; // Time step output index.
-   int ti = 1;
+   int ti = 0;
 
    // Initialise fluids operator.
    FluidsOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt);
