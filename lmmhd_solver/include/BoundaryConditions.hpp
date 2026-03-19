@@ -44,24 +44,31 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
 
    real_t y_mid = 1.0;
    real_t z_mid = 1.0;
-   real_t u_max = 1.0;
+   real_t u_avg = 1.0;
    
    if (x(0) < 1e-6)
    { // Parabolic condition in x-direction at inlet.
-      f(0) = (9. / 4.) * u_max * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
-                     (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid));
+      //f(0) = (9. / 4.) * u_avg * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
+      //               (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid));
+      f(0) = 0.0;
       f(1) = 0.0;
    }
    else
    { // Zero on top and bottom boundaries.
       f(0) = 0.0;
       f(1) = 0.0;
-   }    
-
-   if (x.Size() == 3)
-   {
-      f(2) = 0.0;
    }
+
+   // Lid-driven cavity.
+   if (x(1) > 0.999)
+   {
+      f(2) = 1.0;
+   }
+
+   //if (x.Size() == 3)
+   //{
+   //   f(2) = 0.0;
+   //}
 }
 
 inline void currentD_dbc_vec_func(const Vector & x, Vector & f)

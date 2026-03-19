@@ -23,3 +23,7 @@ void checkpoint(int num);
 
 // Visualisation function.
 void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t);
+
+// Calculate relative L2-norm of grid functions.
+real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace);
+
