@@ -9,10 +9,12 @@ mesh
 run_mfem.sh
 *.log
 *.vtk
+*.dat.00000
 
 # Scripts
 remove.sh
 setup_mfem.sh
+*.py
 
 # Executables and old files
 01_preconditioner_as_a_solver

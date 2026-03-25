@@ -18,7 +18,7 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
    Array<int> &block_trueOffsets;
 
-   GMRESSolver *lmmhd_solver;
+   FGMRESSolver *lmmhd_solver;
    BlockOperator *A;
    mutable BlockVector *RHS;
    LiPreconditioner *P;
@@ -27,6 +27,8 @@ protected:
    ParLinearForm *rp, *ru, *rj, *rphi;
    ParBilinearForm *fu, *fk, *m, *sp, *mj, *mphi, *dj, *mp;
    ParMixedBilinearForm *b, *bT, *g, *gT, *k;
+
+   ParBilinearForm *mpNorm, *spNorm;
 
    // Vectors and numbers used for bilinear form coefficients.
    Vector *B;
@@ -48,6 +50,9 @@ protected:
    ConstantCoefficient *fReciprocalReCoeff;
    ConstantCoefficient *fMassCoeff;
 
+   ConstantCoefficient *mpCoeffNorm;
+   ConstantCoefficient *spCoeffNorm;
+
    // HypreParMatrices for operator blocks.
    HypreParMatrix *FuMat = nullptr;
    HypreParMatrix *FkMat = nullptr;
@@ -63,6 +68,9 @@ protected:
    HypreParMatrix *GTMat = nullptr;
    HypreParMatrix *KMat = nullptr;
    HypreParMatrix *KtMat = nullptr;
+
+   HypreParMatrix *MpMatNorm = nullptr;
+   HypreParMatrix *SpMatNorm = nullptr;
 
    // Boundary conditions.
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
@@ -82,12 +90,13 @@ protected:
    VectorGridFunctionCoefficient *ustar_coef = nullptr;
 
    int dim;
-   real_t dt; 
+   real_t dt;
+   int debug;
    
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt);
+                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug);
 
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 

@@ -26,7 +26,7 @@ using namespace std;
 //
 // Algorithm 4.1 is presented in Li et al. 2019 and is given by
 //
-//  1. Compute y_p = -Lp r_p = - alpha_1 xi - eta,
+//  1. Compute y_p = -Lp r_p = - alpha_1 xi - (2/tau) eta [note: this 2/tau is missing from Li et al.]
 //      - solve Mp xi = r_p by 10 iterations of CG solver with diagonal preconditioner,
 //      - solve Sp eta = r_p by 2 iterations of algebraic multigrid solver.
 //
@@ -59,40 +59,42 @@ protected:
     Array<int> offsets;
     std::vector<std::vector<Solver*>> solvers; 
     bool owns_blocks;
+    real_t dt;
 
     // Pressure preconditioner solvers.
-    OperatorSolver *Mp;;
     CGSolver *MpSolver;
     HypreSmoother *MpPrec;
 
-    OperatorSolver *Sp;;
     HypreBoomerAMG *SpSolver;
 
+    OperatorSolver *Lp;
+    HypreBoomerAMG *LpSolver;
+
     // Electric potential preconditioner solvers.
-    OperatorSolver *Mphi;
     CGSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
     // Velocity preconditioner solvers.
-    OperatorSolver *Fk;
     GMRESSolver *FkSolver;
     HypreBoomerAMG *FkPrec;
 
     HypreParMatrix *Bt = nullptr;
 
     // Current density preconditioner solvers.
-    OperatorSolver *Dj;
     CGSolver *DjSolver;
     HypreADS *DjPrec;
 
     HypreParMatrix *Gt = nullptr;
     HypreParMatrix *Kt = nullptr;
 
+    real_t scaleMp;
+    real_t scaleSp;
+
 public:
     // Constructor
-    LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, bool owns_blocks_ = false)
+    LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, bool owns_blocks_ = false)
         : Solver(offsets_.Last()), nBlocks(offsets_.Size()-1),
-          offsets(0), owns_blocks(owns_blocks_)
+          offsets(0), owns_blocks(owns_blocks_), dt(dt_)
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -102,60 +104,88 @@ public:
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
         MpSolver = new CGSolver(MPI_COMM_WORLD);
-        MpSolver->SetRelTol(1e-8);
-        MpSolver->SetMaxIter(10);
-        MpSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
-
         MpSolver->SetOperator(*MpMat);
 
+        MpSolver->SetRelTol(1e-8);
+        MpSolver->SetAbsTol(1e-12);
+        MpSolver->SetMaxIter(50);
+        MpSolver->SetPrintLevel(-1); // Suppress output.
+
         MpPrec = new HypreSmoother(*MpMat);
-        MpPrec->SetType(HypreSmoother::Jacobi);
+        MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
         MpSolver->SetPreconditioner(*MpPrec);
 
-        Mp = new OperatorSolver(MpSolver);
 
         SpSolver = new HypreBoomerAMG(*SpMat);
-        SpSolver->SetPrintLevel(0);
-        SpSolver->SetCycleType(1);
-        SpSolver->SetRelaxType(6); // 6 = Symmetric Gauss-Seidel
-        SpSolver->SetMaxLevels(25);
-
         SpSolver->SetOperator(*SpMat);
 
-        Sp = new OperatorSolver(SpSolver);
+        SpSolver->SetMaxIter(20);
+        SpSolver->SetCycleType(2);
+        SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
+        SpSolver->SetMaxLevels(25);
+        SpSolver->SetPrintLevel(1);
+
+
+        real_t MpNorm = 0.0;
+        HypreParVector diag;
+        diag = 0.0;
+        MpMat->GetDiag(diag);
+
+        for (int i = 0; i < diag.Size(); i++)
+        {
+            if (diag(i) > MpNorm) MpNorm = diag(i);
+        }
+
+        real_t SpNorm = 0.0;
+        diag = 0.0;
+        SpMat->GetDiag(diag);
+
+        for (int i = 0; i < diag.Size(); i++)
+        {
+            if (diag(i) > SpNorm) SpNorm = diag(i);
+        }
+
+        scaleMp = 1.0 / MpNorm;
+        scaleSp = 1.0 / SpNorm;
+
+
+        HypreParMatrix *Lp = Add(1.0 * scaleMp, *MpMat, (2.0/dt) * scaleSp, *SpMat);
+
+        LpSolver = new HypreBoomerAMG(*Lp);
+        LpSolver->SetMaxIter(2);
+        LpSolver->SetMaxLevels(25);
+        LpSolver->SetCycleType(2);
+        LpSolver->SetRelaxType(6);
+        LpSolver->SetMaxIter(5);
+
 
     }
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
     {
         MphiSolver = new CGSolver(MPI_COMM_WORLD);
-        MphiSolver->SetRelTol(1e-8);
-        MphiSolver->SetMaxIter(10);
-        MphiSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
-
         MphiSolver->SetOperator(*MphiMat);
 
-        MphiPrec = new HypreSmoother(*MphiMat);
-        MphiPrec->SetType(HypreSmoother::Jacobi);
-        MphiSolver->SetPreconditioner(*MphiPrec);
+        MphiSolver->SetRelTol(1e-8);
+        MphiSolver->SetMaxIter(10);
+        MphiSolver->SetPrintLevel(-1); // Suppress output.
 
-        Mphi = new OperatorSolver(MphiSolver);
+        MphiPrec = new HypreSmoother(*MphiMat);
+        MphiPrec->SetType(HypreSmoother::GS, 6);
+        MphiSolver->SetPreconditioner(*MphiPrec);
     }
 
     void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
     {
         FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        FkSolver->SetOperator(*FkMat);
         FkSolver->SetRelTol(1e-3);
         FkSolver->SetMaxIter(200);
         FkSolver->SetPrintLevel(0);
         
-        FkSolver->SetOperator(*FkMat);
-
         FkPrec = new HypreBoomerAMG(*FkMat);
         FkPrec->SetPrintLevel(0);
         FkSolver->SetPreconditioner(*FkPrec);
-
-        Fk = new OperatorSolver(FkSolver);
 
         Bt = BtMat;
     }
@@ -163,16 +193,13 @@ public:
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GTMat, HypreParMatrix *KtMat)
     {
         DjSolver = new CGSolver(MPI_COMM_WORLD);
+        DjSolver->SetOperator(*DjMat);
         DjSolver->SetRelTol(1e-8);
         DjSolver->SetMaxIter(5);
-        DjSolver->SetPrintLevel(-1); // Suppressing as this often doesn't converge.
-
-        DjSolver->SetOperator(*DjMat);
+        DjSolver->SetPrintLevel(-1); // Suppress output.
 
         DjPrec = new HypreADS(*DjMat, spaces[0]);
         DjSolver->SetPreconditioner(*DjPrec);
-
-        Dj = new OperatorSolver(DjSolver);
 
         Gt = GTMat;
         Kt = KtMat;
@@ -185,37 +212,46 @@ public:
         BlockVector xblock(const_cast<Vector&>(x), offsets);
         BlockVector yblock(y, offsets);
 
-
         // Pressure solve.
+        Vector &yp = yblock.GetBlock(3);
         Vector rp = xblock.GetBlock(3);
         Vector xi(rp.Size()), eta(rp.Size());
         xi = 0.0, eta = 0.0;
 
-        Mp->Mult(rp, xi);  // xi = Mp^-1 (rp)
-        Sp->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
+        SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
-        Vector &yp = yblock.GetBlock(3);
-        yp = xi;  yp *= alpha1;  yp += eta;  yp *= -1.0;        
+        xi *= scaleMp;
+        eta *= scaleSp;
+
+        // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
+        Vector eta2tau(rp.Size());
+        real_t beta = 1.0;
+        real_t spCoeff = beta * 2.0 / dt;
+        eta2tau = eta;
+        eta2tau *= spCoeff;
+        yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
+        
+        //LpSolver->Mult(rp, yp);
+        //yp *= -1.0;
 
 
         // Electric potential solve.
-        Vector rphi = xblock.GetBlock(1);
-        rphi *= -1.0;
-
         Vector &yphi = yblock.GetBlock(1);
-        Mphi->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
-
+        Vector rphi = xblock.GetBlock(1);
+        MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
+        yphi *= -1.0;
 
         // Velocity solve.
         Vector ru = xblock.GetBlock(2);
 
         Vector BtYp(ru.Size());
         Bt->Mult(yp, BtYp);
-        ru -= BtYp; // Get right hand side of Fk yp = ru - Bt * y_p
+        ru -= BtYp; // Get right hand side of Fk yu = ru - Bt * yp
 
         Vector &yu = yblock.GetBlock(2);
         yu = 0.0;
-        FkSolver->Mult(ru, yu); // Solve yp = Fk^-1 (ru - Bt * y_p)
+        FkSolver->Mult(ru, yu); // Solve yu = Fk^-1 (ru - Bt * yp)
 
 
         // Current density solve.
@@ -232,21 +268,12 @@ public:
 
         Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
-        Dj->Mult(rj, yj); // yj = Dj^-1 (rj - Gt * y_phi - Kt * y_u)
+        DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
 
     }
 
     virtual void SetOperator(const Operator &op) override { }
 
     virtual ~LiPreconditioner()
-    {
-        if (owns_blocks)
-        {
-            delete Mphi;
-            delete Mp;
-            delete Sp;
-            delete Fk;
-            delete Dj;
-        }
-    }
+    {}
 };

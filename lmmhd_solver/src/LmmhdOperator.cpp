@@ -4,12 +4,14 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<int> &offsets,
                             int dim_,
-                            real_t dt_)
+                            real_t dt_,
+                            int debug_)
    : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
      block_trueOffsets(offsets),
      lmmhd_solver(),
      dim(dim_),
-     dt(dt_)
+     dt(dt_),
+     debug(debug_)
 {
    // Sets up the linear system for the coupled MHD solve:
    //
@@ -25,7 +27,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
-   lmmhd_solver = new GMRESSolver(MPI_COMM_WORLD);
+   lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
 
@@ -62,10 +64,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    kappaBxVBxV *= kappa_val;
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
-   //massCoefValue = 1.0 / dt;
+   //massCoefValue = 2.0 / dt;
    // The mass coefficient is NOT divided by dt as 
    // this is taken into account in ImplicitSolve.
-   massCoeffValue = 1.0; 
+   massCoeffValue = 2.0; 
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
 
@@ -110,6 +112,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
    spaces[3]->GetEssentialTrueDofs(*ess_bdr_marker[3], ess_tdof_p);
+
+   // Pin a pressure DoF.
+   ess_tdof_p.SetSize(1);
+   ess_tdof_p[0] = 0;
 
    ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), u_gf(spaces[2]), p_gf(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; p_gf = 0.0;
@@ -197,9 +203,21 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                                 j_gf, *ru, *KMat,
                                 Ru_dummy, Xu_dummy);
 
+
    // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
    KtMat = KMat->Transpose();
    (*KtMat) *= -1.0;
+
+   if (debug == 1)
+   {
+      BMat->Print("BMat.dat");
+      BtMat->Print("BtMat.dat");
+      MjMat->Print("MjMat.dat");
+      GMat->Print("GMat.dat");
+      GTMat->Print("GTMat.dat");
+      KMat->Print("KMat.dat");
+      KtMat->Print("KtMat.dat");
+   }
 
    // Set up operator matrix.
    A = new BlockOperator(block_trueOffsets);
@@ -257,14 +275,55 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    MpMat = new HypreParMatrix();
    SpMat = new HypreParMatrix();
    
-   dj->FormLinearSystem(ess_tdof_j, j_gf, *rj, *DjMat, Xu_dummy, Rj);
-   mphi->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MphiMat, Xu_dummy, Rp);
-   mp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMat, Xu_dummy, Rphi);
-   sp->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMat, Xu_dummy, Rphi);
+   dj->FormLinearSystem(  ess_tdof_j,   j_gf,   *rj,   *DjMat,   Xu_dummy, Rj);
+   mphi->FormLinearSystem(ess_tdof_phi, phi_gf, *rphi, *MphiMat, Xu_dummy, Rphi);
+   mp->FormLinearSystem(  ess_tdof_p,   p_gf,   *rp,   *MpMat,   Xu_dummy, Rp);
+   sp->FormLinearSystem(  ess_tdof_p,   p_gf,   *rp,   *SpMat,   Xu_dummy, Rp);
 
+   if (debug == 1)
+   {
+      DjMat->Print("DjMat.dat");
+      MphiMat->Print("MphiMat.dat");
+      MpMat->Print("MpMat.dat");
+      SpMat->Print("SpMat.dat");
+   }
 
    // Preconditioner.
-   P = new LiPreconditioner(spaces, block_trueOffsets);
+   P = new LiPreconditioner(spaces, block_trueOffsets, dt);
+
+   // Compute max diagonal entry of Mp and Sp
+   Vector MpDiag(MpMat->Height()), SpDiag(SpMat->Height());
+   MpMat->GetDiag(MpDiag);
+   SpMat->GetDiag(SpDiag);
+
+   real_t MpMax = MpDiag.Max();
+   real_t SpMax = SpDiag.Max();
+
+   real_t sMp = 1.0 / MpMax;
+   real_t sSp = 1.0 / SpMax;
+
+   // Normalising pressure preconditioner (there's a better way to do this - currently just a test).
+   /*mpCoeffNorm = new ConstantCoefficient(sMp);
+   mpNorm = new ParBilinearForm(spaces[3]);
+   mpNorm->AddDomainIntegrator(new MassIntegrator(*mpCoeffNorm));
+   mpNorm->Assemble(); mpNorm->Finalize();
+
+   MpMatNorm = new HypreParMatrix();
+   mpNorm->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMatNorm, Xu_dummy, Rp);
+
+   spCoeffNorm = new ConstantCoefficient(sSp);
+   spNorm = new ParBilinearForm(spaces[3]);
+   spNorm->AddDomainIntegrator(new DiffusionIntegrator(*spCoeffNorm));
+   spNorm->Assemble(); spNorm->Finalize();
+
+   SpMatNorm = new HypreParMatrix();
+   spNorm->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMatNorm, Xu_dummy, Rp);
+
+   if (debug == 1)
+   {
+      MpMatNorm->Print("MpMatNorm.dat");
+      SpMatNorm->Print("SpMatNorm.dat");
+   }*/
 
    P->SetPressurePreconditioner(MpMat, SpMat);
    P->SetElectricPotentialPreconditioner(MphiMat);
@@ -272,10 +331,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Set solver parameters.
    lmmhd_solver->SetRelTol(1e-4);
-   lmmhd_solver->SetAbsTol(0.0);
-   lmmhd_solver->SetMaxIter(500);
+   lmmhd_solver->SetAbsTol(1e-8);;
+   lmmhd_solver->SetMaxIter(50);
    lmmhd_solver->SetPrintLevel(1);
-   lmmhd_solver->iterative_mode = false;  
+   lmmhd_solver->SetKDim(200);
+   lmmhd_solver->iterative_mode = true;  
 
 }
 
@@ -307,6 +367,8 @@ void LmmhdOperator::Update(const Vector &X)
    Vector Ru, Xu_dummy, Ru_dummy;
    fu->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FuMat, Xu_dummy, Ru);  
 
+   if (debug == 1) { FuMat->Print("FuMat.dat");}
+
    // Set F block and RHS for velocity.
    A->SetBlock(2,2, FuMat); 
    RHS->GetBlock(2) = Ru; 
@@ -328,7 +390,9 @@ void LmmhdOperator::Update(const Vector &X)
 
    FkMat = new HypreParMatrix();
 
-   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru_dummy);  
+   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru_dummy);
+
+   if (debug == 1) { FkMat->Print("FkMat.dat"); }
 
    P->SetVelocityPreconditioner(FkMat, BtMat);
 

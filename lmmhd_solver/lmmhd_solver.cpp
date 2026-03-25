@@ -15,6 +15,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   int debug = 0;
+
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
@@ -108,11 +110,11 @@ int main(int argc, char *argv[])
    }
 
    // Set fe_space orders.
+   int order_currentD = 1;
+   int order_electPot = 0;
    int order_pressure = 1;
    int order_velocity;
    order_velocity = order_pressure + 1;
-   int order = 1;
-   int order_zero = 0;
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
@@ -141,19 +143,19 @@ int main(int argc, char *argv[])
    // Finite Element Spaces.
    // ----------------------------------------------------------------------------
    // HDiv finite elements for current density.
-   RT_FECollection currentD_fec(order, dim);
+   RT_FECollection currentD_fec(order_currentD, dim);
    ParFiniteElementSpace currentD_fespace(pmesh, &currentD_fec);
 
-   // H1 continuous Lagrange finite elements of given order for electric scalar potential.
-   L2_FECollection electPot_fec(order, dim);
+   // L2 finite elements for electric scalar potential.
+   L2_FECollection electPot_fec(order_electPot, dim);
    ParFiniteElementSpace electPot_fespace(pmesh, &electPot_fec);
 
-   // H1 continuous Lagrange finite elements of given order (order_pressure + 1)
+   // H1 continuous Lagrange finite elements (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, dim);
    ParFiniteElementSpace velocity_fespace(pmesh, &velocity_fec, dim);
 
-   // H1 continuous Lagrange finite elements of given order for pressure.
+   // H1 continuous Lagrange finite elements for pressure.
    H1_FECollection pressure_fec(order_pressure, dim);
    ParFiniteElementSpace pressure_fespace(pmesh, &pressure_fec);
 
@@ -243,7 +245,7 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt);
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug);
 
    ode_solver->Init(oper);
 
@@ -296,19 +298,25 @@ int main(int argc, char *argv[])
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
          if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl; }
-         visualise(paraview_dc, order, &j_gf, "current density", ti_out, t);
-         visualise(paraview_dc, order, &phi_gf, "electric potential", ti_out, t);
+         visualise(paraview_dc, order_currentD, &j_gf, "current density", ti_out, t);
+         visualise(paraview_dc, order_electPot, &phi_gf, "electric potential", ti_out, t);
          visualise(paraview_dc, order_velocity, &u_gf, "velocity", ti_out, t);
          visualise(paraview_dc, order_pressure, &p_gf, "pressure", ti_out, t);
          ti_out += 1;
       }
 
       // Calculate relative L2-norm of grid functions between this and previous time-step.
-      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
-      if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
-      
       real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;}
+
+      real_t elp_rel_l2 = rel_L2_norm(X.GetBlock(1), Xn_1.GetBlock(1), electPot_fespace);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;}
+
+      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
+
+      real_t pres_rel_l2 = rel_L2_norm(X.GetBlock(3), Xn_1.GetBlock(3), pressure_fespace);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;}
 
       ti += 1;
    }
