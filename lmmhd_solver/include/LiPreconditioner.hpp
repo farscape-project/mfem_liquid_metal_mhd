@@ -66,6 +66,7 @@ protected:
     HypreSmoother *MpPrec;
 
     HypreBoomerAMG *SpSolver;
+    OrthoSolver *SpOrthoSolver;
 
     OperatorSolver *Lp;
     HypreBoomerAMG *LpSolver;
@@ -76,7 +77,9 @@ protected:
 
     // Velocity preconditioner solvers.
     GMRESSolver *FkSolver;
+    //HypreAMS *FkPrec;
     HypreBoomerAMG *FkPrec;
+
 
     HypreParMatrix *Bt = nullptr;
 
@@ -115,7 +118,6 @@ public:
         MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
         MpSolver->SetPreconditioner(*MpPrec);
 
-
         SpSolver = new HypreBoomerAMG(*SpMat);
         SpSolver->SetOperator(*SpMat);
 
@@ -123,9 +125,18 @@ public:
         SpSolver->SetCycleType(2);
         SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
         SpSolver->SetMaxLevels(25);
-        SpSolver->SetPrintLevel(1);
+        SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
+        SpSolver->SetPrintLevel(0);
+        SpSolver->SetElasticityOptions(spaces[3]);
+
+        // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
+        // be required to wrap around whole preconditioner.
+        SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
+        SpOrthoSolver->SetSolver(*SpSolver);
 
 
+        // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
+        // respectively.
         real_t MpNorm = 0.0;
         HypreParVector diag;
         diag = 0.0;
@@ -157,6 +168,7 @@ public:
         LpSolver->SetCycleType(2);
         LpSolver->SetRelaxType(6);
         LpSolver->SetMaxIter(5);
+        LpSolver->SetStrengthThresh(0.7);
 
 
     }
@@ -179,12 +191,16 @@ public:
     {
         FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
-        FkSolver->SetRelTol(1e-3);
-        FkSolver->SetMaxIter(200);
+        FkSolver->SetRelTol(1e-8); // Temporarily increasing values for testing.
+        FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
         FkSolver->SetPrintLevel(0);
         
+        //FkPrec = new HypreAMS(*FkMat, spaces[2]);
         FkPrec = new HypreBoomerAMG(*FkMat);
         FkPrec->SetPrintLevel(0);
+        FkPrec->SetCycleType(2);
+        FkPrec->SetRelaxType(6);
+        FkPrec->SetMaxLevels(25);
         FkSolver->SetPreconditioner(*FkPrec);
 
         Bt = BtMat;
@@ -219,8 +235,10 @@ public:
         xi = 0.0, eta = 0.0;
 
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
-        SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
+        // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
+        // respectively.
         xi *= scaleMp;
         eta *= scaleSp;
 
@@ -232,6 +250,10 @@ public:
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
         
+        // Testing effect of yp on solution.
+        //yp *= 0.0;
+
+        // Testing solving Mp and Sp together, rather than separately.
         //LpSolver->Mult(rp, yp);
         //yp *= -1.0;
 

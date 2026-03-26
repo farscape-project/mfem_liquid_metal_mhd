@@ -28,6 +28,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
    lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
+   prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
+   
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
 
@@ -113,9 +115,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
    spaces[3]->GetEssentialTrueDofs(*ess_bdr_marker[3], ess_tdof_p);
 
-   // Pin a pressure DoF.
+   // Pin a pressure DoF.  This may not be necessary if we are also doing
+   // OrthoSolver.
    ess_tdof_p.SetSize(1);
-   ess_tdof_p[0] = 0;
+   ess_tdof_p[0] = 1.0;
 
    ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), u_gf(spaces[2]), p_gf(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; p_gf = 0.0;
@@ -125,6 +128,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 
+   //MeanZero(p_gf);
 
    // Mixed bilinear form for velocity and pressure coupling.
    bCoeff = new ConstantCoefficient(-1.0);
@@ -280,6 +284,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    mp->FormLinearSystem(  ess_tdof_p,   p_gf,   *rp,   *MpMat,   Xu_dummy, Rp);
    sp->FormLinearSystem(  ess_tdof_p,   p_gf,   *rp,   *SpMat,   Xu_dummy, Rp);
 
+   //Vector diag;
+   //MpMat->GetDiag(diag);
+   //std::cout << "Min diag entry: " << diag.Min() << std::endl;
+
    if (debug == 1)
    {
       DjMat->Print("DjMat.dat");
@@ -332,7 +340,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Set solver parameters.
    lmmhd_solver->SetRelTol(1e-4);
    lmmhd_solver->SetAbsTol(1e-8);;
-   lmmhd_solver->SetMaxIter(50);
+   lmmhd_solver->SetMaxIter(200);
    lmmhd_solver->SetPrintLevel(1);
    lmmhd_solver->SetKDim(200);
    lmmhd_solver->iterative_mode = true;  
@@ -396,6 +404,10 @@ void LmmhdOperator::Update(const Vector &X)
 
    P->SetVelocityPreconditioner(FkMat, BtMat);
 
+   // Testing using OrthoSolver to wrap around whole preconditioner.  But this
+   // implementation I think removes nullspace from all variables.  I can't yet
+   // see a way to limit this just to pressure.
+   prec_ortho_solver->SetSolver(*P);
    lmmhd_solver->SetPreconditioner(*P);
    lmmhd_solver->SetOperator(*A);
    
