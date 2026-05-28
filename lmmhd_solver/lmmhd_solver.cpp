@@ -17,6 +17,10 @@ int main(int argc, char *argv[])
 {
    int debug = 0;
 
+   // Choose whether to solve with iterative solver (FGMRES) or with direct solver
+   // (MUMPS), options 0 and 1 respectively.
+   int DIRECTSOLVE = 0;
+
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
@@ -231,8 +235,8 @@ int main(int argc, char *argv[])
    X = 0;
    BlockVector Xn_1(block_trueOffsets), Xn_2(block_trueOffsets);
    Xn_1 = 0; Xn_2 = 0;
-   Vector u_star_vec(v_space_size);
-   ParGridFunction u_star(&velocity_fespace);
+   Vector ustar_vec(v_space_size);
+   //ParGridFunction u_star(&velocity_fespace);
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("lmmhd", pmesh);
@@ -245,7 +249,7 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug);
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, DIRECTSOLVE);
 
    ode_solver->Init(oper);
 
@@ -258,7 +262,8 @@ int main(int argc, char *argv[])
       if (ti == 0)
       {
          // Set u_star = i.c. for first timestep.
-         u_star.SetFromTrueDofs(X.GetBlock(2)); 
+         //u_star.SetFromTrueDofs(X.GetBlock(2));
+         //ustar_vec = X.GetBlock(2);
       }
       else if (ti == 1)
       {
@@ -266,7 +271,8 @@ int main(int argc, char *argv[])
          Xn_1 = X;
 
          // Set u_star = u_{n-1} for second time step.
-         u_star.SetFromTrueDofs(Xn_1.GetBlock(2)); 
+         //u_star.SetFromTrueDofs(Xn_1.GetBlock(2)); 
+         ustar_vec = Xn_1.GetBlock(2);
       }
       else
       {
@@ -275,16 +281,16 @@ int main(int argc, char *argv[])
          Xn_1 = X;
 
          // Calculate u_star = (3 * u_{n-1} - u_{n-2})/2 for the convection term.
-         u_star_vec = 0.0;
-         u_star_vec = Xn_1.GetBlock(2);  
-         u_star_vec *= 3.0;               
-         u_star_vec -= Xn_2.GetBlock(2); 
-         u_star_vec *= 0.5;
-         u_star.SetFromTrueDofs(u_star_vec); 
+         ustar_vec = 0.0;
+         ustar_vec = Xn_1.GetBlock(2);  
+         ustar_vec *= 3.0;               
+         ustar_vec -= Xn_2.GetBlock(2); 
+         ustar_vec *= 0.5;
+         //u_star.SetFromTrueDofs(ustar_vec); 
       }
       
       // Solve problem.
-      oper.Set_ustar(&u_star);
+      oper.Set_ustar(ustar_vec);
       oper.Update(X);
       ode_solver->Step(X, t, dt);
       

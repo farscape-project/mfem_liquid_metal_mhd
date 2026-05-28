@@ -1,4 +1,5 @@
-MFEM_DIR ?= ../../..
+#MFEM_DIR ?= ../../..
+MFEM_DIR=/home/dward/mfem-moose/framework/contrib/mfem/build-oprof
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
 include $(CONFIG_MK)
@@ -29,6 +30,9 @@ INC = include/VectorConvectionIntegrator.hpp \
 CXX = $(MFEM_CXX)
 CXXFLAGS = $(MFEM_FLAGS) -Iinclude
 LDFLAGS = $(MFEM_LIBS)
+
+CXXFLAGS += -fsanitize=address -g -O0
+LDFLAGS  += -fsanitize=address
 
 all: $(TARGET)
 

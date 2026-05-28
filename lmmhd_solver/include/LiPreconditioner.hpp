@@ -119,25 +119,25 @@ public:
         MpSolver->SetPreconditioner(*MpPrec);
 
         SpSolver = new HypreBoomerAMG(*SpMat);
-        SpSolver->SetOperator(*SpMat);
+        //SpSolver->SetOperator(*SpMat);
 
-        SpSolver->SetMaxIter(20);
-        SpSolver->SetCycleType(2);
-        SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
-        SpSolver->SetMaxLevels(25);
-        SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
+        //SpSolver->SetMaxIter(20);
+        //SpSolver->SetCycleType(2);
+        //SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
+        //SpSolver->SetMaxLevels(25);
+        //SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
         SpSolver->SetPrintLevel(0);
-        SpSolver->SetElasticityOptions(spaces[3]);
+        //SpSolver->SetElasticityOptions(spaces[3]);
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
         // be required to wrap around whole preconditioner.
-        SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
-        SpOrthoSolver->SetSolver(*SpSolver);
+        //SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
+        //SpOrthoSolver->SetSolver(*SpSolver);
 
 
         // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
         // respectively.
-        real_t MpNorm = 0.0;
+        /*real_t MpNorm = 0.0;
         HypreParVector diag;
         diag = 0.0;
         MpMat->GetDiag(diag);
@@ -157,10 +157,10 @@ public:
         }
 
         scaleMp = 1.0 / MpNorm;
-        scaleSp = 1.0 / SpNorm;
+        scaleSp = 1.0 / SpNorm;*/
 
 
-        HypreParMatrix *Lp = Add(1.0 * scaleMp, *MpMat, (2.0/dt) * scaleSp, *SpMat);
+        /*HypreParMatrix *Lp = Add(1.0 * scaleMp, *MpMat, (2.0/dt) * scaleSp, *SpMat);
 
         LpSolver = new HypreBoomerAMG(*Lp);
         LpSolver->SetMaxIter(2);
@@ -168,7 +168,7 @@ public:
         LpSolver->SetCycleType(2);
         LpSolver->SetRelaxType(6);
         LpSolver->SetMaxIter(5);
-        LpSolver->SetStrengthThresh(0.7);
+        LpSolver->SetStrengthThresh(0.7);*/
 
 
     }
@@ -191,7 +191,7 @@ public:
     {
         FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
-        FkSolver->SetRelTol(1e-8); // Temporarily increasing values for testing.
+        FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
         FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
         FkSolver->SetPrintLevel(0);
         
@@ -206,7 +206,7 @@ public:
         Bt = BtMat;
     }
 
-    void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GTMat, HypreParMatrix *KtMat)
+    void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
         DjSolver = new CGSolver(MPI_COMM_WORLD);
         DjSolver->SetOperator(*DjMat);
@@ -217,7 +217,7 @@ public:
         DjPrec = new HypreADS(*DjMat, spaces[0]);
         DjSolver->SetPreconditioner(*DjPrec);
 
-        Gt = GTMat;
+        Gt = GtMat;
         Kt = KtMat;
     }
 
@@ -235,12 +235,12 @@ public:
         xi = 0.0, eta = 0.0;
 
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
-        SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
         // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
         // respectively.
-        xi *= scaleMp;
-        eta *= scaleSp;
+        //xi *= scaleMp;
+        //eta *= scaleSp;
 
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
         Vector eta2tau(rp.Size());
@@ -256,7 +256,6 @@ public:
         // Testing solving Mp and Sp together, rather than separately.
         //LpSolver->Mult(rp, yp);
         //yp *= -1.0;
-
 
         // Electric potential solve.
         Vector &yphi = yblock.GetBlock(1);
