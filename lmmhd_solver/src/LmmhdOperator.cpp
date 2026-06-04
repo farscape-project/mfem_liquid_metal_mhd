@@ -40,9 +40,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       lmmhd_solver = std::make_unique<FGMRESSolver>(MPI_COMM_WORLD);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetRelTol(1e-4);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetAbsTol(1e-8);;
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetMaxIter(200);
+      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetMaxIter(500);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPrintLevel(1);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetKDim(200);
+      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetKDim(500);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->iterative_mode = true;
    }
    else
@@ -89,10 +89,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    kappaBxVBxV *= kappa_val;
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
-   //massCoefValue = 2.0 / dt;
+   massCoeffValue = 2.0;
    // The mass coefficient is NOT divided by dt as 
    // this is taken into account in ImplicitSolve.
-   massCoeffValue = 2.0; 
+   //massCoeffValue = 2.0; 
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
 
@@ -152,13 +152,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.b.Assemble();
    fluids.b.Finalize();
 
-   //bTCoeff = new ConstantCoefficient(1.0);
-   bTCoeff = new ConstantCoefficient(-1.0);
-   //cout << "bTCoeff value = " << bTCoeff->constant << endl;
-   fluids.bt.AddDomainIntegrator(new GradientIntegrator(*bTCoeff));
-   fluids.bt.Assemble();
-   fluids.bt.Finalize();
-
    // Bilinear form for current density.
    mjCoeff = new ConstantCoefficient(kappa_val);
    //cout << "mjCoeff value = " << mjCoeff->constant << endl;
@@ -172,13 +165,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    magnetics.g.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(*gCoeff));
    magnetics.g.Assemble();
    magnetics.g.Finalize();
-
-   //gTCoeff = new ConstantCoefficient(kappa_val);
-   gTCoeff = new ConstantCoefficient(-kappa_val);
-   //cout << "gTCoeff value = " << gTCoeff->constant << endl;
-   magnetics.gt.AddDomainIntegrator(new MixedVectorGradientIntegrator(*gTCoeff));
-   magnetics.gt.Assemble();
-   magnetics.gt.Finalize();
 
    // Mixed bilinear form for current density and velocity coupling.
    // VectorFEMassIntegrator(lambda) applies (lambda d, v').  In order to 
@@ -209,15 +195,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.fu.Finalize();
    
 
-   Vector Rj, Rphi, Ru, Rp, Xu_dummy, Ru_dummy;
+   Vector Rj, Rphi, Ru, Rp, Xu_dummy, Xp_dummy, Ru_dummy;
 
    fluids.b.FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
                                u_gf, rp, fluids.BMat_h,
                                Xu_dummy, Rp);
-
-   fluids.bt.FormRectangularLinearSystem(ess_tdof_p, ess_tdof_u,
-                                p_gf, ru, fluids.BtMat_h,
-                                Ru_dummy, Xu_dummy);
 
    magnetics.mj.FormLinearSystem(ess_tdof_j, j_gf, rj, magnetics.MjMat_h, Xu_dummy, Rj);
 
@@ -225,34 +207,34 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                                j_gf, rphi, magnetics.GMat_h,
                                Xu_dummy, Rphi);
 
-   magnetics.gt.FormRectangularLinearSystem(ess_tdof_phi, ess_tdof_j,
-                                phi_gf, rj, magnetics.GtMat_h,
-                                Ru_dummy, Xu_dummy);
-
    coupling.k.FormRectangularLinearSystem(ess_tdof_j, ess_tdof_u,
                                 j_gf, ru, coupling.KMat_h,
                                 Ru_dummy, Xu_dummy);
 
    fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, Xu_dummy, Ru);
-   //fu->FormSystemMatrix(ess_tdof_u, FuMat_h);
 
    HypreParMatrix *BMat = fluids.BMat_h.As<HypreParMatrix>();
-   HypreParMatrix *BtMat = fluids.BtMat_h.As<HypreParMatrix>();
    HypreParMatrix *FuMat = fluids.FuMat_h.As<HypreParMatrix>();
    HypreParMatrix *MjMat = magnetics.MjMat_h.As<HypreParMatrix>();
    HypreParMatrix *GMat = magnetics.GMat_h.As<HypreParMatrix>();
-   HypreParMatrix *GtMat = magnetics.GtMat_h.As<HypreParMatrix>();
    HypreParMatrix *KMat = coupling.KMat_h.As<HypreParMatrix>();
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
    fluids.smallPressure.Assemble(); 
    fluids.smallPressure.Finalize();
-   HypreParMatrix *smallPressureMat = fluids.smallPressure.ParallelAssemble();
+
+   fluids.smallPressure.FormLinearSystem(ess_tdof_p, p_gf, rp, 
+      fluids.smallPressureMat_h, Xp_dummy, Rp);
+   HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
+
 
    // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
    HypreParMatrix *KtMat = KMat->Transpose();
    (*KtMat) *= -1.0;
+
+   HypreParMatrix *GtMat = GMat->Transpose();
+   HypreParMatrix *BtMat = BMat->Transpose();
 
    if (debug == 1)
    {
@@ -264,7 +246,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       KMat->Print("KMat.dat");
       KtMat->Print("KtMat.dat");
    }
-
+   
    MFEM_VERIFY(BMat  != nullptr, "BMat null" );
    MFEM_VERIFY(BtMat != nullptr, "BtMat null");
    MFEM_VERIFY(MjMat != nullptr, "MjMat null");
@@ -317,6 +299,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       (*blocks)(3,3) = smallPressureMat;
 
       A = std::unique_ptr<HypreParMatrix>(HypreParMatrixFromBlocks(*blocks));
+
+      if (debug == 1) dynamic_cast<HypreParMatrix*>(A.get())->Print("A.dat");
    }
 
    // Set RHS.
@@ -450,13 +434,13 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    P->SetVelocityPreconditioner(FkMat, BtMat);
 
-   if (DIRECTSOLVE == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
-
    //*****************************************************************************************************
    //**************************************** Preconditioner *********************************************
    //*****************************************************************************************************
 
    lmmhd_solver->SetOperator(*A);
+
+   if (DIRECTSOLVE == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
 
 }
 
@@ -483,6 +467,7 @@ void LmmhdOperator::Update(const Vector &X)
       A = std::unique_ptr<HypreParMatrix>(HypreParMatrixFromBlocks(*blocks));
    }
 
+   // Update other residuals?
    RHS->GetBlock(2) = Ru;
 
 

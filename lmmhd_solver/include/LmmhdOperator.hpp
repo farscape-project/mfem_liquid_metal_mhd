@@ -46,6 +46,7 @@ struct NavierBlock
    OperatorHandle FuMat_h;
    OperatorHandle BMat_h;
    OperatorHandle BtMat_h;
+   OperatorHandle smallPressureMat_h;
 
    NavierBlock(ParFiniteElementSpace *u_fes,
             ParFiniteElementSpace *p_fes)

@@ -62,21 +62,25 @@ protected:
     real_t dt;
 
     // Pressure preconditioner solvers.
-    CGSolver *MpSolver;
+    //CGSolver *MpSolver;
+    MUMPSSolver *MpSolver;
     HypreSmoother *MpPrec;
 
-    HypreBoomerAMG *SpSolver;
+    //HypreBoomerAMG *SpSolver;
+    MUMPSSolver *SpSolver;
     OrthoSolver *SpOrthoSolver;
 
     OperatorSolver *Lp;
     HypreBoomerAMG *LpSolver;
 
     // Electric potential preconditioner solvers.
-    CGSolver *MphiSolver;
+    //CGSolver *MphiSolver;
+    MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
     // Velocity preconditioner solvers.
-    GMRESSolver *FkSolver;
+    //GMRESSolver *FkSolver;
+    MUMPSSolver *FkSolver;
     //HypreAMS *FkPrec;
     HypreBoomerAMG *FkPrec;
 
@@ -84,7 +88,8 @@ protected:
     HypreParMatrix *Bt = nullptr;
 
     // Current density preconditioner solvers.
-    CGSolver *DjSolver;
+    //CGSolver *DjSolver;
+    MUMPSSolver *DjSolver;
     HypreADS *DjPrec;
 
     HypreParMatrix *Gt = nullptr;
@@ -106,7 +111,7 @@ public:
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
-        MpSolver = new CGSolver(MPI_COMM_WORLD);
+        /*MpSolver = new CGSolver(MPI_COMM_WORLD);
         MpSolver->SetOperator(*MpMat);
 
         MpSolver->SetRelTol(1e-8);
@@ -116,10 +121,14 @@ public:
 
         MpPrec = new HypreSmoother(*MpMat);
         MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
-        MpSolver->SetPreconditioner(*MpPrec);
+        MpSolver->SetPreconditioner(*MpPrec);*/
 
-        SpSolver = new HypreBoomerAMG(*SpMat);
-        //SpSolver->SetOperator(*SpMat);
+        MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        MpSolver->SetOperator(*MpMat);
+
+        //SpSolver = new HypreBoomerAMG(*SpMat);
+        SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        SpSolver->SetOperator(*SpMat);
 
         //SpSolver->SetMaxIter(20);
         //SpSolver->SetCycleType(2);
@@ -128,6 +137,9 @@ public:
         //SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
         SpSolver->SetPrintLevel(0);
         //SpSolver->SetElasticityOptions(spaces[3]);
+
+        //SpSolver = new HypreBoomerAMG(*SpMat);
+
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
         // be required to wrap around whole preconditioner.
@@ -175,7 +187,7 @@ public:
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
     {
-        MphiSolver = new CGSolver(MPI_COMM_WORLD);
+        /*MphiSolver = new CGSolver(MPI_COMM_WORLD);
         MphiSolver->SetOperator(*MphiMat);
 
         MphiSolver->SetRelTol(1e-8);
@@ -184,12 +196,15 @@ public:
 
         MphiPrec = new HypreSmoother(*MphiMat);
         MphiPrec->SetType(HypreSmoother::GS, 6);
-        MphiSolver->SetPreconditioner(*MphiPrec);
+        MphiSolver->SetPreconditioner(*MphiPrec);*/
+
+        MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        MphiSolver->SetOperator(*MphiMat);
     }
 
     void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
     {
-        FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        /*FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
         FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
         FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
@@ -201,7 +216,10 @@ public:
         FkPrec->SetCycleType(2);
         FkPrec->SetRelaxType(6);
         FkPrec->SetMaxLevels(25);
-        FkSolver->SetPreconditioner(*FkPrec);
+        FkSolver->SetPreconditioner(*FkPrec);*/
+
+        FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        FkSolver->SetOperator(*FkMat);
 
         Bt = BtMat;
     }
@@ -214,14 +232,17 @@ public:
 
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
-        DjSolver = new CGSolver(MPI_COMM_WORLD);
+        /*DjSolver = new CGSolver(MPI_COMM_WORLD);
         DjSolver->SetOperator(*DjMat);
         DjSolver->SetRelTol(1e-8);
         DjSolver->SetMaxIter(5);
         DjSolver->SetPrintLevel(-1); // Suppress output.
 
         DjPrec = new HypreADS(*DjMat, spaces[0]);
-        DjSolver->SetPreconditioner(*DjPrec);
+        DjSolver->SetPreconditioner(*DjPrec);*/
+
+        DjSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        DjSolver->SetOperator(*DjMat);
 
         Gt = GtMat;
         Kt = KtMat;
@@ -251,7 +272,9 @@ public:
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
         Vector eta2tau(rp.Size());
         real_t beta = 1.0;
-        real_t spCoeff = beta * 2.0 / dt;
+        real_t spCoeff = beta * 2.0;
+        // The coefficient is NOT divided by dt as 
+        // this is taken into account in ImplicitSolve.
         eta2tau = eta;
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
