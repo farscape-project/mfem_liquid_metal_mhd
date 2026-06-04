@@ -242,11 +242,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       BtMat->Print("BtMat.dat");
       MjMat->Print("MjMat.dat");
       GMat->Print("GMat.dat");
-      GTMat->Print("GTMat.dat");
+      GtMat->Print("GTMat.dat");
       KMat->Print("KMat.dat");
       KtMat->Print("KtMat.dat");
    }
-   
+
    MFEM_VERIFY(BMat  != nullptr, "BMat null" );
    MFEM_VERIFY(BtMat != nullptr, "BtMat null");
    MFEM_VERIFY(MjMat != nullptr, "MjMat null");
@@ -498,4 +498,52 @@ void LmmhdOperator::ImplicitSolve(const real_t dt,
 
 }
 
-LmmhdOperator::~LmmhdOperator() {}
+LmmhdOperator::~LmmhdOperator() {
+
+   delete prec_ortho_solver;
+
+   delete currentD_DBC;
+   delete electPot_DBC;
+   delete pressure_DBC;
+
+   delete zeroCoeff;
+   delete vectorZeroCoeff;
+
+   delete velocity_DBC;
+
+   delete B;
+
+   delete fkBxVBxVcoeff;
+
+   delete fMassCoeff;
+   delete fReciprocalReCoeff;
+
+   delete ustar_gf;
+
+   delete bCoeff;
+
+   delete mjCoeff;
+
+   delete gCoeff;
+
+   delete kCoeffVec;
+   delete kCoeff;
+
+   delete smallPressureCoeff;
+
+   delete RHS;
+
+   delete djCoeff;
+   delete mphiCoeff;
+   delete mpCoeff;
+   delete spCoeff;
+
+   delete P;
+
+   delete blocks;
+
+   delete BtMat;
+   delete GtMat;
+   delete KtMat;
+
+}

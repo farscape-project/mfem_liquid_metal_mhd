@@ -139,8 +139,10 @@ int main(int argc, char *argv[])
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   //ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
+   
 
    
    // ----------------------------------------------------------------------------
@@ -148,20 +150,20 @@ int main(int argc, char *argv[])
    // ----------------------------------------------------------------------------
    // HDiv finite elements for current density.
    RT_FECollection currentD_fec(order_currentD, dim);
-   ParFiniteElementSpace currentD_fespace(pmesh, &currentD_fec);
+   ParFiniteElementSpace currentD_fespace(&pmesh, &currentD_fec);
 
    // L2 finite elements for electric scalar potential.
    L2_FECollection electPot_fec(order_electPot, dim);
-   ParFiniteElementSpace electPot_fespace(pmesh, &electPot_fec);
+   ParFiniteElementSpace electPot_fespace(&pmesh, &electPot_fec);
 
    // H1 continuous Lagrange finite elements (order_pressure + 1)
    // for velocity.
    H1_FECollection velocity_fec(order_velocity, dim);
-   ParFiniteElementSpace velocity_fespace(pmesh, &velocity_fec, dim);
+   ParFiniteElementSpace velocity_fespace(&pmesh, &velocity_fec, dim);
 
    // H1 continuous Lagrange finite elements for pressure.
    H1_FECollection pressure_fec(order_pressure, dim);
-   ParFiniteElementSpace pressure_fespace(pmesh, &pressure_fec);
+   ParFiniteElementSpace pressure_fespace(&pmesh, &pressure_fec);
 
 
    Array<ParFiniteElementSpace *> spaces(4);
@@ -239,7 +241,7 @@ int main(int argc, char *argv[])
    //ParGridFunction u_star(&velocity_fespace);
 
    // Set up visualisation in Paraview.
-   ParaViewDataCollection paraview_dc("lmmhd", pmesh);
+   ParaViewDataCollection paraview_dc("lmmhd", &pmesh);
    paraview_dc.SetPrefixPath("data");
 
    // Initialise time-loop details.
@@ -328,5 +330,6 @@ int main(int argc, char *argv[])
    }
 
    if (Mpi::Root()) { std::cout << "Total simulation time: " << mfem::toc() << std::endl; }
+
    return 0;
 }

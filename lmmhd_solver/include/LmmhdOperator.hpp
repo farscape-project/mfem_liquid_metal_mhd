@@ -159,7 +159,7 @@ protected:
 
    HypreParMatrix *MjMat = nullptr;
    HypreParMatrix *GMat = nullptr;
-   HypreParMatrix *GTMat = nullptr;
+   HypreParMatrix *GtMat = nullptr;
    HypreParMatrix *KMat = nullptr;
    HypreParMatrix *KtMat = nullptr;
 

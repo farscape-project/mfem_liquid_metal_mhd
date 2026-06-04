@@ -325,5 +325,11 @@ public:
     virtual void SetOperator(const Operator &op) override { }
 
     virtual ~LiPreconditioner()
-    {}
+    {
+        delete MpSolver;
+        delete SpSolver;
+        delete MphiSolver;
+        delete FkSolver;
+        delete DjSolver;
+    }
 };
