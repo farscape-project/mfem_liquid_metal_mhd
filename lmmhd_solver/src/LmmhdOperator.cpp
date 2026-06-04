@@ -456,7 +456,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //**************************************** Preconditioner *********************************************
    //*****************************************************************************************************
 
-
    lmmhd_solver->SetOperator(*A);
 
 }
@@ -487,66 +486,15 @@ void LmmhdOperator::Update(const Vector &X)
    RHS->GetBlock(2) = Ru;
 
 
-   // TODO: Something is happening here to cause a memory issue on line 271 of LiPreconditioner.hpp.
-   // Presumably something to do with BtMat.
    // Preconditioner.
-   /*liprec.fk.Update();
+   liprec.fk.Update();
    liprec.fk.Assemble();
    liprec.fk.Finalize();
 
    liprec.FkMat_h.Clear();
    liprec.fk.FormLinearSystem(ess_tdof_u, u_gf, ru, liprec.FkMat_h, Xu_dummy, Ru_dummy);
-   HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();*/
 
-   //if (DIRECTSOLVE == 0)
-   //{
-   //   P->SetVelocityPreconditioner(FkMat, BtMat);
-   //   dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
-   //}
-
-
-
-   //FuMat = new HypreParMatrix();
-   
-   //Vector Ru, Xu_dummy, Ru_dummy;
-   //fu->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FuMat, Xu_dummy, Ru);  
-
-   //if (debug == 1) { FuMat->Print("FuMat.dat");}
-
-   // Set F block and RHS for velocity.
-   //A->SetBlock(2,2, FuMat); 
-   //RHS->GetBlock(2) = Ru; 
-
-
-   /// Preconditioner component.
-   // Bilinear form for velocity preconditioner.
-   /*delete fk;
-   fk = new ParBilinearForm(spaces[2]);
-   // Integrator for (v, v').
-   fk->AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
-   // Integrator for A_AL(v, v').
-   fk->AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   // Integrator for O(u_n; v, v').
-   fk->AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
-   fk->AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
-   fk->AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
-   fk->Assemble(); fk->Finalize();
-
-   FkMat = new HypreParMatrix();
-
-   fk->FormLinearSystem(ess_tdof_u, u_gf, *ru, *FkMat, Xu_dummy, Ru_dummy);*/
-
-   //if (debug == 1) { FkMat->Print("FkMat.dat"); }
-
-   //P->SetVelocityPreconditioner(FkMat, BtMat);
-
-   // Testing using OrthoSolver to wrap around whole preconditioner.  But this
-   // implementation I think removes nullspace from all variables.  I can't yet
-   // see a way to limit this just to pressure.
-   //prec_ortho_solver->SetSolver(*P);
-   //lmmhd_solver->SetPreconditioner(*P);
-   //if (DIRECTSOLVE == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
-   //lmmhd_solver->SetOperator(*A);
+   P->UpdateVelocityPreconditioner(liprec.FkMat_h.As<HypreParMatrix>());
    
 }
 

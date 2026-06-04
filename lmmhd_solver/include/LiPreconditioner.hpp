@@ -206,6 +206,12 @@ public:
         Bt = BtMat;
     }
 
+    void UpdateVelocityPreconditioner(HypreParMatrix *FkMat)
+    {
+        FkSolver->SetOperator(*FkMat);
+    }
+
+
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
         DjSolver = new CGSolver(MPI_COMM_WORLD);
