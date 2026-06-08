@@ -6,7 +6,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             int dim_,
                             real_t dt_,
                             int debug_,
-                            int DIRECTSOLVE_)
+                            Array<int> USE_MUMPS_)
    : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
      block_trueOffsets(offsets),
      magnetics(fes[0],fes[1]),
@@ -19,7 +19,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
      dim(dim_),
      dt(dt_),
      debug(debug_),
-     DIRECTSOLVE(DIRECTSOLVE_)
+     USE_MUMPS(USE_MUMPS_)
 {
    // Sets up the linear system for the coupled MHD solve:
    //
@@ -35,7 +35,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
    
-   if (DIRECTSOLVE == 0)
+   if (USE_MUMPS[0] == 0)
    {
       lmmhd_solver = std::make_unique<FGMRESSolver>(MPI_COMM_WORLD);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetRelTol(1e-4);
@@ -258,7 +258,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
 
    // Set up operator matrix for iterative solve (using FGMRES) or direct solve (using MUMPS).
-   if (DIRECTSOLVE == 0)
+   if (USE_MUMPS[0] == 0)
    {
       A = std::make_unique<BlockOperator>(block_trueOffsets);
       dynamic_cast<BlockOperator*>(A.get())->SetBlock(0,0, MjMat);
@@ -425,7 +425,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       SpMatNorm->Print("SpMatNorm.dat");
    }*/
 
-   P = new LiPreconditioner(spaces, block_trueOffsets, dt);
+   P = new LiPreconditioner(spaces, block_trueOffsets, dt, USE_MUMPS);
 
    // SetPressurePreconditioner is currently causing a memory issue.
    P->SetPressurePreconditioner(MpMat, SpMat);
@@ -440,7 +440,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    lmmhd_solver->SetOperator(*A);
 
-   if (DIRECTSOLVE == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
+   if (USE_MUMPS[0] == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
 
 }
 
@@ -457,7 +457,7 @@ void LmmhdOperator::Update(const Vector &X)
    //FuMat = fluids.FuMat_h.As<HypreParMatrix>();
 
    // Update operator matrix for iterative solve (using FGMRES) or direct solve (using MUMPS).
-   if (DIRECTSOLVE == 0)
+   if (USE_MUMPS[0] == 0)
    {
       dynamic_cast<BlockOperator*>(A.get())->SetBlock(2,2, fluids.FuMat_h.As<HypreParMatrix>());
    }

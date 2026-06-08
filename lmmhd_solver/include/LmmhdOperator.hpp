@@ -181,7 +181,7 @@ protected:
    int dim;
    real_t dt;
    int debug;
-   int DIRECTSOLVE;
+   Array<int> USE_MUMPS;
 
    // Required for MeanZero function.
    ParLinearForm *mass_lf = nullptr;
@@ -192,7 +192,7 @@ protected:
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, int DIRECTSOLVE);
+                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, Array<int> USEMUMPS);
 
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 

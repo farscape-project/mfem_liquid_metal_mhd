@@ -60,27 +60,28 @@ protected:
     std::vector<std::vector<Solver*>> solvers; 
     bool owns_blocks;
     real_t dt;
+    Array<int> USE_MUMPS;
 
     // Pressure preconditioner solvers.
-    //CGSolver *MpSolver;
-    MUMPSSolver *MpSolver;
+    CGSolver *MpSolver;
+    //MUMPSSolver *MpSolver;
     HypreSmoother *MpPrec;
 
-    //HypreBoomerAMG *SpSolver;
-    MUMPSSolver *SpSolver;
+    HypreBoomerAMG *SpSolver;
+    //MUMPSSolver *SpSolver;
     OrthoSolver *SpOrthoSolver;
 
     OperatorSolver *Lp;
     HypreBoomerAMG *LpSolver;
 
     // Electric potential preconditioner solvers.
-    //CGSolver *MphiSolver;
-    MUMPSSolver *MphiSolver;
+    CGSolver *MphiSolver;
+    //MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
     // Velocity preconditioner solvers.
-    //GMRESSolver *FkSolver;
-    MUMPSSolver *FkSolver;
+    GMRESSolver *FkSolver;
+    //MUMPSSolver *FkSolver;
     //HypreAMS *FkPrec;
     HypreBoomerAMG *FkPrec;
 
@@ -88,8 +89,8 @@ protected:
     HypreParMatrix *Bt = nullptr;
 
     // Current density preconditioner solvers.
-    //CGSolver *DjSolver;
-    MUMPSSolver *DjSolver;
+    CGSolver *DjSolver;
+    //MUMPSSolver *DjSolver;
     HypreADS *DjPrec;
 
     HypreParMatrix *Gt = nullptr;
@@ -100,9 +101,9 @@ protected:
 
 public:
     // Constructor
-    LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, bool owns_blocks_ = false)
+    LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, Array<int> USE_MUMPS_, bool owns_blocks_ = false)
         : Solver(offsets_.Last()), nBlocks(offsets_.Size()-1),
-          offsets(0), owns_blocks(owns_blocks_), dt(dt_)
+          offsets(0), owns_blocks(owns_blocks_), dt(dt_), USE_MUMPS(USE_MUMPS_)
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -111,7 +112,7 @@ public:
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
-        /*MpSolver = new CGSolver(MPI_COMM_WORLD);
+        MpSolver = new CGSolver(MPI_COMM_WORLD);
         MpSolver->SetOperator(*MpMat);
 
         MpSolver->SetRelTol(1e-8);
@@ -121,16 +122,16 @@ public:
 
         MpPrec = new HypreSmoother(*MpMat);
         MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
-        MpSolver->SetPreconditioner(*MpPrec);*/
+        MpSolver->SetPreconditioner(*MpPrec);
 
-        MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        MpSolver->SetOperator(*MpMat);
+        //MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //MpSolver->SetOperator(*MpMat);
 
-        //SpSolver = new HypreBoomerAMG(*SpMat);
-        SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        SpSolver = new HypreBoomerAMG(*SpMat);
+        //SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
         SpSolver->SetOperator(*SpMat);
 
-        //SpSolver->SetMaxIter(20);
+        SpSolver->SetMaxIter(20);
         //SpSolver->SetCycleType(2);
         //SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
         //SpSolver->SetMaxLevels(25);
@@ -138,7 +139,7 @@ public:
         SpSolver->SetPrintLevel(0);
         //SpSolver->SetElasticityOptions(spaces[3]);
 
-        //SpSolver = new HypreBoomerAMG(*SpMat);
+        SpSolver = new HypreBoomerAMG(*SpMat);
 
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
@@ -187,7 +188,7 @@ public:
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
     {
-        /*MphiSolver = new CGSolver(MPI_COMM_WORLD);
+        MphiSolver = new CGSolver(MPI_COMM_WORLD);
         MphiSolver->SetOperator(*MphiMat);
 
         MphiSolver->SetRelTol(1e-8);
@@ -196,15 +197,15 @@ public:
 
         MphiPrec = new HypreSmoother(*MphiMat);
         MphiPrec->SetType(HypreSmoother::GS, 6);
-        MphiSolver->SetPreconditioner(*MphiPrec);*/
+        MphiSolver->SetPreconditioner(*MphiPrec);
 
-        MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        MphiSolver->SetOperator(*MphiMat);
+        //MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //MphiSolver->SetOperator(*MphiMat);
     }
 
     void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
     {
-        /*FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
         FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
         FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
@@ -216,10 +217,10 @@ public:
         FkPrec->SetCycleType(2);
         FkPrec->SetRelaxType(6);
         FkPrec->SetMaxLevels(25);
-        FkSolver->SetPreconditioner(*FkPrec);*/
+        FkSolver->SetPreconditioner(*FkPrec);
 
-        FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        FkSolver->SetOperator(*FkMat);
+        //FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //FkSolver->SetOperator(*FkMat);
 
         Bt = BtMat;
     }
@@ -232,17 +233,17 @@ public:
 
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
-        /*DjSolver = new CGSolver(MPI_COMM_WORLD);
+        DjSolver = new CGSolver(MPI_COMM_WORLD);
         DjSolver->SetOperator(*DjMat);
         DjSolver->SetRelTol(1e-8);
         DjSolver->SetMaxIter(5);
         DjSolver->SetPrintLevel(-1); // Suppress output.
 
         DjPrec = new HypreADS(*DjMat, spaces[0]);
-        DjSolver->SetPreconditioner(*DjPrec);*/
+        DjSolver->SetPreconditioner(*DjPrec);
 
-        DjSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        DjSolver->SetOperator(*DjMat);
+        //DjSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //DjSolver->SetOperator(*DjMat);
 
         Gt = GtMat;
         Kt = KtMat;

@@ -103,10 +103,11 @@ real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace)
 
    // Note: work out why MPI_Allreduce is necessary.  I believe the separate threads 
    // should be handled by Norml2() but they don't seem to be.
-   MPI_Allreduce(&l2_diff, &l2_diff_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   MPI_Allreduce(&l2, &l2_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   //MPI_Allreduce(&l2_diff, &l2_diff_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   //MPI_Allreduce(&l2, &l2_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-   real_t rel_l2 = l2_diff_global / (l2_global + 1e-16);
+   //real_t rel_l2 = l2_diff_global / (l2_global + 1e-16);
+   real_t rel_l2 = l2_diff / (l2 + 1e-16);
 
    return rel_l2;
 }

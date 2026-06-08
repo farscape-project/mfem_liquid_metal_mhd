@@ -21,6 +21,18 @@ int main(int argc, char *argv[])
    // (MUMPS), options 0 and 1 respectively.
    int DIRECTSOLVE = 0;
 
+   int USEMUMPS_PREC_J = 0;
+   int USEMUMPS_PREC_PHI = 0;
+   int USEMUMPS_PREC_U = 0;
+   int USEMUMPS_PREC_P = 0;
+
+   Array<int> USE_MUMPS(5);
+   USE_MUMPS[0] = DIRECTSOLVE;
+   USE_MUMPS[1] = USEMUMPS_PREC_J;
+   USE_MUMPS[2] = USEMUMPS_PREC_PHI;
+   USE_MUMPS[3] = USEMUMPS_PREC_U;
+   USE_MUMPS[4] = USEMUMPS_PREC_P;
+
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
@@ -251,7 +263,7 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, DIRECTSOLVE);
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, USE_MUMPS);
 
    ode_solver->Init(oper);
 
@@ -301,6 +313,31 @@ int main(int argc, char *argv[])
       phi_gf.SetFromTrueDofs(X.GetBlock(1));
       u_gf.SetFromTrueDofs(X.GetBlock(2));
       p_gf.SetFromTrueDofs(X.GetBlock(3));
+
+      ParGridFunction phi_gfN_1(&electPot_fespace);
+      ParGridFunction diff_gf(&electPot_fespace);
+
+      phi_gfN_1.SetFromTrueDofs(Xn_1.GetBlock(1));
+
+      //real_t mean1 = phi_gf.ComputeMeans();
+      //real_t mean0 = phi_gfN_1.ComputeMeans();
+
+      //std::cout << mean1 << " "
+      //    << mean0 << std::endl;
+
+      //std::cout << "phi mean = " << phi_gf.ComputeMeans() << std::endl;
+      //std::cout << "phi min = " << phi_gf.Min() << std::endl;
+      //std::cout << "phi max = " << phi_gf.Max() << std::endl;
+
+      //phi_gf -= mean1;
+      //phi_gfN_1 -= mean0;
+
+      diff_gf = phi_gf;
+      diff_gf -= phi_gfN_1;
+
+      std::cout << "diff min = " << diff_gf.Min() << std::endl;
+      std::cout << "diff max = " << diff_gf.Max() << std::endl;
+
 
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
