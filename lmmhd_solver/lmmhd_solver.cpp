@@ -67,6 +67,10 @@ int main(int argc, char *argv[])
    Re = input.GetReal("Re");
    Ha = input.GetReal("Ha");
 
+   Bx = input.GetReal("Bx");
+   By = input.GetReal("By");
+   Bz = input.GetReal("Bz");
+
    // Update constants.
    reciprocal_Re = 1.0 / Re;
    kappa_val = Ha * Ha / Re;
@@ -201,11 +205,11 @@ int main(int argc, char *argv[])
    //int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
 
    // Essential (Dirichlet) boundary conditions for lid-driven cavity.
-   //                  {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
-   int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
-   int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
-   int pressure_bcs[] = {0,  0,  0,           0,  0,          0};
-   int velocity_bcs[] = {1,  1,  1,           1,  1,          1};
+   //                  {z1, y0, x1, y1, x0, z0}
+   int currentD_bcs[] = {1,  1,  1,  1,  1,  1};
+   int electPot_bcs[] = {0,  0,  0,  0,  0,  0};
+   int pressure_bcs[] = {0,  0,  0,  0,  0,  0};
+   int velocity_bcs[] = {1,  1,  1,  1,  1,  1};
 
    Array<int> ess_boundary_marker_currentD(currentD_bcs, 6);
    Array<int> ess_boundary_marker_electPot(electPot_bcs, 6);
@@ -302,6 +306,12 @@ int main(int argc, char *argv[])
          ustar_vec *= 0.5;
          //u_star.SetFromTrueDofs(ustar_vec); 
       }
+
+      // Set MeanZero constraint here?  Or inside Update?  
+      // Use Orthogonalize from OrthoSolver?
+      //p_gf.SetFromTrueDofs(X.GetBlock(3));
+      //MeanZero(p_gf);
+      //p_gf.GetTrueDofs(X.GetBlock(3));
       
       // Solve problem.
       oper.Set_ustar(ustar_vec);

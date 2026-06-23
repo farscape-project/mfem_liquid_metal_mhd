@@ -92,7 +92,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    massCoeffValue = 2.0;
    // The mass coefficient is NOT divided by dt as 
    // this is taken into account in ImplicitSolve.
-   //massCoeffValue = 2.0; 
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
 
@@ -127,8 +126,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Pin a pressure DoF.  This may not be necessary if we are also doing
    // OrthoSolver.
-   ess_tdof_p.SetSize(1);
-   ess_tdof_p[0] = 1.0;
+   //ess_tdof_p.SetSize(1);
+   //ess_tdof_p[0] = 1.0;
 
    ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), p_gf(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; u_gf = 0.0; p_gf = 0.0;
@@ -142,8 +141,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    ustar_gf = new ParGridFunction(spaces[2]);
    ustar_gf->ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]); // Project BC on first time-step.
    ustar_coef = std::make_unique<VectorGridFunctionCoefficient>(ustar_gf);
-
-   //MeanZero(p_gf);
 
    // Mixed bilinear form for velocity and pressure coupling.
    bCoeff = new ConstantCoefficient(-1.0);
@@ -446,6 +443,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
 void LmmhdOperator::Update(const Vector &X)
 {
+
    // Bilinear form for the velocity.
    fluids.fu.Update();
    fluids.fu.Assemble();

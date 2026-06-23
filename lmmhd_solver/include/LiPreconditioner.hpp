@@ -63,34 +63,34 @@ protected:
     Array<int> USE_MUMPS;
 
     // Pressure preconditioner solvers.
-    CGSolver *MpSolver;
-    //MUMPSSolver *MpSolver;
+    //CGSolver *MpSolver;
+    MUMPSSolver *MpSolver;
     HypreSmoother *MpPrec;
 
-    HypreBoomerAMG *SpSolver;
-    //MUMPSSolver *SpSolver;
+    //HypreBoomerAMG *SpSolver;
+    MUMPSSolver *SpSolver;
     OrthoSolver *SpOrthoSolver;
 
     OperatorSolver *Lp;
     HypreBoomerAMG *LpSolver;
 
     // Electric potential preconditioner solvers.
-    CGSolver *MphiSolver;
-    //MUMPSSolver *MphiSolver;
+    //CGSolver *MphiSolver;
+    MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
     // Velocity preconditioner solvers.
-    GMRESSolver *FkSolver;
-    //MUMPSSolver *FkSolver;
-    //HypreAMS *FkPrec;
-    HypreBoomerAMG *FkPrec;
+    //GMRESSolver *FkSolver;
+    MUMPSSolver *FkSolver;
+    //HypreADS *FkPrec;
+    //HypreBoomerAMG *FkPrec;
 
 
     HypreParMatrix *Bt = nullptr;
 
     // Current density preconditioner solvers.
-    CGSolver *DjSolver;
-    //MUMPSSolver *DjSolver;
+    //CGSolver *DjSolver;
+    MUMPSSolver *DjSolver;
     HypreADS *DjPrec;
 
     HypreParMatrix *Gt = nullptr;
@@ -98,6 +98,42 @@ protected:
 
     real_t scaleMp;
     real_t scaleSp;
+
+    // Required for MeanZero function.
+    mutable ParLinearForm *mass_lf = nullptr;
+    mutable ConstantCoefficient onecoeff;
+    mutable Vector one_vec, mass_vec;
+    mutable real_t volume = 0.0;
+
+    inline void CalculateAndSubtractMean(Vector &p) const
+    {
+
+        if (mass_lf == nullptr)
+        {
+            onecoeff.constant = 1.0;
+
+            // Set up integral.
+            mass_lf = new ParLinearForm(spaces[3]);
+            auto *dlfi = new DomainLFIntegrator(onecoeff);
+            mass_lf->AddDomainIntegrator(dlfi);
+            mass_lf->Assemble();
+            mass_lf->ParallelAssemble(mass_vec);
+
+            // Do volume integral.
+            ParGridFunction one_gf(spaces[3]);
+            one_gf.ProjectCoefficient(onecoeff);
+            one_gf.GetTrueDofs(one_vec);
+            volume = InnerProduct(mass_vec, one_vec);
+        }
+
+        // Integral of p.
+        real_t integral = InnerProduct(mass_vec, p);
+        // Divide by volume to get mean.
+        real_t mean = integral / volume;
+        // Subtract mean from solution.
+        p.Add(-mean, one_vec);
+    }
+
 
 public:
     // Constructor
@@ -112,34 +148,36 @@ public:
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
-        MpSolver = new CGSolver(MPI_COMM_WORLD);
+        /*MpSolver = new CGSolver(MPI_COMM_WORLD);
         MpSolver->SetOperator(*MpMat);
 
         MpSolver->SetRelTol(1e-8);
         MpSolver->SetAbsTol(1e-12);
-        MpSolver->SetMaxIter(50);
+        MpSolver->SetMaxIter(10);
         MpSolver->SetPrintLevel(-1); // Suppress output.
 
         MpPrec = new HypreSmoother(*MpMat);
         MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
-        MpSolver->SetPreconditioner(*MpPrec);
+        MpSolver->SetPreconditioner(*MpPrec);*/
 
-        //MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        //MpSolver->SetOperator(*MpMat);
+        MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        MpSolver->SetOperator(*MpMat);
 
-        SpSolver = new HypreBoomerAMG(*SpMat);
-        //SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //SpSolver = new HypreBoomerAMG(*SpMat);
+        SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        SpSolver->SetPrintLevel(-1);
+        //SpSolver->SetMaxIter(2);
+
         SpSolver->SetOperator(*SpMat);
 
-        SpSolver->SetMaxIter(20);
+        
         //SpSolver->SetCycleType(2);
         //SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
         //SpSolver->SetMaxLevels(25);
         //SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
-        SpSolver->SetPrintLevel(0);
         //SpSolver->SetElasticityOptions(spaces[3]);
 
-        SpSolver = new HypreBoomerAMG(*SpMat);
+        //SpSolver = new HypreBoomerAMG(*SpMat);
 
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
@@ -188,7 +226,7 @@ public:
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
     {
-        MphiSolver = new CGSolver(MPI_COMM_WORLD);
+        /*MphiSolver = new CGSolver(MPI_COMM_WORLD);
         MphiSolver->SetOperator(*MphiMat);
 
         MphiSolver->SetRelTol(1e-8);
@@ -197,27 +235,29 @@ public:
 
         MphiPrec = new HypreSmoother(*MphiMat);
         MphiPrec->SetType(HypreSmoother::GS, 6);
-        MphiSolver->SetPreconditioner(*MphiPrec);
+        MphiSolver->SetPreconditioner(*MphiPrec);*/
 
-        //MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        //MphiSolver->SetOperator(*MphiMat);
+        MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        MphiSolver->SetOperator(*MphiMat);
     }
 
     void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
     {
-        FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        //FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
-        FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
-        FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
-        FkSolver->SetPrintLevel(0);
+        //FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
+        //FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
+        //FkSolver->SetPrintLevel(-1);
         
-        //FkPrec = new HypreAMS(*FkMat, spaces[2]);
-        FkPrec = new HypreBoomerAMG(*FkMat);
-        FkPrec->SetPrintLevel(0);
-        FkPrec->SetCycleType(2);
-        FkPrec->SetRelaxType(6);
-        FkPrec->SetMaxLevels(25);
-        FkSolver->SetPreconditioner(*FkPrec);
+        // Additive Schwarz?!
+        //FkPrec = new HypreADS(*FkMat, spaces[2]);
+        //FkPrec = new HypreBoomerAMG(*FkMat);
+        //FkPrec->SetPrintLevel(-1);
+        //FkPrec->SetCycleType(2);
+        //FkPrec->SetRelaxType(6);
+        //FkPrec->SetMaxLevels(25);
+        //FkSolver->SetPreconditioner(*FkPrec);
 
         //FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
         //FkSolver->SetOperator(*FkMat);
@@ -233,17 +273,17 @@ public:
 
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
-        DjSolver = new CGSolver(MPI_COMM_WORLD);
+        /*DjSolver = new CGSolver(MPI_COMM_WORLD);
         DjSolver->SetOperator(*DjMat);
         DjSolver->SetRelTol(1e-8);
         DjSolver->SetMaxIter(5);
         DjSolver->SetPrintLevel(-1); // Suppress output.
 
         DjPrec = new HypreADS(*DjMat, spaces[0]);
-        DjSolver->SetPreconditioner(*DjPrec);
+        DjSolver->SetPreconditioner(*DjPrec);*/
 
-        //DjSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        //DjSolver->SetOperator(*DjMat);
+        DjSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        DjSolver->SetOperator(*DjMat);
 
         Gt = GtMat;
         Kt = KtMat;
@@ -265,6 +305,7 @@ public:
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
         SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
+
         // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
         // respectively.
         //xi *= scaleMp;
@@ -272,13 +313,19 @@ public:
 
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
         Vector eta2tau(rp.Size());
-        real_t beta = 1.0;
-        real_t spCoeff = beta * 2.0;
+        //real_t beta = 1.0;
+        real_t spCoeff = 2.0;
         // The coefficient is NOT divided by dt as 
         // this is taken into account in ImplicitSolve.
         eta2tau = eta;
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
+
+        CalculateAndSubtractMean(yp);
+
+        std::cout << "||xi|| = " << xi.Norml2() << std::endl;
+        std::cout << "||eta|| = " << eta.Norml2() << std::endl;
+        std::cout << "||yp|| = " << yp.Norml2() << std::endl;
         
         // Testing effect of yp on solution.
         //yp *= 0.0;
@@ -292,6 +339,11 @@ public:
         Vector rphi = xblock.GetBlock(1);
         MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
+        //yphi *= 5.0;
+
+        CalculateAndSubtractMean(yphi);
+
+        std::cout << "||yphi|| = " << yphi.Norml2() << std::endl;
 
         // Velocity solve.
         Vector ru = xblock.GetBlock(2);
@@ -300,10 +352,14 @@ public:
         Bt->Mult(yp, BtYp);
         ru -= BtYp; // Get right hand side of Fk yu = ru - Bt * yp
 
+        std::cout << "||BtYp|| = " << BtYp.Norml2() << std::endl;
+        std::cout << "||ru|| = " << ru.Norml2() << std::endl;
+
         Vector &yu = yblock.GetBlock(2);
         yu = 0.0;
         FkSolver->Mult(ru, yu); // Solve yu = Fk^-1 (ru - Bt * yp)
 
+        std::cout << "||yu|| = " << yu.Norml2() << std::endl;
 
         // Current density solve.
         Vector rj = xblock.GetBlock(0);
@@ -311,15 +367,27 @@ public:
 
         Gt->Mult(yphi, GtYphi);
         GtYphi *= 2.0;
+        std::cout << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
+
         Kt->Mult(yu, KtYu);
         KtYu *= 2.0;
+        std::cout << "||KtYu|| = " << KtYu.Norml2() << std::endl;
 
         rj -= GtYphi;
         rj -= KtYu;
+        std::cout << "||rj|| = " << rj.Norml2() << std::endl;
+
 
         Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
         DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
+        //yj *= 10.0;
+        std::cout << "||yj|| = " << yj.Norml2() << std::endl;
+
+        std::cout << "||rphi|| = " << rphi.Norml2() << std::endl;
+        std::cout << "||rp|| = " << rp.Norml2() << std::endl;
+
+        std::cout << "||y|| = " << y.Norml2() << std::endl;
 
     }
 

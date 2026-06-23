@@ -212,6 +212,7 @@ public:
       // Make sure not to recompute the inner product linear form every
       // application.
       int order = 1;  // Temporarily hardcoding order.
+      bool numerical_integ = true;
 
       if (mass_lf == nullptr)
       {
@@ -237,4 +238,5 @@ public:
 
       v -= integ / volume;
    }
+
 };

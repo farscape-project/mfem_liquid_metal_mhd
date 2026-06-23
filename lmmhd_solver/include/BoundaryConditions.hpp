@@ -60,9 +60,9 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    }
 
    // Lid-driven cavity.
-   if (x(1) > 0.999)
+   if (x(2) > 0.999)
    {
-      f(2) = 1.0;
+      f(0) = 1.0;
    }
 
    //if (x.Size() == 3)
