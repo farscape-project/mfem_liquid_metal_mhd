@@ -27,3 +27,23 @@ void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *fie
 // Calculate relative L2-norm of grid functions.
 real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace);
 
+
+
+class RemoveMeanProjector
+{
+private:
+
+   ParLinearForm *mass_lf = nullptr;
+   ConstantCoefficient onecoeff;
+   Vector one_vec, mass_vec;
+   real_t volume = 0.0;
+
+public:
+
+   RemoveMeanProjector() = default;
+
+   RemoveMeanProjector(ParFiniteElementSpace &fes);
+
+   void RemoveMean(Vector &v) const;
+
+};

@@ -1,5 +1,6 @@
 #include "mfem.hpp"
 #include "constants.hpp"
+#include "tools.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -99,47 +100,15 @@ protected:
     real_t scaleMp;
     real_t scaleSp;
 
-    // Required for MeanZero function.
-    mutable ParLinearForm *mass_lf = nullptr;
-    mutable ConstantCoefficient onecoeff;
-    mutable Vector one_vec, mass_vec;
-    mutable real_t volume = 0.0;
-
-    inline void CalculateAndSubtractMean(Vector &p) const
-    {
-
-        if (mass_lf == nullptr)
-        {
-            onecoeff.constant = 1.0;
-
-            // Set up integral.
-            mass_lf = new ParLinearForm(spaces[3]);
-            auto *dlfi = new DomainLFIntegrator(onecoeff);
-            mass_lf->AddDomainIntegrator(dlfi);
-            mass_lf->Assemble();
-            mass_lf->ParallelAssemble(mass_vec);
-
-            // Do volume integral.
-            ParGridFunction one_gf(spaces[3]);
-            one_gf.ProjectCoefficient(onecoeff);
-            one_gf.GetTrueDofs(one_vec);
-            volume = InnerProduct(mass_vec, one_vec);
-        }
-
-        // Integral of p.
-        real_t integral = InnerProduct(mass_vec, p);
-        // Divide by volume to get mean.
-        real_t mean = integral / volume;
-        // Subtract mean from solution.
-        p.Add(-mean, one_vec);
-    }
+    RemoveMeanProjector pressure_mean_remover;
 
 
 public:
     // Constructor
     LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, Array<int> USE_MUMPS_, bool owns_blocks_ = false)
         : Solver(offsets_.Last()), nBlocks(offsets_.Size()-1),
-          offsets(0), owns_blocks(owns_blocks_), dt(dt_), USE_MUMPS(USE_MUMPS_)
+          offsets(0), owns_blocks(owns_blocks_), dt(dt_), USE_MUMPS(USE_MUMPS_),
+          pressure_mean_remover(*fes[3])
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -321,7 +290,7 @@ public:
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
 
-        CalculateAndSubtractMean(yp);
+        pressure_mean_remover.RemoveMean(yp);
 
         std::cout << "||xi|| = " << xi.Norml2() << std::endl;
         std::cout << "||eta|| = " << eta.Norml2() << std::endl;
@@ -341,7 +310,7 @@ public:
         yphi *= -1.0;
         //yphi *= 5.0;
 
-        CalculateAndSubtractMean(yphi);
+        //CalculateAndSubtractMean(yphi);
 
         std::cout << "||yphi|| = " << yphi.Norml2() << std::endl;
 

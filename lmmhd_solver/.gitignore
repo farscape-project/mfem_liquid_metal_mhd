@@ -4,12 +4,14 @@ backups
 old
 *.dSYM
 mesh
+plots
 
 # Simulation files
 run_mfem.sh
 *.log
 *.vtk
 *.dat.00000
+*.png
 
 # Scripts
 remove.sh

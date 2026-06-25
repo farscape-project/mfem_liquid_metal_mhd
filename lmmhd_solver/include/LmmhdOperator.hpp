@@ -183,12 +183,6 @@ protected:
    int debug;
    Array<int> USE_MUMPS;
 
-   // Required for MeanZero function.
-   ParLinearForm *mass_lf = nullptr;
-   ConstantCoefficient onecoeff;
-   real_t volume = 0.0;
-   bool numerical_integ = false;
-   IntegrationRules gll_rules;
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
@@ -203,40 +197,6 @@ public:
    void Set_ustar(const Vector &u_star_vec)
    {
       ustar_gf->SetFromTrueDofs(u_star_vec);
-   }
-
-    void MeanZero(ParGridFunction &v)
-   {
-      // Not currently in use.
-      // Currently just copied from navier_solver.cpp with some tweaks to get working.
-      // Make sure not to recompute the inner product linear form every
-      // application.
-      int order = 1;  // Temporarily hardcoding order.
-      bool numerical_integ = true;
-
-      if (mass_lf == nullptr)
-      {
-         onecoeff.constant = 1.0;
-         mass_lf = new ParLinearForm(v.ParFESpace());
-         auto *dlfi = new DomainLFIntegrator(onecoeff);
-         if (numerical_integ)
-         {
-            const IntegrationRule &ir_ni = gll_rules.Get(spaces[3]->GetFE(0)->GetGeomType(),
-                                                         2 * order - 1);
-            dlfi->SetIntRule(&ir_ni);
-         }
-         mass_lf->AddDomainIntegrator(dlfi);
-         mass_lf->Assemble();
-
-         ParGridFunction one_gf(v.ParFESpace());
-         one_gf.ProjectCoefficient(onecoeff);
-
-         volume = mass_lf->operator()(one_gf);
-      }
-
-      real_t integ = mass_lf->operator()(v);
-
-      v -= integ / volume;
    }
 
 };

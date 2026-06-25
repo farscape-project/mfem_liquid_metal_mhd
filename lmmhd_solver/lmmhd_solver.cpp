@@ -342,11 +342,18 @@ int main(int argc, char *argv[])
       //phi_gf -= mean1;
       //phi_gfN_1 -= mean0;
 
-      diff_gf = phi_gf;
+      real_t p_norm = p_gf.Norml2();
+      real_t phi_norm = phi_gf.Norml2();
+
+      std::cout << "p_norm = " << p_norm << std::endl;
+      std::cout << "phi_norm = " << phi_norm << std::endl;
+      
+
+      /*diff_gf = phi_gf;
       diff_gf -= phi_gfN_1;
 
       std::cout << "diff min = " << diff_gf.Min() << std::endl;
-      std::cout << "diff max = " << diff_gf.Max() << std::endl;
+      std::cout << "diff max = " << diff_gf.Max() << std::endl;*/
 
 
       // Visualisation in Paraview.

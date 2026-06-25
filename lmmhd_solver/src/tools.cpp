@@ -101,8 +101,8 @@ real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace)
 
    //real_t rel_l2 = l2_diff / (l2 + 1e-16);
 
-   // Note: work out why MPI_Allreduce is necessary.  I believe the separate threads 
-   // should be handled by Norml2() but they don't seem to be.
+   // Note: check whether MPI_Allreduce is necessary.  I believe the separate threads 
+   // should be handled by Norml2().
    //MPI_Allreduce(&l2_diff, &l2_diff_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
    //MPI_Allreduce(&l2, &l2_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -110,4 +110,33 @@ real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace)
    real_t rel_l2 = l2_diff / (l2 + 1e-16);
 
    return rel_l2;
+}
+
+
+RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
+{
+   ConstantCoefficient one_coeff(1.0);
+
+   // Set up integral.
+   mass_lf = new ParLinearForm(&fes);
+   auto *dlfi = new DomainLFIntegrator(onecoeff);
+   mass_lf->AddDomainIntegrator(dlfi);
+   mass_lf->Assemble();
+   mass_lf->ParallelAssemble(mass_vec);
+
+   // Do volume integral.
+   ParGridFunction one_gf(&fes);
+   one_gf.ProjectCoefficient(onecoeff);
+   one_gf.GetTrueDofs(one_vec);
+   volume = InnerProduct(mass_vec, one_vec);
+
+}
+
+void RemoveMeanProjector::RemoveMean(Vector &v) const
+{
+   const real_t integral = InnerProduct(mass_vec, v);
+
+   const real_t mean = integral / volume;
+
+   v.Add(-mean, one_vec);
 }
