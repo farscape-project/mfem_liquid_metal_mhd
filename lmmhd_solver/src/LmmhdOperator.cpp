@@ -20,7 +20,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
      dt(dt_),
      debug(debug_),
      USE_MUMPS(USE_MUMPS_)
-{
+     
+   {
    // Sets up the linear system for the coupled MHD solve:
    //
    //       [  Mj    G^T    K^T       0   ] [ xj   ]   [ rj   ]
@@ -438,6 +439,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    lmmhd_solver->SetOperator(*A);
 
    if (USE_MUMPS[0] == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
+
 
 }
 

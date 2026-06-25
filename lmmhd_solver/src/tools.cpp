@@ -135,8 +135,13 @@ RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
 void RemoveMeanProjector::RemoveMean(Vector &v) const
 {
    const real_t integral = InnerProduct(mass_vec, v);
+   //const real_t integral = mass_lf->operator()(v);
 
    const real_t mean = integral / volume;
+
+   std::cout << "integral = " << integral << std::endl;
+   std::cout << "volume = " << volume << std::endl;
+   std::cout << "mean = " << mean << std::endl;
 
    v.Add(-mean, one_vec);
 }

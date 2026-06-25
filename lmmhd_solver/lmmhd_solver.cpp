@@ -256,6 +256,9 @@ int main(int argc, char *argv[])
    Vector ustar_vec(v_space_size);
    //ParGridFunction u_star(&velocity_fespace);
 
+   RemoveMeanProjector potential_mean_remover(*spaces[1]);
+   RemoveMeanProjector pressure_mean_remover(*spaces[3]);
+
    // Set up visualisation in Paraview.
    ParaViewDataCollection paraview_dc("lmmhd", &pmesh);
    paraview_dc.SetPrefixPath("data");
@@ -306,18 +309,17 @@ int main(int argc, char *argv[])
          ustar_vec *= 0.5;
          //u_star.SetFromTrueDofs(ustar_vec); 
       }
-
-      // Set MeanZero constraint here?  Or inside Update?  
-      // Use Orthogonalize from OrthoSolver?
-      //p_gf.SetFromTrueDofs(X.GetBlock(3));
-      //MeanZero(p_gf);
-      //p_gf.GetTrueDofs(X.GetBlock(3));
       
       // Solve problem.
       oper.Set_ustar(ustar_vec);
       oper.Update(X);
       ode_solver->Step(X, t, dt);
-      
+
+      // Remove mean from pressure and potential.  Only do this if nullspace
+      // needs removing from the problem (i.e. all Neumann BCs).
+      potential_mean_remover.RemoveMean(X.GetBlock(1));
+      pressure_mean_remover.RemoveMean(X.GetBlock(3));
+
       // Grid functions for visualisation.
       j_gf.SetFromTrueDofs(X.GetBlock(0));
       phi_gf.SetFromTrueDofs(X.GetBlock(1));
@@ -329,32 +331,11 @@ int main(int argc, char *argv[])
 
       phi_gfN_1.SetFromTrueDofs(Xn_1.GetBlock(1));
 
-      //real_t mean1 = phi_gf.ComputeMeans();
-      //real_t mean0 = phi_gfN_1.ComputeMeans();
-
-      //std::cout << mean1 << " "
-      //    << mean0 << std::endl;
-
-      //std::cout << "phi mean = " << phi_gf.ComputeMeans() << std::endl;
-      //std::cout << "phi min = " << phi_gf.Min() << std::endl;
-      //std::cout << "phi max = " << phi_gf.Max() << std::endl;
-
-      //phi_gf -= mean1;
-      //phi_gfN_1 -= mean0;
-
       real_t p_norm = p_gf.Norml2();
       real_t phi_norm = phi_gf.Norml2();
 
       std::cout << "p_norm = " << p_norm << std::endl;
       std::cout << "phi_norm = " << phi_norm << std::endl;
-      
-
-      /*diff_gf = phi_gf;
-      diff_gf -= phi_gfN_1;
-
-      std::cout << "diff min = " << diff_gf.Min() << std::endl;
-      std::cout << "diff max = " << diff_gf.Max() << std::endl;*/
-
 
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)

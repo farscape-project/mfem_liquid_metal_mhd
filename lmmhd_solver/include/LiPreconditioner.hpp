@@ -100,6 +100,8 @@ protected:
     real_t scaleMp;
     real_t scaleSp;
 
+    // Set up helper class for removing mean from pressure and potential.
+    RemoveMeanProjector potential_mean_remover;
     RemoveMeanProjector pressure_mean_remover;
 
 
@@ -108,7 +110,7 @@ public:
     LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, Array<int> USE_MUMPS_, bool owns_blocks_ = false)
         : Solver(offsets_.Last()), nBlocks(offsets_.Size()-1),
           offsets(0), owns_blocks(owns_blocks_), dt(dt_), USE_MUMPS(USE_MUMPS_),
-          pressure_mean_remover(*fes[3])
+          potential_mean_remover(*fes[1]), pressure_mean_remover(*fes[3])
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -290,6 +292,7 @@ public:
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
 
+        std::cout << "||yp|| = " << yp.Norml2() << std::endl;
         pressure_mean_remover.RemoveMean(yp);
 
         std::cout << "||xi|| = " << xi.Norml2() << std::endl;
@@ -310,7 +313,7 @@ public:
         yphi *= -1.0;
         //yphi *= 5.0;
 
-        //CalculateAndSubtractMean(yphi);
+        potential_mean_remover.RemoveMean(yphi);
 
         std::cout << "||yphi|| = " << yphi.Norml2() << std::endl;
 
