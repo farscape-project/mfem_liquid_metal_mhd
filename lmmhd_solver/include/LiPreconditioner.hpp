@@ -68,8 +68,8 @@ protected:
     MUMPSSolver *MpSolver;
     HypreSmoother *MpPrec;
 
-    //HypreBoomerAMG *SpSolver;
-    MUMPSSolver *SpSolver;
+    HypreBoomerAMG *SpSolver;
+    //MUMPSSolver *SpSolver;
     OrthoSolver *SpOrthoSolver;
 
     OperatorSolver *Lp;
@@ -134,18 +134,18 @@ public:
         MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
         MpSolver->SetOperator(*MpMat);
 
-        //SpSolver = new HypreBoomerAMG(*SpMat);
-        SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        SpSolver->SetPrintLevel(-1);
-        //SpSolver->SetMaxIter(2);
+        SpSolver = new HypreBoomerAMG(*SpMat);
+        //SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //SpSolver->SetPrintLevel(-1);
+        SpSolver->SetMaxIter(2);
 
-        SpSolver->SetOperator(*SpMat);
+        //SpSolver->SetOperator(*SpMat);
 
         
-        //SpSolver->SetCycleType(2);
-        //SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
-        //SpSolver->SetMaxLevels(25);
-        //SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
+        SpSolver->SetCycleType(1);
+        SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
+        SpSolver->SetMaxLevels(25);
+        SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
         //SpSolver->SetElasticityOptions(spaces[3]);
 
         //SpSolver = new HypreBoomerAMG(*SpMat);
@@ -153,8 +153,8 @@ public:
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
         // be required to wrap around whole preconditioner.
-        //SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
-        //SpOrthoSolver->SetSolver(*SpSolver);
+        SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
+        SpOrthoSolver->SetSolver(*SpSolver);
 
 
         // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
@@ -274,7 +274,8 @@ public:
         xi = 0.0, eta = 0.0;
 
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
-        SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        //SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
 
         // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
@@ -293,7 +294,7 @@ public:
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
 
         std::cout << "||yp|| = " << yp.Norml2() << std::endl;
-        pressure_mean_remover.RemoveMean(yp);
+        //pressure_mean_remover.RemoveMean(yp);
 
         std::cout << "||xi|| = " << xi.Norml2() << std::endl;
         std::cout << "||eta|| = " << eta.Norml2() << std::endl;
