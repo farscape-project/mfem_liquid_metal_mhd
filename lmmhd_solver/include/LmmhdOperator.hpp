@@ -182,15 +182,18 @@ protected:
    real_t dt;
    int debug;
    Array<int> USE_MUMPS;
+   Logger &logger;
+   std::unique_ptr<FGMRESLogMonitor> fgmres_monitor;
 
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, Array<int> USEMUMPS);
+                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, Array<int> USEMUMPS, 
+                  Logger &logger);
 
    void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
 
-   void Update(const Vector &X);
+   void Update(BlockVector &X);
 
    virtual ~LmmhdOperator();
 

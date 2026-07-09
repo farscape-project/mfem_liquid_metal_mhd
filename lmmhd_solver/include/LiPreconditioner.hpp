@@ -64,8 +64,8 @@ protected:
     Array<int> USE_MUMPS;
 
     // Pressure preconditioner solvers.
-    //CGSolver *MpSolver;
-    MUMPSSolver *MpSolver;
+    CGSolver *MpSolver;
+    //MUMPSSolver *MpSolver;
     HypreSmoother *MpPrec;
 
     HypreBoomerAMG *SpSolver;
@@ -76,15 +76,15 @@ protected:
     HypreBoomerAMG *LpSolver;
 
     // Electric potential preconditioner solvers.
-    //CGSolver *MphiSolver;
-    MUMPSSolver *MphiSolver;
+    CGSolver *MphiSolver;
+    //MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
     // Velocity preconditioner solvers.
-    //GMRESSolver *FkSolver;
-    MUMPSSolver *FkSolver;
+    GMRESSolver *FkSolver;
+    //MUMPSSolver *FkSolver;
     //HypreADS *FkPrec;
-    //HypreBoomerAMG *FkPrec;
+    HypreBoomerAMG *FkPrec;
 
 
     HypreParMatrix *Bt = nullptr;
@@ -104,13 +104,26 @@ protected:
     RemoveMeanProjector potential_mean_remover;
     RemoveMeanProjector pressure_mean_remover;
 
+    Logger &logger;
+
 
 public:
     // Constructor
-    LiPreconditioner(Array<ParFiniteElementSpace *> &fes, const Array<int> &offsets_, real_t &dt_, Array<int> USE_MUMPS_, bool owns_blocks_ = false)
-        : Solver(offsets_.Last()), nBlocks(offsets_.Size()-1),
-          offsets(0), owns_blocks(owns_blocks_), dt(dt_), USE_MUMPS(USE_MUMPS_),
-          potential_mean_remover(*fes[1]), pressure_mean_remover(*fes[3])
+    LiPreconditioner(Array<ParFiniteElementSpace *> &fes,
+        const Array<int> &offsets_,
+        real_t &dt_,
+        Array<int> USE_MUMPS_,
+        Logger &logger_,
+        bool owns_blocks_ = false)
+        : Solver(offsets_.Last()),
+            nBlocks(offsets_.Size()-1),
+            offsets(0),
+            owns_blocks(owns_blocks_),
+            dt(dt_),
+            USE_MUMPS(USE_MUMPS_),
+            logger(logger_),
+            potential_mean_remover(*fes[1]),
+            pressure_mean_remover(*fes[3])
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -119,7 +132,7 @@ public:
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
-        /*MpSolver = new CGSolver(MPI_COMM_WORLD);
+        MpSolver = new CGSolver(MPI_COMM_WORLD);
         MpSolver->SetOperator(*MpMat);
 
         MpSolver->SetRelTol(1e-8);
@@ -129,10 +142,10 @@ public:
 
         MpPrec = new HypreSmoother(*MpMat);
         MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
-        MpSolver->SetPreconditioner(*MpPrec);*/
+        MpSolver->SetPreconditioner(*MpPrec);
 
-        MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        MpSolver->SetOperator(*MpMat);
+        //MpSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //MpSolver->SetOperator(*MpMat);
 
         SpSolver = new HypreBoomerAMG(*SpMat);
         //SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
@@ -197,7 +210,7 @@ public:
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
     {
-        /*MphiSolver = new CGSolver(MPI_COMM_WORLD);
+        MphiSolver = new CGSolver(MPI_COMM_WORLD);
         MphiSolver->SetOperator(*MphiMat);
 
         MphiSolver->SetRelTol(1e-8);
@@ -206,29 +219,29 @@ public:
 
         MphiPrec = new HypreSmoother(*MphiMat);
         MphiPrec->SetType(HypreSmoother::GS, 6);
-        MphiSolver->SetPreconditioner(*MphiPrec);*/
+        MphiSolver->SetPreconditioner(*MphiPrec);
 
-        MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        MphiSolver->SetOperator(*MphiMat);
+        //MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        //MphiSolver->SetOperator(*MphiMat);
     }
 
     void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
     {
-        //FkSolver = new GMRESSolver(MPI_COMM_WORLD);
-        FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
+        FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        //FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
         FkSolver->SetOperator(*FkMat);
-        //FkSolver->SetRelTol(1e-3); // Temporarily increasing values for testing.
+        FkSolver->SetRelTol(1e-3);
         //FkSolver->SetMaxIter(500);  // Temporarily increasing values for testing.
         //FkSolver->SetPrintLevel(-1);
         
         // Additive Schwarz?!
         //FkPrec = new HypreADS(*FkMat, spaces[2]);
-        //FkPrec = new HypreBoomerAMG(*FkMat);
-        //FkPrec->SetPrintLevel(-1);
-        //FkPrec->SetCycleType(2);
-        //FkPrec->SetRelaxType(6);
-        //FkPrec->SetMaxLevels(25);
-        //FkSolver->SetPreconditioner(*FkPrec);
+        FkPrec = new HypreBoomerAMG(*FkMat);
+        FkPrec->SetPrintLevel(-1);
+        FkPrec->SetCycleType(2);
+        FkPrec->SetRelaxType(6);
+        FkPrec->SetMaxLevels(25);
+        FkSolver->SetPreconditioner(*FkPrec);
 
         //FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
         //FkSolver->SetOperator(*FkMat);
@@ -293,12 +306,9 @@ public:
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
 
-        std::cout << "||yp|| = " << yp.Norml2() << std::endl;
-        //pressure_mean_remover.RemoveMean(yp);
-
-        std::cout << "||xi|| = " << xi.Norml2() << std::endl;
-        std::cout << "||eta|| = " << eta.Norml2() << std::endl;
-        std::cout << "||yp|| = " << yp.Norml2() << std::endl;
+        logger << "||xi|| = " << xi.Norml2() << std::endl;
+        logger << "||eta|| = " << eta.Norml2() << std::endl;
+        logger << "||yp|| = " << yp.Norml2() << std::endl;
         
         // Testing effect of yp on solution.
         //yp *= 0.0;
@@ -314,9 +324,9 @@ public:
         yphi *= -1.0;
         //yphi *= 5.0;
 
-        potential_mean_remover.RemoveMean(yphi);
+        //potential_mean_remover.RemoveMean(yphi);
 
-        std::cout << "||yphi|| = " << yphi.Norml2() << std::endl;
+        logger << "||yphi|| = " << yphi.Norml2() << std::endl;
 
         // Velocity solve.
         Vector ru = xblock.GetBlock(2);
@@ -325,14 +335,14 @@ public:
         Bt->Mult(yp, BtYp);
         ru -= BtYp; // Get right hand side of Fk yu = ru - Bt * yp
 
-        std::cout << "||BtYp|| = " << BtYp.Norml2() << std::endl;
-        std::cout << "||ru|| = " << ru.Norml2() << std::endl;
+        logger << "||BtYp|| = " << BtYp.Norml2() << std::endl;
+        logger << "||ru|| = " << ru.Norml2() << std::endl;
 
         Vector &yu = yblock.GetBlock(2);
         yu = 0.0;
         FkSolver->Mult(ru, yu); // Solve yu = Fk^-1 (ru - Bt * yp)
 
-        std::cout << "||yu|| = " << yu.Norml2() << std::endl;
+        logger << "||yu|| = " << yu.Norml2() << std::endl;
 
         // Current density solve.
         Vector rj = xblock.GetBlock(0);
@@ -340,27 +350,27 @@ public:
 
         Gt->Mult(yphi, GtYphi);
         GtYphi *= 2.0;
-        std::cout << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
+        logger << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
 
         Kt->Mult(yu, KtYu);
         KtYu *= 2.0;
-        std::cout << "||KtYu|| = " << KtYu.Norml2() << std::endl;
+        logger << "||KtYu|| = " << KtYu.Norml2() << std::endl;
 
         rj -= GtYphi;
         rj -= KtYu;
-        std::cout << "||rj|| = " << rj.Norml2() << std::endl;
+        logger << "||rj|| = " << rj.Norml2() << std::endl;
 
 
         Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
         DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
         //yj *= 10.0;
-        std::cout << "||yj|| = " << yj.Norml2() << std::endl;
+        logger << "||yj|| = " << yj.Norml2() << std::endl;
 
-        std::cout << "||rphi|| = " << rphi.Norml2() << std::endl;
-        std::cout << "||rp|| = " << rp.Norml2() << std::endl;
+        logger << "||rphi|| = " << rphi.Norml2() << std::endl;
+        logger << "||rp|| = " << rp.Norml2() << std::endl;
 
-        std::cout << "||y|| = " << y.Norml2() << std::endl;
+        logger << "||y|| = " << y.Norml2() << std::endl;
 
     }
 

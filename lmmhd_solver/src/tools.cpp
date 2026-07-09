@@ -139,9 +139,9 @@ void RemoveMeanProjector::RemoveMean(Vector &v) const
 
    const real_t mean = integral / volume;
 
-   std::cout << "integral = " << integral << std::endl;
-   std::cout << "volume = " << volume << std::endl;
-   std::cout << "mean = " << mean << std::endl;
+   //std::cout << "integral = " << integral << std::endl;
+   //std::cout << "volume = " << volume << std::endl;
+   //std::cout << "mean = " << mean << std::endl;
 
    v.Add(-mean, one_vec);
 }

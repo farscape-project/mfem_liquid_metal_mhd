@@ -6,7 +6,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             int dim_,
                             real_t dt_,
                             int debug_,
-                            Array<int> USE_MUMPS_)
+                            Array<int> USE_MUMPS_,
+                            Logger &logger_)
    : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
      block_trueOffsets(offsets),
      magnetics(fes[0],fes[1]),
@@ -19,8 +20,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
      dim(dim_),
      dt(dt_),
      debug(debug_),
-     USE_MUMPS(USE_MUMPS_)
-     
+     USE_MUMPS(USE_MUMPS_),
+     logger(logger_)
    {
    // Sets up the linear system for the coupled MHD solve:
    //
@@ -45,6 +46,12 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPrintLevel(1);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetKDim(500);
       dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->iterative_mode = true;
+
+      // Add monitoring for output to log file.
+      auto *fgmres = dynamic_cast<mfem::FGMRESSolver*>(lmmhd_solver.get());
+      fgmres_monitor = std::make_unique<FGMRESLogMonitor>(logger);
+      fgmres->SetMonitor(*fgmres_monitor);
+
    }
    else
    {
@@ -193,13 +200,14 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.fu.Finalize();
    
 
-   Vector Rj, Rphi, Ru, Rp, Xu_dummy, Xp_dummy, Ru_dummy;
+   Vector Rj, Rphi, Ru, Rp, Xu_dummy, Xp_dummy, Ru_dummy, Xj;
 
    fluids.b.FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
                                u_gf, rp, fluids.BMat_h,
                                Xu_dummy, Rp);
 
-   magnetics.mj.FormLinearSystem(ess_tdof_j, j_gf, rj, magnetics.MjMat_h, Xu_dummy, Rj);
+   magnetics.mj.FormLinearSystem(ess_tdof_j, j_gf, rj, magnetics.MjMat_h, Xj, Rj, true);
+   //trueX.GetBlock(0) = Xj;
 
    magnetics.g.FormRectangularLinearSystem(ess_tdof_j, ess_tdof_phi,
                                j_gf, rphi, magnetics.GMat_h,
@@ -209,7 +217,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                                 j_gf, ru, coupling.KMat_h,
                                 Ru_dummy, Xu_dummy);
 
-   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, Xu_dummy, Ru);
+   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, Xu_dummy, Ru, true);
 
    HypreParMatrix *BMat = fluids.BMat_h.As<HypreParMatrix>();
    HypreParMatrix *FuMat = fluids.FuMat_h.As<HypreParMatrix>();
@@ -223,7 +231,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.smallPressure.Finalize();
 
    fluids.smallPressure.FormLinearSystem(ess_tdof_p, p_gf, rp, 
-      fluids.smallPressureMat_h, Xp_dummy, Rp);
+      fluids.smallPressureMat_h, Xp_dummy, Rp, true);
    HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
 
 
@@ -361,11 +369,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.Finalize();
 
    
-   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   Xu_dummy, Rj);
-   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, Xu_dummy, Rphi);
-   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   Xu_dummy, Rp);
-   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   Xu_dummy, Rp);
-   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   Xu_dummy, Ru_dummy);
+   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   Xu_dummy, Rj, true);
+   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, Xu_dummy, Rphi, true);
+   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   Xu_dummy, Rp, true);
+   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   Xu_dummy, Rp, true);
+   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   Xu_dummy, Ru_dummy, true);
 
    HypreParMatrix *DjMat = liprec.DjMat_h.As<HypreParMatrix>();
    HypreParMatrix *MphiMat = liprec.MphiMat_h.As<HypreParMatrix>();
@@ -423,7 +431,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       SpMatNorm->Print("SpMatNorm.dat");
    }*/
 
-   P = new LiPreconditioner(spaces, block_trueOffsets, dt, USE_MUMPS);
+   P = new LiPreconditioner(spaces, block_trueOffsets, dt, USE_MUMPS, logger);
 
    // SetPressurePreconditioner is currently causing a memory issue.
    P->SetPressurePreconditioner(MpMat, SpMat);
@@ -443,8 +451,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
 }
 
-void LmmhdOperator::Update(const Vector &X)
+void LmmhdOperator::Update(BlockVector &X)
 {
+
+   u_gf.SetFromTrueDofs(X.GetBlock(2));
+   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
 
    // Bilinear form for the velocity.
    fluids.fu.Update();
@@ -453,7 +464,7 @@ void LmmhdOperator::Update(const Vector &X)
 
    Vector Ru, Xu_dummy, Ru_dummy;
    fluids.FuMat_h.Clear();
-   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, Xu_dummy, Ru);
+   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, X.GetBlock(2), Ru, true);
    //FuMat = fluids.FuMat_h.As<HypreParMatrix>();
 
    // Update operator matrix for iterative solve (using FGMRES) or direct solve (using MUMPS).
@@ -477,7 +488,7 @@ void LmmhdOperator::Update(const Vector &X)
    liprec.fk.Finalize();
 
    liprec.FkMat_h.Clear();
-   liprec.fk.FormLinearSystem(ess_tdof_u, u_gf, ru, liprec.FkMat_h, Xu_dummy, Ru_dummy);
+   liprec.fk.FormLinearSystem(ess_tdof_u, u_gf, ru, liprec.FkMat_h, X.GetBlock(2), Ru_dummy, true);
 
    P->UpdateVelocityPreconditioner(liprec.FkMat_h.As<HypreParMatrix>());
    
@@ -495,6 +506,7 @@ void LmmhdOperator::ImplicitSolve(const real_t dt,
    // The derivative is calculated below:
    dX_dt -= X;       // dX = Xn+1 - Xn
    dX_dt /= dt;      // dX/dt = (Xn+1 - Xn) / dt
+
 
 }
 

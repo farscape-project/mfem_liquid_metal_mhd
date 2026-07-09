@@ -17,6 +17,9 @@ int main(int argc, char *argv[])
 {
    int debug = 0;
 
+   ofstream log_file("simulation.log");
+   Logger logger(log_file);
+
    // Choose whether to solve with iterative solver (FGMRES) or with direct solver
    // (MUMPS), options 0 and 1 respectively.
    int DIRECTSOLVE = 0;
@@ -270,7 +273,7 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, USE_MUMPS);
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, USE_MUMPS, logger);
 
    ode_solver->Init(oper);
 
@@ -278,6 +281,7 @@ int main(int argc, char *argv[])
    while (t < t_final)
    {
       if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
+      logger << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl;
 
       // Set history and u_star.
       if (ti == 0)
@@ -326,17 +330,6 @@ int main(int argc, char *argv[])
       u_gf.SetFromTrueDofs(X.GetBlock(2));
       p_gf.SetFromTrueDofs(X.GetBlock(3));
 
-      ParGridFunction phi_gfN_1(&electPot_fespace);
-      ParGridFunction diff_gf(&electPot_fespace);
-
-      phi_gfN_1.SetFromTrueDofs(Xn_1.GetBlock(1));
-
-      real_t p_norm = p_gf.Norml2();
-      real_t phi_norm = phi_gf.Norml2();
-
-      std::cout << "p_norm = " << p_norm << std::endl;
-      std::cout << "phi_norm = " << phi_norm << std::endl;
-
       // Visualisation in Paraview.
       if (ti % vis_steps == 0 || ti == n_steps - 1)
       {
@@ -351,15 +344,19 @@ int main(int argc, char *argv[])
       // Calculate relative L2-norm of grid functions between this and previous time-step.
       real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;
 
       real_t elp_rel_l2 = rel_L2_norm(X.GetBlock(1), Xn_1.GetBlock(1), electPot_fespace);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;
 
       real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;
 
       real_t pres_rel_l2 = rel_L2_norm(X.GetBlock(3), Xn_1.GetBlock(3), pressure_fespace);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;
 
       ti += 1;
    }
