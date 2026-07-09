@@ -1,0 +1,10 @@
+# Directories
+data*
+old
+
+# Simulation files
+lmmhd_solver
+plots
+
+*.log
+params.in_squareDuct
