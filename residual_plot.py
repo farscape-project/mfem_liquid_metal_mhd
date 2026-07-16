@@ -18,6 +18,7 @@ l2_timesteps = defaultdict(list)
 field_norms = defaultdict(list)
 
 global_iter = 0
+global_iter_hist = []
 timestep = -1
 
 dirname = "plots/residuals/"
@@ -45,6 +46,7 @@ with open(logfile, "r") as f:
         if m:
             timestep = int(m.group(1))
             timestep_boundaries.append((global_iter, timestep))
+            global_iter_hist.append(global_iter)
             continue
 
         m = iter_re.search(line)
@@ -72,6 +74,9 @@ with open(logfile, "r") as f:
         #    field_norms[field].append((timestep, val))
 
 
+global_iters = []
+for i in range(0,len(global_iter_hist)-1):
+    global_iters.append(global_iter_hist[i+1] - global_iter_hist[i])
 
 # ------------------------------------------------------------
 # 0. Functions to make plots look nice.

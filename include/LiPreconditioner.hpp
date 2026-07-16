@@ -61,7 +61,6 @@ protected:
     std::vector<std::vector<Solver*>> solvers; 
     bool owns_blocks;
     real_t dt;
-    Array<int> USE_MUMPS;
 
     // Pressure preconditioner solvers.
     CGSolver *MpSolver;
@@ -77,6 +76,7 @@ protected:
 
     // Electric potential preconditioner solvers.
     CGSolver *MphiSolver;
+    OrthoSolver *MphiOrthoSolver;
     //MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
@@ -100,10 +100,6 @@ protected:
     real_t scaleMp;
     real_t scaleSp;
 
-    // Set up helper class for removing mean from pressure and potential.
-    RemoveMeanProjector potential_mean_remover;
-    RemoveMeanProjector pressure_mean_remover;
-
     Logger &logger;
 
 
@@ -112,7 +108,6 @@ public:
     LiPreconditioner(Array<ParFiniteElementSpace *> &fes,
         const Array<int> &offsets_,
         real_t &dt_,
-        Array<int> USE_MUMPS_,
         Logger &logger_,
         bool owns_blocks_ = false)
         : Solver(offsets_.Last()),
@@ -120,10 +115,7 @@ public:
             offsets(0),
             owns_blocks(owns_blocks_),
             dt(dt_),
-            USE_MUMPS(USE_MUMPS_),
-            logger(logger_),
-            potential_mean_remover(*fes[1]),
-            pressure_mean_remover(*fes[3])
+            logger(logger_)
     {
         fes.Copy(spaces);
         offsets.MakeRef(offsets_);
@@ -149,61 +141,19 @@ public:
 
         SpSolver = new HypreBoomerAMG(*SpMat);
         //SpSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        //SpSolver->SetPrintLevel(-1);
         SpSolver->SetMaxIter(2);
 
-        //SpSolver->SetOperator(*SpMat);
-
-        
         SpSolver->SetCycleType(1);
         SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
         SpSolver->SetMaxLevels(25);
         SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
+        SpSolver->SetPrintLevel(-1);
         //SpSolver->SetElasticityOptions(spaces[3]);
-
-        //SpSolver = new HypreBoomerAMG(*SpMat);
-
 
         // Attempting using OrthoSolver just for Sp, but perhaps not sufficient.  It may 
         // be required to wrap around whole preconditioner.
         SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
         SpOrthoSolver->SetSolver(*SpSolver);
-
-
-        // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
-        // respectively.
-        /*real_t MpNorm = 0.0;
-        HypreParVector diag;
-        diag = 0.0;
-        MpMat->GetDiag(diag);
-
-        for (int i = 0; i < diag.Size(); i++)
-        {
-            if (diag(i) > MpNorm) MpNorm = diag(i);
-        }
-
-        real_t SpNorm = 0.0;
-        diag = 0.0;
-        SpMat->GetDiag(diag);
-
-        for (int i = 0; i < diag.Size(); i++)
-        {
-            if (diag(i) > SpNorm) SpNorm = diag(i);
-        }
-
-        scaleMp = 1.0 / MpNorm;
-        scaleSp = 1.0 / SpNorm;*/
-
-
-        /*HypreParMatrix *Lp = Add(1.0 * scaleMp, *MpMat, (2.0/dt) * scaleSp, *SpMat);
-
-        LpSolver = new HypreBoomerAMG(*Lp);
-        LpSolver->SetMaxIter(2);
-        LpSolver->SetMaxLevels(25);
-        LpSolver->SetCycleType(2);
-        LpSolver->SetRelaxType(6);
-        LpSolver->SetMaxIter(5);
-        LpSolver->SetStrengthThresh(0.7);*/
 
 
     }
@@ -220,6 +170,9 @@ public:
         MphiPrec = new HypreSmoother(*MphiMat);
         MphiPrec->SetType(HypreSmoother::GS, 6);
         MphiSolver->SetPreconditioner(*MphiPrec);
+
+        MphiOrthoSolver = new OrthoSolver(spaces[1]->GetComm());
+        MphiOrthoSolver->SetSolver(*MphiSolver);
 
         //MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
         //MphiSolver->SetOperator(*MphiMat);
@@ -290,16 +243,10 @@ public:
         //SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
         SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
-
-        // Scaling the pressure preconditioner values by largest value in Mp and Sp, 
-        // respectively.
-        //xi *= scaleMp;
-        //eta *= scaleSp;
-
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
         Vector eta2tau(rp.Size());
         //real_t beta = 1.0;
-        real_t spCoeff = 2.0;
+        real_t spCoeff = 2.0 / dt;
         // The coefficient is NOT divided by dt as 
         // this is taken into account in ImplicitSolve.
         eta2tau = eta;
@@ -320,11 +267,10 @@ public:
         // Electric potential solve.
         Vector &yphi = yblock.GetBlock(1);
         Vector rphi = xblock.GetBlock(1);
-        MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
+        //MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
+        MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
         //yphi *= 5.0;
-
-        //potential_mean_remover.RemoveMean(yphi);
 
         logger << "||yphi|| = " << yphi.Norml2() << std::endl;
 

@@ -20,22 +20,6 @@ int main(int argc, char *argv[])
    ofstream log_file("simulation.log");
    Logger logger(log_file);
 
-   // Choose whether to solve with iterative solver (FGMRES) or with direct solver
-   // (MUMPS), options 0 and 1 respectively.
-   int DIRECTSOLVE = 0;
-
-   int USEMUMPS_PREC_J = 0;
-   int USEMUMPS_PREC_PHI = 0;
-   int USEMUMPS_PREC_U = 0;
-   int USEMUMPS_PREC_P = 0;
-
-   Array<int> USE_MUMPS(5);
-   USE_MUMPS[0] = DIRECTSOLVE;
-   USE_MUMPS[1] = USEMUMPS_PREC_J;
-   USE_MUMPS[2] = USEMUMPS_PREC_PHI;
-   USE_MUMPS[3] = USEMUMPS_PREC_U;
-   USE_MUMPS[4] = USEMUMPS_PREC_P;
-
    // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
@@ -43,8 +27,6 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    mfem::tic();
-
-   int ode_solver_type = 1;
 
    // Read in parameters from file.
    InputParser input("params.in");
@@ -108,29 +90,6 @@ int main(int argc, char *argv[])
    args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
    
    args.Parse();
-
-   // Define the ODE solver used for time integration.
-   ODESolver *ode_solver;
-   switch (ode_solver_type)
-   {
-      // Implicit L-stable methods
-      case 1:  ode_solver = new BackwardEulerSolver; break;
-      case 2:  ode_solver = new SDIRK23Solver(2); break;
-      case 3:  ode_solver = new SDIRK33Solver; break;
-      // Explicit methods
-      case 11: ode_solver = new ForwardEulerSolver; break;
-      case 12: ode_solver = new RK2Solver(0.5); break;
-      case 13: ode_solver = new RK3SSPSolver; break;
-      case 14: ode_solver = new RK4Solver; break;
-      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
-      // Implicit A-stable methods (not L-stable)
-      case 22: ode_solver = new ImplicitMidpointSolver; break;
-      case 23: ode_solver = new SDIRK23Solver; break;
-      case 24: ode_solver = new SDIRK34Solver; break;
-      default:
-      cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-      return 1;
-   }
 
    // Set fe_space orders.
    int order_currentD = 1;
@@ -231,15 +190,9 @@ int main(int argc, char *argv[])
    pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
    velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
 
-
    // Print mesh statistics.
    if (Mpi::Root()) PrintFESpaces(j_space_size, phi_space_size, v_space_size, p_space_size);
-
-   ParGridFunction j_gf(&currentD_fespace);
-   ParGridFunction phi_gf(&electPot_fespace);
-   ParGridFunction u_gf(&velocity_fespace);
-   ParGridFunction p_gf(&pressure_fespace);
-
+   
    ParGridFunction uN_1(&velocity_fespace);
    GridFunction du(&velocity_fespace);
 
@@ -252,20 +205,6 @@ int main(int argc, char *argv[])
    block_trueOffsets[4] = p_space_size;
    block_trueOffsets.PartialSum();
 
-   BlockVector X(block_trueOffsets);
-   X = 0;
-   BlockVector Xn_1(block_trueOffsets), Xn_2(block_trueOffsets);
-   Xn_1 = 0; Xn_2 = 0;
-   Vector ustar_vec(v_space_size);
-   //ParGridFunction u_star(&velocity_fespace);
-
-   RemoveMeanProjector potential_mean_remover(*spaces[1]);
-   RemoveMeanProjector pressure_mean_remover(*spaces[3]);
-
-   // Set up visualisation in Paraview.
-   ParaViewDataCollection paraview_dc("lmmhd", &pmesh);
-   paraview_dc.SetPrefixPath("data");
-
    // Initialise time-loop details.
    real_t t = 0.0;
    int n_steps = int(t_final / dt);
@@ -273,92 +212,56 @@ int main(int argc, char *argv[])
    int ti = 0;
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, USE_MUMPS, logger);
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, logger);
 
-   ode_solver->Init(oper);
+   ParGridFunction *j_gf = oper.GetCurrentDPointer();
+   ParGridFunction *phi_gf = oper.GetPotentialPointer();
+   ParGridFunction *u_gf = oper.GetVelocityPointer();
+   ParGridFunction *p_gf = oper.GetPressurePointer();
 
-   //for (int ti = 0; ti < n_steps; ti++)
+   oper.SetGridFunctionsFromTrueDofs();
+
+   // Set up visualisation in Paraview.
+   ParaViewDataCollection pvdc("lmmhd", &pmesh);
+   pvdc.SetPrefixPath("data");
+   pvdc.SetDataFormat(VTKFormat::BINARY);
+   pvdc.SetHighOrderOutput(true);
+   pvdc.SetLevelsOfDetail(2);
+   pvdc.SetCycle(0);
+   pvdc.SetTime(t);
+   pvdc.RegisterField("current density", j_gf);
+   pvdc.RegisterField("electric potential", phi_gf);
+   pvdc.RegisterField("velocity", u_gf);
+   pvdc.RegisterField("pressure", p_gf);
+   pvdc.Save();
+
    while (t < t_final)
    {
       if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
       logger << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl;
+            
+      oper.UpdateUStar(ti); // Update value of u* in convection integrators each time-step/Picard iteration.
+      oper.UpdateIntegrators(); // Propagate updated u* into F integrators.
 
-      // Set history and u_star.
-      if (ti == 0)
-      {
-         // Set u_star = i.c. for first timestep.
-         //u_star.SetFromTrueDofs(X.GetBlock(2));
-         //ustar_vec = X.GetBlock(2);
-      }
-      else if (ti == 1)
-      {
-         // Set history from previous time step.
-         Xn_1 = X;
+      oper.Step(t, dt);
 
-         // Set u_star = u_{n-1} for second time step.
-         //u_star.SetFromTrueDofs(Xn_1.GetBlock(2)); 
-         ustar_vec = Xn_1.GetBlock(2);
-      }
-      else
-      {
-         // Set history from previous time steps.
-         Xn_2 = Xn_1;
-         Xn_1 = X;
+      oper.RemoveMeans();
 
-         // Calculate u_star = (3 * u_{n-1} - u_{n-2})/2 for the convection term.
-         ustar_vec = 0.0;
-         ustar_vec = Xn_1.GetBlock(2);  
-         ustar_vec *= 3.0;               
-         ustar_vec -= Xn_2.GetBlock(2); 
-         ustar_vec *= 0.5;
-         //u_star.SetFromTrueDofs(ustar_vec); 
-      }
-      
-      // Solve problem.
-      oper.Set_ustar(ustar_vec);
-      oper.Update(X);
-      ode_solver->Step(X, t, dt);
+      oper.SetGridFunctionsFromTrueDofs();
 
-      // Remove mean from pressure and potential.  Only do this if nullspace
-      // needs removing from the problem (i.e. all Neumann BCs).
-      potential_mean_remover.RemoveMean(X.GetBlock(1));
-      pressure_mean_remover.RemoveMean(X.GetBlock(3));
+      oper.CalcNorms();
 
-      // Grid functions for visualisation.
-      j_gf.SetFromTrueDofs(X.GetBlock(0));
-      phi_gf.SetFromTrueDofs(X.GetBlock(1));
-      u_gf.SetFromTrueDofs(X.GetBlock(2));
-      p_gf.SetFromTrueDofs(X.GetBlock(3));
+      oper.UpdateHistory();
 
-      // Visualisation in Paraview.
-      if (ti % vis_steps == 0 || ti == n_steps - 1)
-      {
-         if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t-dt << ", dt = " << dt << ". Print step " << ti_out << std::endl; }
-         visualise(paraview_dc, order_currentD, &j_gf, "current density", ti_out, t);
-         visualise(paraview_dc, order_electPot, &phi_gf, "electric potential", ti_out, t);
-         visualise(paraview_dc, order_velocity, &u_gf, "velocity", ti_out, t);
-         visualise(paraview_dc, order_pressure, &p_gf, "pressure", ti_out, t);
-         ti_out += 1;
-      }
-
-      // Calculate relative L2-norm of grid functions between this and previous time-step.
-      real_t cd_rel_l2 = rel_L2_norm(X.GetBlock(0), Xn_1.GetBlock(0), currentD_fespace);
-      if (Mpi::Root()) {std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;}
-      logger << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;
-
-      real_t elp_rel_l2 = rel_L2_norm(X.GetBlock(1), Xn_1.GetBlock(1), electPot_fespace);
-      if (Mpi::Root()) {std::cout << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;}
-      logger << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;
-
-      real_t vel_rel_l2 = rel_L2_norm(X.GetBlock(2), Xn_1.GetBlock(2), velocity_fespace);
-      if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
-      logger << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;
-
-      real_t pres_rel_l2 = rel_L2_norm(X.GetBlock(3), Xn_1.GetBlock(3), pressure_fespace);
-      if (Mpi::Root()) {std::cout << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;}
-      logger << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;
+      // Save data.
+      pvdc.SetCycle(ti);
+      pvdc.SetTime(t);
+      pvdc.Save();
 
       ti += 1;
+      t += dt;
+
+      //if (res < tolerance) break;
    }
 
    if (Mpi::Root()) { std::cout << "Total simulation time: " << mfem::toc() << std::endl; }

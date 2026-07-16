@@ -104,9 +104,14 @@ protected:
    Array<ParFiniteElementSpace *> spaces;
    Array<int> &block_trueOffsets;
 
-   std::unique_ptr<Solver> lmmhd_solver;
-   std::unique_ptr<Operator> A;
-   mutable BlockVector *RHS;
+   //std::unique_ptr<Solver> lmmhd_solver;
+   //std::unique_ptr<Operator> A;
+   FGMRESSolver *lmmhd_solver;
+   BlockOperator *A;
+
+   BlockVector *X, *Xn_1;
+   BlockVector *RHS;
+
    LiPreconditioner *P;
    Array2D<HypreParMatrix *> *blocks;
 
@@ -117,7 +122,7 @@ protected:
    CouplingBlock coupling;
    LiPrecForms liprec;
 
-   ParLinearForm ru;
+   ParLinearForm rj, rphi, ru, rp;
 
    // Vectors and numbers used for bilinear form coefficients.
    Vector *B;
@@ -143,9 +148,12 @@ protected:
    ConstantCoefficient *mpCoeffNorm;
    ConstantCoefficient *spCoeffNorm;
 
-   Array<int> ess_tdof_u;
-   ParGridFunction *ustar_gf, u_gf;
+   Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
+   ParGridFunction *ustar_gf, j_gf, phi_gf, u_gf, p_gf;
+   ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
+   ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
    std::unique_ptr<VectorGridFunctionCoefficient> ustar_coef;
+   Vector ustar_vec;
 
    // HypreParMatrices for operator blocks.
    HypreParMatrix *FuMat = nullptr;
@@ -181,25 +189,45 @@ protected:
    int dim;
    real_t dt;
    int debug;
-   Array<int> USE_MUMPS;
    Logger &logger;
-   std::unique_ptr<FGMRESLogMonitor> fgmres_monitor;
+   FGMRESLogMonitor *fgmres_monitor;
 
+   RemoveMeanProjector potential_mean_remover;
+   RemoveMeanProjector pressure_mean_remover;
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, Array<int> USEMUMPS, 
+                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, 
                   Logger &logger);
 
-   void ImplicitSolve(const real_t dt, const Vector &X, Vector &dX_dt);
+   void Step(real_t &time, real_t dt);
 
-   void Update(BlockVector &X);
+   void UpdateUStar(int step);
+
+   void UpdateHistory();
+
+   ParGridFunction *GetCurrentDPointer() { return &j_gf; }
+   ParGridFunction *GetPotentialPointer() { return &phi_gf; }
+   ParGridFunction *GetVelocityPointer() { return &u_gf; }
+   ParGridFunction *GetPressurePointer() { return &p_gf; }
+
+   void UpdateIntegrators();
+
+   void SetGridFunctionsFromTrueDofs();
+
+   void CalcNorms();
+
+   void RemoveMeans();
+
+   void SetBCs();
+
+   void FormASystem();
+
+   void FormPSystem();
+
+   //void CheckMatrices();
 
    virtual ~LmmhdOperator();
 
-   void Set_ustar(const Vector &u_star_vec)
-   {
-      ustar_gf->SetFromTrueDofs(u_star_vec);
-   }
 
 };

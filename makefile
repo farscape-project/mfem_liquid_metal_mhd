@@ -1,4 +1,3 @@
-#MFEM_DIR ?= ../../..
 MFEM_DIR=../mfem-moose/framework/contrib/mfem/build-oprof
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
@@ -6,8 +5,6 @@ include $(CONFIG_MK)
 
 # Source files and executable
 TARGET = lmmhd_solver
-#SRC = lmmhd_solver.cpp VectorConvectionIntegrator.cpp LmmhdOperator.cpp constants.cpp BlockTriangularPreconditioner.cpp tools.cpp
-#INC = VectorConvectionIntegrator.hpp LmmhdOperator.hpp constants.hpp LiPreconditioner.hpp BlockTriangularPreconditioner.hpp CrossProductMatrixCoefficient.hpp tools.hpp BoundaryConditions.hpp InputParser.hpp
 
 # Source files
 SRC = lmmhd_solver.cpp \

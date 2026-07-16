@@ -6,22 +6,28 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             int dim_,
                             real_t dt_,
                             int debug_,
-                            Array<int> USE_MUMPS_,
                             Logger &logger_)
    : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
-     block_trueOffsets(offsets),
-     magnetics(fes[0],fes[1]),
-     fluids(fes[2],fes[3]),
-     coupling(fes[0],fes[2]),
-     liprec(fes[0],fes[1],fes[2],fes[3]),
-     ru(fes[2]),
-     u_gf(fes[2]),
-     lmmhd_solver(),
-     dim(dim_),
-     dt(dt_),
-     debug(debug_),
-     USE_MUMPS(USE_MUMPS_),
-     logger(logger_)
+      block_trueOffsets(offsets),
+      magnetics(fes[0],fes[1]),
+      fluids(fes[2],fes[3]),
+      coupling(fes[0],fes[2]),
+      liprec(fes[0],fes[1],fes[2],fes[3]),
+      rj(fes[0]),
+      rphi(fes[1]),
+      ru(fes[2]),
+      rp(fes[3]),
+      //j_gf(fes[0]),
+      //phi_gf(fes[1]),
+      //u_gf(fes[2]),
+      //p_gf(fes[3]),
+      lmmhd_solver(),
+      dim(dim_),
+      dt(dt_),
+      debug(debug_),
+      logger(logger_),
+      potential_mean_remover(*fes[1]),
+      pressure_mean_remover(*fes[3])
    {
    // Sets up the linear system for the coupled MHD solve:
    //
@@ -36,33 +42,30 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - K     : coupling between current and velocity: (d, B x v')
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
-   
-   if (USE_MUMPS[0] == 0)
-   {
-      lmmhd_solver = std::make_unique<FGMRESSolver>(MPI_COMM_WORLD);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetRelTol(1e-4);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetAbsTol(1e-8);;
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetMaxIter(500);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPrintLevel(1);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetKDim(500);
-      dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->iterative_mode = true;
 
-      // Add monitoring for output to log file.
-      auto *fgmres = dynamic_cast<mfem::FGMRESSolver*>(lmmhd_solver.get());
-      fgmres_monitor = std::make_unique<FGMRESLogMonitor>(logger);
-      fgmres->SetMonitor(*fgmres_monitor);
+   lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
+   lmmhd_solver->SetRelTol(1e-4);
+   lmmhd_solver->SetAbsTol(1e-8);
+   lmmhd_solver->SetMaxIter(500);
+   lmmhd_solver->SetPrintLevel(1);
+   lmmhd_solver->SetKDim(500);
+   lmmhd_solver->iterative_mode = true;
 
-   }
-   else
-   {
-      lmmhd_solver = std::make_unique<MUMPSSolver>(MPI_COMM_WORLD);
-      dynamic_cast<MUMPSSolver*>(lmmhd_solver.get())->SetPrintLevel(2);
-   }
+   // Add monitoring for output to log file.
+   fgmres_monitor = new FGMRESLogMonitor(logger);
+   lmmhd_solver->SetMonitor(*fgmres_monitor);
 
    prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
    
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
+
+   X = new BlockVector(block_trueOffsets);
+   Xn_1 = new BlockVector(block_trueOffsets);
+   RHS = new BlockVector(block_trueOffsets);
+   *Xn_1 = 0.0;
+
+   A = new BlockOperator(block_trueOffsets);
 
    // Set Dirichlet boundary condition functions (not time-dependent).
    currentD_DBC = new VectorFunctionCoefficient(dim, currentD_dbc_vec_func);
@@ -97,7 +100,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    kappaBxVBxV *= kappa_val;
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
-   massCoeffValue = 2.0;
+   massCoeffValue = 2.0 / dt;
    // The mass coefficient is NOT divided by dt as 
    // this is taken into account in ImplicitSolve.
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
@@ -126,7 +129,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    
    // Dirichlet boundary conditions.
-   Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_p;
+   //Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
    spaces[2]->GetEssentialTrueDofs(*ess_bdr_marker[2], ess_tdof_u);
@@ -137,8 +140,25 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //ess_tdof_p.SetSize(1);
    //ess_tdof_p[0] = 1.0;
 
-   ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), p_gf(spaces[3]);
+   //ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), p_gf(spaces[3]);
+   j_gf.SetSpace(spaces[0]);
+   phi_gf.SetSpace(spaces[1]);
+   u_gf.SetSpace(spaces[2]);
+   p_gf.SetSpace(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; u_gf = 0.0; p_gf = 0.0;
+
+   u_gf_n_1.SetSpace(spaces[2]);
+   u_gf_n_2.SetSpace(spaces[2]);
+   u_gf_n_1 = 0.0;
+   u_gf_n_2 = 0.0;
+
+   j_gf_n_1.SetSpace(spaces[0]);
+   phi_gf_n_1.SetSpace(spaces[1]);
+   p_gf_n_1.SetSpace(spaces[3]);
+   j_gf_n_1 = 0.0;
+   phi_gf_n_1 = 0.0;
+   p_gf_n_1 = 0.0;
+
 
    // Project BCs onto grid functions.
    j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
@@ -198,123 +218,12 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    fluids.fu.Assemble();
    fluids.fu.Finalize();
-   
 
-   Vector Rj, Rphi, Ru, Rp, Xu_dummy, Xp_dummy, Ru_dummy, Xj;
-
-   fluids.b.FormRectangularLinearSystem(ess_tdof_u, ess_tdof_p,
-                               u_gf, rp, fluids.BMat_h,
-                               Xu_dummy, Rp);
-
-   magnetics.mj.FormLinearSystem(ess_tdof_j, j_gf, rj, magnetics.MjMat_h, Xj, Rj, true);
-   //trueX.GetBlock(0) = Xj;
-
-   magnetics.g.FormRectangularLinearSystem(ess_tdof_j, ess_tdof_phi,
-                               j_gf, rphi, magnetics.GMat_h,
-                               Xu_dummy, Rphi);
-
-   coupling.k.FormRectangularLinearSystem(ess_tdof_j, ess_tdof_u,
-                                j_gf, ru, coupling.KMat_h,
-                                Ru_dummy, Xu_dummy);
-
-   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, Xu_dummy, Ru, true);
-
-   HypreParMatrix *BMat = fluids.BMat_h.As<HypreParMatrix>();
-   HypreParMatrix *FuMat = fluids.FuMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MjMat = magnetics.MjMat_h.As<HypreParMatrix>();
-   HypreParMatrix *GMat = magnetics.GMat_h.As<HypreParMatrix>();
-   HypreParMatrix *KMat = coupling.KMat_h.As<HypreParMatrix>();
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
    fluids.smallPressure.Assemble(); 
    fluids.smallPressure.Finalize();
-
-   fluids.smallPressure.FormLinearSystem(ess_tdof_p, p_gf, rp, 
-      fluids.smallPressureMat_h, Xp_dummy, Rp, true);
-   HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
-
-
-   // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
-   HypreParMatrix *KtMat = KMat->Transpose();
-   (*KtMat) *= -1.0;
-
-   HypreParMatrix *GtMat = GMat->Transpose();
-   HypreParMatrix *BtMat = BMat->Transpose();
-
-   if (debug == 1)
-   {
-      BMat->Print("BMat.dat");
-      BtMat->Print("BtMat.dat");
-      MjMat->Print("MjMat.dat");
-      GMat->Print("GMat.dat");
-      GtMat->Print("GTMat.dat");
-      KMat->Print("KMat.dat");
-      KtMat->Print("KtMat.dat");
-   }
-
-   MFEM_VERIFY(BMat  != nullptr, "BMat null" );
-   MFEM_VERIFY(BtMat != nullptr, "BtMat null");
-   MFEM_VERIFY(MjMat != nullptr, "MjMat null");
-   MFEM_VERIFY(GMat  != nullptr, "GMat null" );
-   MFEM_VERIFY(GtMat != nullptr, "GTMat null");
-   MFEM_VERIFY(KMat  != nullptr, "KMat null" );
-   MFEM_VERIFY(KtMat != nullptr, "KtMat null");
-   MFEM_VERIFY(FuMat != nullptr, "FuMat null");
-
-
-   // Set up operator matrix for iterative solve (using FGMRES) or direct solve (using MUMPS).
-   if (USE_MUMPS[0] == 0)
-   {
-      A = std::make_unique<BlockOperator>(block_trueOffsets);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(0,0, MjMat);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(0,1, GtMat);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(1,0, GMat);
-      // Set coupling (B^T and B) blocks.
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(2,3, BtMat);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(3,2, BMat);
-      // Set K blocks for coupling J and U.
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(2,0, KMat);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(0,2, KtMat);
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(2,2, fluids.FuMat_h.As<HypreParMatrix>());
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(3,3, smallPressureMat);
-
-      MFEM_VERIFY(A != nullptr, "A is null");
-   }
-   else
-   {
-      blocks = new Array2D<HypreParMatrix *>(4,4);
-      for (int i = 0; i < 4; i++)
-      {
-         for (int j = 0; j < 4; j++) 
-         {
-            (*blocks)(i,j) = nullptr;
-         }
-      }
-      
-      (*blocks)(0,0) = MjMat;
-      (*blocks)(0,1) = GtMat;
-      (*blocks)(1,0) = GMat;
-      // Set coupling (B^T and B) blocks.
-      (*blocks)(2,3) = BtMat;
-      (*blocks)(3,2) = BMat;
-      // Set K blocks for coupling J and U.
-      (*blocks)(2,0) = KMat;
-      (*blocks)(0,2) = KtMat;
-      (*blocks)(2,2) = fluids.FuMat_h.As<HypreParMatrix>();
-      (*blocks)(3,3) = smallPressureMat;
-
-      A = std::unique_ptr<HypreParMatrix>(HypreParMatrixFromBlocks(*blocks));
-
-      if (debug == 1) dynamic_cast<HypreParMatrix*>(A.get())->Print("A.dat");
-   }
-
-   // Set RHS.
-   RHS = new BlockVector(block_trueOffsets);
-   RHS->GetBlock(0) = Rj;
-   RHS->GetBlock(1) = Rphi;
-   RHS->GetBlock(2) = Ru;
-   RHS->GetBlock(3) = Rp; 
 
    
    //*****************************************************************************************************
@@ -368,146 +277,280 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.Assemble();
    liprec.fk.Finalize();
 
-   
-   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   Xu_dummy, Rj, true);
-   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, Xu_dummy, Rphi, true);
-   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   Xu_dummy, Rp, true);
-   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   Xu_dummy, Rp, true);
-   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   Xu_dummy, Ru_dummy, true);
+   P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
 
-   HypreParMatrix *DjMat = liprec.DjMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MphiMat = liprec.MphiMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MpMat = liprec.MpMat_h.As<HypreParMatrix>();
-   HypreParMatrix *SpMat = liprec.SpMat_h.As<HypreParMatrix>();
-   HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();
+   //*****************************************************************************************************
+   //**************************************** Preconditioner *********************************************
+   //*****************************************************************************************************
+
+   RemoveMeanProjector potential_mean_remover(*spaces[1]);
+   RemoveMeanProjector pressure_mean_remover(*spaces[3]);
 
 
+}
+
+void LmmhdOperator::UpdateUStar(int step)
+{
+   if (step == 0)
+   {
+      *ustar_gf = u_gf;
+   }
+   else if (step == 1)
+   {
+      *ustar_gf = u_gf_n_1;
+   }
+   else
+   {
+      *ustar_gf = u_gf_n_1;
+      *ustar_gf *= 3.0;
+      ustar_gf->Add(-1.0, u_gf_n_2);
+      *ustar_gf *= 0.5;
+   }
+
+   *ustar_coef = ustar_gf;
+}
+
+void LmmhdOperator::UpdateHistory()
+{
+   u_gf_n_2 = u_gf_n_1;
+   u_gf_n_1 = u_gf;
+
+   j_gf_n_1 = j_gf;
+   phi_gf_n_1 = phi_gf;
+   p_gf_n_1 = p_gf;
+}
+
+void LmmhdOperator::UpdateIntegrators()
+{
+   fluids.fu.Update();
+   fluids.fu.Assemble();
+   fluids.fu.Finalize();
+
+   liprec.fk.Update();
+   liprec.fk.Assemble();
+   liprec.fk.Finalize();
+
+}
+
+void LmmhdOperator::SetGridFunctionsFromTrueDofs()
+{
+   j_gf.SetFromTrueDofs(X->GetBlock(0));
+   phi_gf.SetFromTrueDofs(X->GetBlock(1));
+   u_gf.SetFromTrueDofs(X->GetBlock(2));
+   p_gf.SetFromTrueDofs(X->GetBlock(3));
+}
+
+void LmmhdOperator::CalcNorms()
+{
+      // Calculate relative L2-norm of grid functions between this and previous time-step.
+      real_t cd_rel_l2 = rel_L2_norm(j_gf, j_gf_n_1, spaces[0]);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for current density: " << cd_rel_l2 << std::endl;
+
+      real_t elp_rel_l2 = rel_L2_norm(phi_gf, phi_gf_n_1, spaces[1]);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for electric potential: " << elp_rel_l2 << std::endl;
+
+      real_t vel_rel_l2 = rel_L2_norm(u_gf, u_gf_n_1, spaces[2]);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for velocity: " << vel_rel_l2 << std::endl;
+
+      real_t pres_rel_l2 = rel_L2_norm(p_gf, p_gf_n_1, spaces[3]);
+      if (Mpi::Root()) {std::cout << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;}
+      logger << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;
+}
+
+void LmmhdOperator::RemoveMeans()
+{
+   // Remove mean from pressure and potential.  Only do this if nullspace
+   // needs removing from the problem (i.e. all Neumann BCs).
+   potential_mean_remover.RemoveMean(X->GetBlock(1));
+   pressure_mean_remover.RemoveMean(X->GetBlock(3));
+}
+
+void LmmhdOperator::SetBCs()
+{
+   // Project BCs onto grid functions.
+   j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
+   phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
+   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
+
+}
+
+
+void LmmhdOperator::FormASystem()
+{
+
+   // Zero RHS before setting values.
+   *RHS = 0.0;
+
+   Vector Rp, Rphi, Ru, X_dummy, R_dummy;
+   Vector aux_x, aux_rhs;
+
+   fluids.b.FormRectangularLinearSystem(ess_tdof_u,
+                                          ess_tdof_p,
+                                          u_gf,
+                                          rp,
+                                          fluids.BMat_h,
+                                          X_dummy,
+                                          Rp);
+   RHS->GetBlock(3) += Rp;
+
+   magnetics.mj.FormLinearSystem(ess_tdof_j,
+                                 j_gf,
+                                 rj,
+                                 magnetics.MjMat_h,
+                                 X->GetBlock(0),
+                                 RHS->GetBlock(0),
+                                 true);
+
+   magnetics.g.FormRectangularLinearSystem(ess_tdof_j,
+                                             ess_tdof_phi,
+                                             j_gf,
+                                             rphi,
+                                             magnetics.GMat_h,
+                                             X_dummy,
+                                             Rphi);
+   RHS->GetBlock(1) += Rphi;
+
+   RHS->GetBlock(2) = 0.0;
+   fluids.fu.FormLinearSystem(ess_tdof_u,
+                              u_gf,
+                              ru,
+                              fluids.FuMat_h,
+                              X->GetBlock(2),
+                              RHS->GetBlock(2),
+                              true);
+
+   coupling.k.FormRectangularLinearSystem(ess_tdof_j, 
+                                          ess_tdof_u,
+                                          j_gf, 
+                                          ru, 
+                                          coupling.KMat_h,
+                                          X_dummy, 
+                                          Ru);
+   RHS->GetBlock(2) += Ru;
+
+   fluids.smallPressure.FormLinearSystem(ess_tdof_p,
+                                          p_gf,
+                                          rp,
+                                          fluids.smallPressureMat_h,
+                                          X->GetBlock(3),
+                                          RHS->GetBlock(3),
+                                          true);
+
+}
+
+
+void LmmhdOperator::FormPSystem()
+{
+   Vector X_dummy, R_dummy;
+
+   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   X_dummy, R_dummy, true);
+   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, X_dummy, R_dummy, true);
+   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   X_dummy, R_dummy, true);
+   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   X_dummy, R_dummy, true);
+   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   X_dummy, R_dummy, true);
+
+}
+
+/*void LmmhdOperator::CheckMatrices()
+{
    if (debug == 1)
    {
+      BMat->Print("BMat.dat");
+      BtMat->Print("BtMat.dat");
+      MjMat->Print("MjMat.dat");
+      GMat->Print("GMat.dat");
+      GtMat->Print("GTMat.dat");
+      KMat->Print("KMat.dat");
+      KtMat->Print("KtMat.dat");
       DjMat->Print("DjMat.dat");
       MphiMat->Print("MphiMat.dat");
       MpMat->Print("MpMat.dat");
       SpMat->Print("SpMat.dat");
    }
 
+   // A matrices.
+   MFEM_VERIFY(BMat  != nullptr, "BMat null" );
+   MFEM_VERIFY(BtMat != nullptr, "BtMat null");
+   MFEM_VERIFY(MjMat != nullptr, "MjMat null");
+   MFEM_VERIFY(GMat  != nullptr, "GMat null" );
+   MFEM_VERIFY(GtMat != nullptr, "GTMat null");
+   MFEM_VERIFY(KMat  != nullptr, "KMat null" );
+   MFEM_VERIFY(KtMat != nullptr, "KtMat null");
+   MFEM_VERIFY(FuMat != nullptr, "FuMat null");
+
+   // P matrices.
    MFEM_VERIFY(MpMat  != nullptr, "MpMat null" );
    MFEM_VERIFY(SpMat != nullptr, "SpMat null");
    MFEM_VERIFY(MphiMat != nullptr, "MphiMat null");
    MFEM_VERIFY(DjMat  != nullptr, "DjMat null" );
    MFEM_VERIFY(FkMat  != nullptr, "FkMat null" );
 
-   // Scaling Mp and Sp.
-   // Compute max diagonal entry of Mp and Sp
-   /*Vector MpDiag(MpMat->Height()), SpDiag(SpMat->Height());
-   MpMat->GetDiag(MpDiag);
-   SpMat->GetDiag(SpDiag);
+   MFEM_VERIFY(A != nullptr, "A is null");
+}*/
 
-   real_t MpMax = MpDiag.Max();
-   real_t SpMax = SpDiag.Max();
+void LmmhdOperator::Step(real_t &time, real_t dt)
+{
 
-   real_t sMp = 1.0 / MpMax;
-   real_t sSp = 1.0 / SpMax;*/
+   SetBCs();
 
-   // Normalising pressure preconditioner (there's a better way to do this - currently just a test).
-   /*mpCoeffNorm = new ConstantCoefficient(sMp);
-   mpNorm = new ParBilinearForm(spaces[3]);
-   mpNorm->AddDomainIntegrator(new MassIntegrator(*mpCoeffNorm));
-   mpNorm->Assemble(); mpNorm->Finalize();
+   FormASystem(); // FormLinearSystem and FormRectangularLinearSystem calls for entries of A matrix.
 
-   MpMatNorm = new HypreParMatrix();
-   mpNorm->FormLinearSystem(ess_tdof_p, p_gf, *rp, *MpMatNorm, Xu_dummy, Rp);
+   // Build A matrix.
+   HypreParMatrix *BMat = fluids.BMat_h.As<HypreParMatrix>();
+   HypreParMatrix *FuMat = fluids.FuMat_h.As<HypreParMatrix>();
+   HypreParMatrix *MjMat = magnetics.MjMat_h.As<HypreParMatrix>();
+   HypreParMatrix *GMat = magnetics.GMat_h.As<HypreParMatrix>();
+   HypreParMatrix *KMat = coupling.KMat_h.As<HypreParMatrix>();
+   HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
 
-   spCoeffNorm = new ConstantCoefficient(sSp);
-   spNorm = new ParBilinearForm(spaces[3]);
-   spNorm->AddDomainIntegrator(new DiffusionIntegrator(*spCoeffNorm));
-   spNorm->Assemble(); spNorm->Finalize();
+   // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
+   HypreParMatrix *KtMat = KMat->Transpose();
+   (*KtMat) *= -1.0;
 
-   SpMatNorm = new HypreParMatrix();
-   spNorm->FormLinearSystem(ess_tdof_p, p_gf, *rp, *SpMatNorm, Xu_dummy, Rp);
+   HypreParMatrix *GtMat = GMat->Transpose();
+   HypreParMatrix *BtMat = BMat->Transpose();
 
-   if (debug == 1)
-   {
-      MpMatNorm->Print("MpMatNorm.dat");
-      SpMatNorm->Print("SpMatNorm.dat");
-   }*/
-
-   P = new LiPreconditioner(spaces, block_trueOffsets, dt, USE_MUMPS, logger);
-
-   // SetPressurePreconditioner is currently causing a memory issue.
-   P->SetPressurePreconditioner(MpMat, SpMat);
-   P->SetElectricPotentialPreconditioner(MphiMat);
-   P->SetCurrentDensityPreconditioner(DjMat, GtMat, KtMat);
-
-   P->SetVelocityPreconditioner(FkMat, BtMat);
-
-   //*****************************************************************************************************
-   //**************************************** Preconditioner *********************************************
-   //*****************************************************************************************************
+   A->SetBlock(0,0, MjMat);
+   A->SetBlock(0,1, GtMat);
+   A->SetBlock(1,0, GMat);
+   // Set coupling (B^T and B) blocks.
+   A->SetBlock(2,3, BtMat);
+   A->SetBlock(3,2, BMat);
+   // Set K blocks for coupling J and U.
+   A->SetBlock(2,0, KMat);
+   A->SetBlock(0,2, KtMat);
+   A->SetBlock(2,2, FuMat);
+   A->SetBlock(3,3, smallPressureMat);
 
    lmmhd_solver->SetOperator(*A);
 
-   if (USE_MUMPS[0] == 0) dynamic_cast<FGMRESSolver*>(lmmhd_solver.get())->SetPreconditioner(*P);
+   //lmmhd_solver->SetPreconditioner(*P);
 
+   FormPSystem(); // FormLinearSystem and FormRectangularLinearSystem calls for preconditioner.
 
-}
+   // Build P matrices.
+   HypreParMatrix *DjMat = liprec.DjMat_h.As<HypreParMatrix>();
+   HypreParMatrix *MphiMat = liprec.MphiMat_h.As<HypreParMatrix>();
+   HypreParMatrix *MpMat = liprec.MpMat_h.As<HypreParMatrix>();
+   HypreParMatrix *SpMat = liprec.SpMat_h.As<HypreParMatrix>();
+   HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();
 
-void LmmhdOperator::Update(BlockVector &X)
-{
+   //CheckMatrices();
 
-   u_gf.SetFromTrueDofs(X.GetBlock(2));
-   u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   // Propagate matrices through to preconditioner.
+   P->SetPressurePreconditioner(MpMat, SpMat);
+   P->SetElectricPotentialPreconditioner(MphiMat);
+   P->SetCurrentDensityPreconditioner(DjMat, GtMat, KtMat);
+   P->SetVelocityPreconditioner(FkMat, BtMat);
+   P->UpdateVelocityPreconditioner(FkMat);
 
-   // Bilinear form for the velocity.
-   fluids.fu.Update();
-   fluids.fu.Assemble();
-   fluids.fu.Finalize();
-
-   Vector Ru, Xu_dummy, Ru_dummy;
-   fluids.FuMat_h.Clear();
-   fluids.fu.FormLinearSystem(ess_tdof_u, u_gf, ru, fluids.FuMat_h, X.GetBlock(2), Ru, true);
-   //FuMat = fluids.FuMat_h.As<HypreParMatrix>();
-
-   // Update operator matrix for iterative solve (using FGMRES) or direct solve (using MUMPS).
-   if (USE_MUMPS[0] == 0)
-   {
-      dynamic_cast<BlockOperator*>(A.get())->SetBlock(2,2, fluids.FuMat_h.As<HypreParMatrix>());
-   }
-   else
-   {
-      (*blocks)(2,2) = fluids.FuMat_h.As<HypreParMatrix>();
-      A = std::unique_ptr<HypreParMatrix>(HypreParMatrixFromBlocks(*blocks));
-   }
-
-   // Update other residuals?
-   RHS->GetBlock(2) = Ru;
-
-
-   // Preconditioner.
-   liprec.fk.Update();
-   liprec.fk.Assemble();
-   liprec.fk.Finalize();
-
-   liprec.FkMat_h.Clear();
-   liprec.fk.FormLinearSystem(ess_tdof_u, u_gf, ru, liprec.FkMat_h, X.GetBlock(2), Ru_dummy, true);
-
-   P->UpdateVelocityPreconditioner(liprec.FkMat_h.As<HypreParMatrix>());
+   lmmhd_solver->SetPreconditioner(*P);
    
-}
-
-
-
-void LmmhdOperator::ImplicitSolve(const real_t dt,
-                                const Vector &X, Vector &dX_dt)
-{
-
-   lmmhd_solver->Mult(*RHS, dX_dt); 
-
-   // The solver actually calculates Xn+1, not dX/dt.  
-   // The derivative is calculated below:
-   dX_dt -= X;       // dX = Xn+1 - Xn
-   dX_dt /= dt;      // dX/dt = (Xn+1 - Xn) / dt
-
-
+   lmmhd_solver->Mult(*RHS,*X);
 }
 
 LmmhdOperator::~LmmhdOperator() {

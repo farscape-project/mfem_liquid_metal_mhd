@@ -27,7 +27,8 @@ void checkpoint(int num);
 void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t);
 
 // Calculate relative L2-norm of grid functions.
-real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace &fespace);
+//real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace *fespace);
+real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace);
 
 
 
@@ -86,6 +87,7 @@ class FGMRESLogMonitor : public mfem::IterativeSolverMonitor
 {
 private:
     Logger logger;
+    //real_t norm;
 
 public:
     FGMRESLogMonitor(Logger &logger_)
@@ -106,4 +108,8 @@ public:
                      << std::endl;
         }
     }
+
+    //real_t ResidualGetter()
+    //    return norm;
+
 };
