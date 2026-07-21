@@ -27,8 +27,6 @@ void checkpoint(int num);
 //real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace *fespace);
 real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace);
 
-
-
 class RemoveMeanProjector
 {
 private:
@@ -45,9 +43,7 @@ public:
    RemoveMeanProjector(ParFiniteElementSpace &fes);
 
    void RemoveMean(Vector &v) const;
-
 };
-
 
 // Helper class for outputting to log file.
 class Logger
@@ -84,7 +80,6 @@ class FGMRESLogMonitor : public mfem::IterativeSolverMonitor
 {
 private:
     Logger logger;
-    //real_t norm;
 
 public:
     FGMRESLogMonitor(Logger &logger_)

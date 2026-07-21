@@ -86,7 +86,6 @@ protected:
     //HypreADS *FkPrec;
     HypreBoomerAMG *FkPrec;
 
-
     HypreParMatrix *Bt = nullptr;
 
     // Current density preconditioner solvers.
@@ -96,9 +95,6 @@ protected:
 
     HypreParMatrix *Gt = nullptr;
     HypreParMatrix *Kt = nullptr;
-
-    real_t scaleMp;
-    real_t scaleSp;
 
     Logger &logger;
 
@@ -154,8 +150,6 @@ public:
         // be required to wrap around whole preconditioner.
         SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
         SpOrthoSolver->SetSolver(*SpSolver);
-
-
     }
 
     void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
@@ -207,7 +201,6 @@ public:
         FkSolver->SetOperator(*FkMat);
     }
 
-
     void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
     {
         /*DjSolver = new CGSolver(MPI_COMM_WORLD);
@@ -243,12 +236,10 @@ public:
         //SpSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
         SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
-        // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1.
+        // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1,
+        // even though I believe it should be there.
         Vector eta2tau(rp.Size());
-        //real_t beta = 1.0;
         real_t spCoeff = 2.0 / dt;
-        // The coefficient is NOT divided by dt as 
-        // this is taken into account in ImplicitSolve.
         eta2tau = eta;
         eta2tau *= spCoeff;
         yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
@@ -256,9 +247,6 @@ public:
         logger << "||xi|| = " << xi.Norml2() << std::endl;
         logger << "||eta|| = " << eta.Norml2() << std::endl;
         logger << "||yp|| = " << yp.Norml2() << std::endl;
-        
-        // Testing effect of yp on solution.
-        //yp *= 0.0;
 
         // Testing solving Mp and Sp together, rather than separately.
         //LpSolver->Mult(rp, yp);
@@ -270,7 +258,6 @@ public:
         //MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
-        //yphi *= 5.0;
 
         logger << "||yphi|| = " << yphi.Norml2() << std::endl;
 
@@ -306,18 +293,16 @@ public:
         rj -= KtYu;
         logger << "||rj|| = " << rj.Norml2() << std::endl;
 
-
         Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
         DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
-        //yj *= 10.0;
+
         logger << "||yj|| = " << yj.Norml2() << std::endl;
 
         logger << "||rphi|| = " << rphi.Norml2() << std::endl;
         logger << "||rp|| = " << rp.Norml2() << std::endl;
 
         logger << "||y|| = " << y.Norml2() << std::endl;
-
     }
 
     virtual void SetOperator(const Operator &op) override { }

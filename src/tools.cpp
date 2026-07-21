@@ -114,7 +114,6 @@ RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
    one_gf.ProjectCoefficient(onecoeff);
    one_gf.GetTrueDofs(one_vec);
    volume = InnerProduct(mass_vec, one_vec);
-
 }
 
 void RemoveMeanProjector::RemoveMean(Vector &v) const

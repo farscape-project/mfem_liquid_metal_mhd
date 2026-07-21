@@ -101,8 +101,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
    massCoeffValue = 2.0 / dt;
-   // The mass coefficient is NOT divided by dt as 
-   // this is taken into account in ImplicitSolve.
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
 
@@ -135,18 +133,18 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    spaces[2]->GetEssentialTrueDofs(*ess_bdr_marker[2], ess_tdof_u);
    spaces[3]->GetEssentialTrueDofs(*ess_bdr_marker[3], ess_tdof_p);
 
-   // Pin a pressure DoF.  This may not be necessary if we are also doing
-   // OrthoSolver.
+   // Pin a pressure DoF.
    //ess_tdof_p.SetSize(1);
    //ess_tdof_p[0] = 1.0;
 
-   //ParGridFunction j_gf(spaces[0]), phi_gf(spaces[1]), p_gf(spaces[3]);
+   // Set up grid functions.
    j_gf.SetSpace(spaces[0]);
    phi_gf.SetSpace(spaces[1]);
    u_gf.SetSpace(spaces[2]);
    p_gf.SetSpace(spaces[3]);
    j_gf = 0.0; phi_gf = 0.0; u_gf = 0.0; p_gf = 0.0;
 
+   // Set up grid function history.
    u_gf_n_1.SetSpace(spaces[2]);
    u_gf_n_2.SetSpace(spaces[2]);
    u_gf_n_1 = 0.0;
@@ -285,8 +283,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    RemoveMeanProjector potential_mean_remover(*spaces[1]);
    RemoveMeanProjector pressure_mean_remover(*spaces[3]);
-
-
 }
 
 void LmmhdOperator::UpdateUStar(int step)
@@ -329,7 +325,6 @@ void LmmhdOperator::UpdateIntegrators()
    liprec.fk.Update();
    liprec.fk.Assemble();
    liprec.fk.Finalize();
-
 }
 
 void LmmhdOperator::SetGridFunctionsFromTrueDofs()
@@ -375,9 +370,7 @@ void LmmhdOperator::SetBCs()
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
-
 }
-
 
 void LmmhdOperator::FormASystem()
 {
@@ -413,7 +406,6 @@ void LmmhdOperator::FormASystem()
                                              Rphi);
    RHS->GetBlock(1) += Rphi;
 
-   //RHS->GetBlock(2) = 0.0;
    fluids.fu.FormLinearSystem(ess_tdof_u,
                               u_gf,
                               ru,
@@ -438,9 +430,7 @@ void LmmhdOperator::FormASystem()
                                           X->GetBlock(3),
                                           RHS->GetBlock(3),
                                           true);
-
 }
-
 
 void LmmhdOperator::FormPSystem()
 {
@@ -451,45 +441,7 @@ void LmmhdOperator::FormPSystem()
    liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   X_dummy, R_dummy, true);
    liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   X_dummy, R_dummy, true);
    liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   X_dummy, R_dummy, true);
-
 }
-
-/*void LmmhdOperator::CheckMatrices()
-{
-   if (debug == 1)
-   {
-      BMat->Print("BMat.dat");
-      BtMat->Print("BtMat.dat");
-      MjMat->Print("MjMat.dat");
-      GMat->Print("GMat.dat");
-      GtMat->Print("GTMat.dat");
-      KMat->Print("KMat.dat");
-      KtMat->Print("KtMat.dat");
-      DjMat->Print("DjMat.dat");
-      MphiMat->Print("MphiMat.dat");
-      MpMat->Print("MpMat.dat");
-      SpMat->Print("SpMat.dat");
-   }
-
-   // A matrices.
-   MFEM_VERIFY(BMat  != nullptr, "BMat null" );
-   MFEM_VERIFY(BtMat != nullptr, "BtMat null");
-   MFEM_VERIFY(MjMat != nullptr, "MjMat null");
-   MFEM_VERIFY(GMat  != nullptr, "GMat null" );
-   MFEM_VERIFY(GtMat != nullptr, "GTMat null");
-   MFEM_VERIFY(KMat  != nullptr, "KMat null" );
-   MFEM_VERIFY(KtMat != nullptr, "KtMat null");
-   MFEM_VERIFY(FuMat != nullptr, "FuMat null");
-
-   // P matrices.
-   MFEM_VERIFY(MpMat  != nullptr, "MpMat null" );
-   MFEM_VERIFY(SpMat != nullptr, "SpMat null");
-   MFEM_VERIFY(MphiMat != nullptr, "MphiMat null");
-   MFEM_VERIFY(DjMat  != nullptr, "DjMat null" );
-   MFEM_VERIFY(FkMat  != nullptr, "FkMat null" );
-
-   MFEM_VERIFY(A != nullptr, "A is null");
-}*/
 
 void LmmhdOperator::Step(real_t &time, real_t dt)
 {
@@ -512,7 +464,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *KtMat = KMat->Transpose();
    (*KtMat) *= -1.0; // KMat is negative and KtMat positive.
 
-
    // Calculating contribution from velocity Dirichlet BC to RHS.
    Vector u_bc(X->GetBlock(2).Size());
    u_bc = 0.0;
@@ -529,7 +480,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
    RHS->GetBlock(0) -= Kt_bc;
 
-
    A->SetBlock(0,0, MjMat);
    A->SetBlock(0,1, GtMat);
    A->SetBlock(1,0, GMat);
@@ -544,8 +494,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
    lmmhd_solver->SetOperator(*A);
 
-   //lmmhd_solver->SetPreconditioner(*P);
-
    FormPSystem(); // FormLinearSystem and FormRectangularLinearSystem calls for preconditioner.
 
    // Build P matrices.
@@ -554,8 +502,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *MpMat = liprec.MpMat_h.As<HypreParMatrix>();
    HypreParMatrix *SpMat = liprec.SpMat_h.As<HypreParMatrix>();
    HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();
-
-   //CheckMatrices();
 
    // Propagate matrices through to preconditioner.
    P->SetPressurePreconditioner(MpMat, SpMat);
@@ -574,7 +520,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    cout << "b_p   = " << RHS->GetBlock(3).Norml2() << endl;
 
    lmmhd_solver->Mult(*RHS,*X);
-
 
    BlockVector residual(block_trueOffsets);
    residual = *RHS;
@@ -637,5 +582,4 @@ LmmhdOperator::~LmmhdOperator() {
    delete BtMat;
    delete GtMat;
    delete KtMat;
-
 }
