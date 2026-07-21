@@ -22,8 +22,7 @@ struct MagneticBlock
    OperatorHandle GMat_h;
    OperatorHandle GtMat_h;
 
-   MagneticBlock(ParFiniteElementSpace *j_fes,
-            ParFiniteElementSpace *phi_fes)
+   MagneticBlock(ParFiniteElementSpace *j_fes, ParFiniteElementSpace *phi_fes)
         :
          mj(j_fes),
          g(j_fes, phi_fes),
@@ -48,8 +47,7 @@ struct NavierBlock
    OperatorHandle BtMat_h;
    OperatorHandle smallPressureMat_h;
 
-   NavierBlock(ParFiniteElementSpace *u_fes,
-            ParFiniteElementSpace *p_fes)
+   NavierBlock(ParFiniteElementSpace *u_fes, ParFiniteElementSpace *p_fes)
          :
          fu(u_fes),
          b(u_fes, p_fes),
@@ -65,8 +63,7 @@ struct CouplingBlock
    // Matrix handles
    OperatorHandle KMat_h;
 
-   CouplingBlock(ParFiniteElementSpace *j_fes,
-            ParFiniteElementSpace *u_fes)
+   CouplingBlock(ParFiniteElementSpace *j_fes, ParFiniteElementSpace *u_fes)
         :
          k(j_fes, u_fes)
    {}

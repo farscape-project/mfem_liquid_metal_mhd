@@ -85,7 +85,7 @@ for i in range(0,len(global_iter_hist)-1):
 def add_verticals_at_time_steps(timestep_boundaries):
 
     # Vertical lines marking timestep boundaries
-    for xpos, ts in timestep_boundaries[:-1]:
+    for xpos, ts in timestep_boundaries:
         plt.axvline(
             x=xpos,
             color='gray',
@@ -102,8 +102,8 @@ def add_timestep_boundaries_as_2nd_axis(timestep_boundaries):
     # Add label on top axis
     ax_top = ax.secondary_xaxis('top')
     # Put ticks where timesteps begin
-    tick_positions = [p for p, ts in timestep_boundaries[:-1]]
-    tick_labels = [ts for p, ts in timestep_boundaries[:-1]]
+    tick_positions = [p for p, ts in timestep_boundaries]
+    tick_labels = [ts for p, ts in timestep_boundaries]
     ax_top.set_xticks(tick_positions)
     ax_top.set_xticklabels(tick_labels)
 

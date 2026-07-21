@@ -100,10 +100,11 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
+   //Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::TETRAHEDRON, Lx, Ly, Lz);
    //const char *mesh_file = "./mesh/cuboid_clustered.msh";
    //Mesh mesh = Mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   
+
    
    // Cluster vertices in y and z.
    int numVertices = mesh.GetNV();
@@ -122,7 +123,6 @@ int main(int argc, char *argv[])
    mesh.Clear();
    
 
-   
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
    // ----------------------------------------------------------------------------
@@ -207,7 +207,6 @@ int main(int argc, char *argv[])
 
    // Initialise time-loop details.
    real_t t = 0.0;
-   int n_steps = int(t_final / dt);
    int ti_out = 0; // Time step output index.
    int ti = 0;
 

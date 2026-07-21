@@ -64,24 +64,6 @@ void checkpoint(int num)
    cout << endl;
 }
 
-
-// Inline visualization
-void visualise(ParaViewDataCollection &paraview_dc, int order, GridFunction *field, const char *field_name, int ti, real_t t)
-{
-
-   paraview_dc.SetLevelsOfDetail(order);
-   paraview_dc.SetDataFormat(VTKFormat::BINARY);
-   paraview_dc.SetHighOrderOutput(true);
-
-   paraview_dc.SetCycle(ti);
-   paraview_dc.SetTime(t);
-
-   // Export field data.
-   paraview_dc.RegisterField(field_name,field);
-
-   paraview_dc.Save();
-}
-
 // Calculate relative L2-norm of grid functions.
 real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace)
 {
@@ -122,7 +104,10 @@ RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
    auto *dlfi = new DomainLFIntegrator(onecoeff);
    mass_lf->AddDomainIntegrator(dlfi);
    mass_lf->Assemble();
-   mass_lf->ParallelAssemble(mass_vec);
+
+   HypreParVector *tmp = mass_lf->ParallelAssemble();
+   mass_vec = *tmp;
+   delete tmp;
 
    // Do volume integral.
    ParGridFunction one_gf(&fes);

@@ -381,11 +381,10 @@ void LmmhdOperator::SetBCs()
 
 void LmmhdOperator::FormASystem()
 {
-
    // Zero RHS before setting values.
    *RHS = 0.0;
 
-   Vector Rp, Rphi, Ru, X_dummy, R_dummy;
+   Vector Rp, Rphi, Ru, X_dummy;
    Vector aux_x, aux_rhs;
 
    fluids.b.FormRectangularLinearSystem(ess_tdof_u,
@@ -414,7 +413,7 @@ void LmmhdOperator::FormASystem()
                                              Rphi);
    RHS->GetBlock(1) += Rphi;
 
-   RHS->GetBlock(2) = 0.0;
+   //RHS->GetBlock(2) = 0.0;
    fluids.fu.FormLinearSystem(ess_tdof_u,
                               u_gf,
                               ru,
@@ -507,12 +506,29 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *KMat = coupling.KMat_h.As<HypreParMatrix>();
    HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
 
-   // Transpose of KMat with negative sign as KMat is negative and KtMat positive.
-   HypreParMatrix *KtMat = KMat->Transpose();
-   (*KtMat) *= -1.0;
-
+   // Transposes.
    HypreParMatrix *GtMat = GMat->Transpose();
    HypreParMatrix *BtMat = BMat->Transpose();
+   HypreParMatrix *KtMat = KMat->Transpose();
+   (*KtMat) *= -1.0; // KMat is negative and KtMat positive.
+
+
+   // Calculating contribution from velocity Dirichlet BC to RHS.
+   Vector u_bc(X->GetBlock(2).Size());
+   u_bc = 0.0;
+
+   // Fill only essential true DOFs
+   for (int i = 0; i < ess_tdof_u.Size(); i++)
+   {
+      int tdof = ess_tdof_u[i];
+      u_bc(tdof) = X->GetBlock(2)(tdof);
+   }
+
+   Vector Kt_bc(KtMat->Height());
+   KtMat->Mult(u_bc, Kt_bc);
+
+   RHS->GetBlock(0) -= Kt_bc;
+
 
    A->SetBlock(0,0, MjMat);
    A->SetBlock(0,1, GtMat);
@@ -549,8 +565,29 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    P->UpdateVelocityPreconditioner(FkMat);
 
    lmmhd_solver->SetPreconditioner(*P);
-   
+
+   std::cout << "Initial residual = " << RHS->Norml2() << std::endl;
+
+   cout << "b_j   = " << RHS->GetBlock(0).Norml2() << endl;
+   cout << "b_phi = " << RHS->GetBlock(1).Norml2() << endl;
+   cout << "b_u   = " << RHS->GetBlock(2).Norml2() << endl;
+   cout << "b_p   = " << RHS->GetBlock(3).Norml2() << endl;
+
    lmmhd_solver->Mult(*RHS,*X);
+
+
+   BlockVector residual(block_trueOffsets);
+   residual = *RHS;
+
+   BlockVector Ax(block_trueOffsets);
+   A->Mult(*X, Ax);
+
+   residual -= Ax;
+
+   cout << "||rj||   = " << residual.GetBlock(0).Norml2() << endl;
+   cout << "||rphi|| = " << residual.GetBlock(1).Norml2() << endl;
+   cout << "||ru||   = " << residual.GetBlock(2).Norml2() << endl;
+   cout << "||rp||   = " << residual.GetBlock(3).Norml2() << endl;
 }
 
 LmmhdOperator::~LmmhdOperator() {
