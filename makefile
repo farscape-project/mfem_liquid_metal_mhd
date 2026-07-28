@@ -27,7 +27,7 @@ INC = include/VectorConvectionIntegrator.hpp \
 # Compiler and flags
 CXX = $(MFEM_CXX)
 CXXFLAGS = $(MFEM_FLAGS) -Iinclude
-LDFLAGS = $(MFEM_LIBS)
+LDFLAGS =  $(MFEM_LIBS)
 
 CXXFLAGS += -fsanitize=address -g -O0
 LDFLAGS  += -fsanitize=address
@@ -40,7 +40,7 @@ $(TARGET): $(SRC)
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
-	
+
 clean:
 	rm -f $(TARGET) *.o *~ core
 

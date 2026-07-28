@@ -441,13 +441,11 @@ void LmmhdOperator::FormASystem()
 
 void LmmhdOperator::FormPSystem()
 {
-   Vector X_dummy, R_dummy;
-
-   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   X_dummy, R_dummy, true);
-   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, X_dummy, R_dummy, true);
-   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   X_dummy, R_dummy, true);
-   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   X_dummy, R_dummy, true);
-   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   X_dummy, R_dummy, true);
+  liprec.dj.FormSystemMatrix(ess_tdof_j, liprec.DjMat_h);
+  liprec.mphi.FormSystemMatrix(ess_tdof_phi, liprec.MphiMat_h);
+  liprec.mp.FormSystemMatrix(ess_tdof_p, liprec.MpMat_h);
+  liprec.sp.FormSystemMatrix(ess_tdof_p, liprec.SpMat_h);
+  liprec.fk.FormSystemMatrix(ess_tdof_u, liprec.FkMat_h);
 }
 
 void LmmhdOperator::Step(real_t &time, real_t dt)
