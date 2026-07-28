@@ -1,5 +1,5 @@
-##MFEM_DIR=../mfem-moose/framework/contrib/mfem/build-oprof
-MFEM_DIR=../../MOOSE_BUILDS/cust_ops/framework/contrib/mfem/build-opt
+MFEM_DIR=../mfem-moose/framework/contrib/mfem/build-oprof
+###MFEM_DIR=../../MOOSE_BUILDS/cust_ops/framework/contrib/mfem/build-opt
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
 include $(CONFIG_MK)
