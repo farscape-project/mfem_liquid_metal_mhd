@@ -1,5 +1,13 @@
 #include "LmmhdOperator.hpp"
 
+int OperatorSize(const Array<ParFiniteElementSpace *> fes)
+{
+  int op_size=0;
+  for(int i=0; i<fes.Size(); i++) op_size += fes[i]->GetTrueVSize();
+  return op_size;
+};
+
+
 LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<int> &offsets,
@@ -7,7 +15,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             real_t dt_,
                             int debug_,
                             Logger &logger_)
-   : TimeDependentOperator(fes[0]->GetTrueVSize() + fes[1]->GetTrueVSize() + fes[2]->GetTrueVSize() + fes[3]->GetTrueVSize()),
+   : TimeDependentOperator(OperatorSize(fes)),
       block_trueOffsets(offsets),
       magnetics(fes[0],fes[1]),
       fluids(fes[2],fes[3]),
@@ -56,7 +64,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    lmmhd_solver->SetMonitor(*fgmres_monitor);
 
    prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
-   
+
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
 
@@ -125,7 +133,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    rphi.AddDomainIntegrator(new DomainLFIntegrator(*zeroCoeff));
    rphi.Assemble();
 
-   
    // Dirichlet boundary conditions.
    //Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
@@ -223,10 +230,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.smallPressure.Assemble(); 
    fluids.smallPressure.Finalize();
 
-   
-   //*****************************************************************************************************
-   //**************************************** Preconditioner *********************************************
-   //*****************************************************************************************************
+
+   //*****************************************************************************************************//
+   //**************************************** Preconditioner *********************************************//
+   //*****************************************************************************************************//
 
    /// Define integrators for preconditioner.
    // Current density preconditioner.
@@ -277,9 +284,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
 
-   //*****************************************************************************************************
-   //**************************************** Preconditioner *********************************************
-   //*****************************************************************************************************
+   //*****************************************************************************************************//
+   //**************************************** Preconditioner *********************************************//
+   //*****************************************************************************************************//
 
    RemoveMeanProjector potential_mean_remover(*spaces[1]);
    RemoveMeanProjector pressure_mean_remover(*spaces[3]);
@@ -436,13 +443,11 @@ void LmmhdOperator::FormASystem()
 
 void LmmhdOperator::FormPSystem()
 {
-   Vector X_dummy, R_dummy;
-
-   liprec.dj.FormLinearSystem(  ess_tdof_j,   j_gf,   rj,   liprec.DjMat_h,   X_dummy, R_dummy, true);
-   liprec.mphi.FormLinearSystem(ess_tdof_phi, phi_gf, rphi, liprec.MphiMat_h, X_dummy, R_dummy, true);
-   liprec.mp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.MpMat_h,   X_dummy, R_dummy, true);
-   liprec.sp.FormLinearSystem(  ess_tdof_p,   p_gf,   rp,   liprec.SpMat_h,   X_dummy, R_dummy, true);
-   liprec.fk.FormLinearSystem(  ess_tdof_u,   u_gf,   ru,   liprec.FkMat_h,   X_dummy, R_dummy, true);
+  liprec.dj.FormSystemMatrix(ess_tdof_j, liprec.DjMat_h);
+  liprec.mphi.FormSystemMatrix(ess_tdof_phi, liprec.MphiMat_h);
+  liprec.mp.FormSystemMatrix(ess_tdof_p, liprec.MpMat_h);
+  liprec.sp.FormSystemMatrix(ess_tdof_p, liprec.SpMat_h);
+  liprec.fk.FormSystemMatrix(ess_tdof_u, liprec.FkMat_h);
 }
 
 void LmmhdOperator::Step(real_t &time, real_t dt)
