@@ -97,7 +97,10 @@ struct LiPrecForms
 class LmmhdOperator : public TimeDependentOperator
 {
 protected:
+   // Size of the Operator
+   int OperatorSize(const Array<ParFiniteElementSpace *> spaces);
 
+   // Block problem FE-Spaces and offsets
    Array<ParFiniteElementSpace *> spaces;
    Array<int> &block_trueOffsets;
 
@@ -178,7 +181,7 @@ protected:
    VectorFunctionCoefficient *velocity_DBC;
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
-   
+
    // Coefficients for zero RHS terms.
    ConstantCoefficient *zeroCoeff;
    VectorFunctionCoefficient *vectorZeroCoeff;
