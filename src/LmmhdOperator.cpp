@@ -1,13 +1,5 @@
 #include "LmmhdOperator.hpp"
 
-int OperatorSize(const Array<ParFiniteElementSpace *> fes)
-{
-  int op_size=0;
-  for(int i=0; i<fes.Size(); i++) op_size += fes[i]->GetTrueVSize();
-  return op_size;
-};
-
-
 LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<int> &offsets,
@@ -25,10 +17,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       rphi(fes[1]),
       ru(fes[2]),
       rp(fes[3]),
-      //j_gf(fes[0]),
-      //phi_gf(fes[1]),
-      //u_gf(fes[2]),
-      //p_gf(fes[3]),
       lmmhd_solver(),
       dim(dim_),
       dt(dt_),
@@ -292,6 +280,17 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    RemoveMeanProjector pressure_mean_remover(*spaces[3]);
 
 }
+
+int LmmhdOperator::OperatorSize(const Array<ParFiniteElementSpace *> fes)
+{
+   int op_size = 0;
+   for(int i = 0; i < fes.Size(); i++)
+   {
+      op_size += fes[i]->GetTrueVSize();
+   }
+
+   return op_size;
+};
 
 void LmmhdOperator::UpdateUStar(int step)
 {
