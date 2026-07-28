@@ -22,10 +22,10 @@ Ha            10.0
 //Ha	          31.6228    // sqrt(1000) Hartmann number, dependent on half width of channel = 1.
 
 //Re             100.0
-//Ha             31.6228
+//Ha             31.6228   // N = 10 case
 
 //Re              500.0
-//Ha              70.7107
+//Ha              70.7107   // N = 10 case
 
 Bx            0.0     // Magnetic field (x-component)
 By            0.0     // Magnetic field (y-component)

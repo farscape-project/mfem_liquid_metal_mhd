@@ -2,7 +2,6 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
-//#include "linalg/petsc.hpp"
 
 #include "LmmhdOperator.hpp"
 #include "constants.hpp"

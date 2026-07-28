@@ -283,6 +283,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    RemoveMeanProjector potential_mean_remover(*spaces[1]);
    RemoveMeanProjector pressure_mean_remover(*spaces[3]);
+
 }
 
 void LmmhdOperator::UpdateUStar(int step)
@@ -303,6 +304,7 @@ void LmmhdOperator::UpdateUStar(int step)
       *ustar_gf *= 0.5;
    }
 
+   //*ustar_gf = u_gf;
    *ustar_coef = ustar_gf;
 }
 
@@ -380,15 +382,6 @@ void LmmhdOperator::FormASystem()
    Vector Rp, Rphi, Ru, X_dummy;
    Vector aux_x, aux_rhs;
 
-   fluids.b.FormRectangularLinearSystem(ess_tdof_u,
-                                          ess_tdof_p,
-                                          u_gf,
-                                          rp,
-                                          fluids.BMat_h,
-                                          X_dummy,
-                                          Rp);
-   RHS->GetBlock(3) += Rp;
-
    magnetics.mj.FormLinearSystem(ess_tdof_j,
                                  j_gf,
                                  rj,
@@ -430,6 +423,15 @@ void LmmhdOperator::FormASystem()
                                           X->GetBlock(3),
                                           RHS->GetBlock(3),
                                           true);
+
+   fluids.b.FormRectangularLinearSystem(ess_tdof_u,
+                                          ess_tdof_p,
+                                          u_gf,
+                                          rp,
+                                          fluids.BMat_h,
+                                          X_dummy,
+                                          Rp);
+   RHS->GetBlock(3) += Rp;
 }
 
 void LmmhdOperator::FormPSystem()
