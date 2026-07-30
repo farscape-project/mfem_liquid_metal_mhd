@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = oper.GetVelocityPointer();
    ParGridFunction *p_gf = oper.GetPressurePointer();
 
-   oper.SetGridFunctionsFromTrueDofs();
+   oper.SetGridFunctionsFromTrueDofs(ti);
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 
       oper.RemoveMeans();
 
-      oper.SetGridFunctionsFromTrueDofs();
+      oper.SetGridFunctionsFromTrueDofs(ti);
 
       oper.CalcNorms();
 

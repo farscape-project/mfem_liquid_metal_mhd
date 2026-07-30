@@ -150,6 +150,7 @@ protected:
 
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
    ParGridFunction *ustar_gf, j_gf, phi_gf, u_gf, p_gf;
+   ParGridFunction ubar_gf;
    ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
    ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
    std::unique_ptr<VectorGridFunctionCoefficient> ustar_coef;
@@ -184,6 +185,7 @@ protected:
 
    // Coefficients for zero RHS terms.
    ConstantCoefficient *zeroCoeff;
+   ConstantCoefficient *oneCoeff;
    VectorFunctionCoefficient *vectorZeroCoeff;
 
    int dim;
@@ -213,7 +215,7 @@ public:
 
    void UpdateIntegrators();
 
-   void SetGridFunctionsFromTrueDofs();
+   void SetGridFunctionsFromTrueDofs(int step);
 
    void CalcNorms();
 

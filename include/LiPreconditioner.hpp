@@ -191,7 +191,7 @@ public:
         FkSolver->SetPreconditioner(*FkPrec);
 
         //FkSolver = new MUMPSSolver(MPI_COMM_WORLD);
-        //FkSolver->SetOperator(*FkMat);
+        FkSolver->SetOperator(*FkMat);
 
         Bt = BtMat;
     }
