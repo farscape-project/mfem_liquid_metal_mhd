@@ -39,6 +39,7 @@ int main(int argc, char *argv[])
    real_t Ly = input.GetReal("Ly");
    real_t Lz = input.GetReal("Lz");
 
+   real_t clusterX = input.GetReal("clusterX");
    real_t clusterY = input.GetReal("clusterY");
    real_t clusterZ = input.GetReal("clusterZ");
 
@@ -63,7 +64,7 @@ int main(int argc, char *argv[])
    neg_alpha1 = -alpha1;
 
 
-   if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
+   if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
 
    // Command line options.
    OptionsParser args(argc, argv);
@@ -85,6 +86,7 @@ int main(int argc, char *argv[])
                   "Length of the domain in the y direction.");
    args.AddOption(&Lz, "-lz", "--length-z",
                   "Length of the domain in the z direction.");
+   args.AddOption(&clusterX, "-cx", "--cluster-x", "Clustering intensity in x direction.");
    args.AddOption(&clusterY, "-cy", "--cluster-y", "Clustering intensity in y direction.");
    args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
    
@@ -110,9 +112,11 @@ int main(int argc, char *argv[])
    for (int i = 0; i < numVertices; i++)
    {
       real_t *v = mesh.GetVertex(i);
+      real_t xi = v[0] / Lx; // Normalize y
       real_t yi = v[1] / Ly; // Normalize y
       real_t zi = v[2] / Lz; // Normalize z
 
+      v[0] = cluster_symmetric(xi, clusterX) * Lx;
       v[1] = cluster_symmetric(yi, clusterY) * Ly;
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
    }
@@ -217,7 +221,7 @@ int main(int argc, char *argv[])
    ParGridFunction *u_gf = oper.GetVelocityPointer();
    ParGridFunction *p_gf = oper.GetPressurePointer();
 
-   oper.SetGridFunctionsFromTrueDofs(ti);
+   oper.SetGridFunctionsFromTrueDofs();
 
    // Set up visualisation in Paraview.
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
@@ -245,7 +249,9 @@ int main(int argc, char *argv[])
 
       oper.RemoveMeans();
 
-      oper.SetGridFunctionsFromTrueDofs(ti);
+      oper.SetGridFunctionsFromTrueDofs();
+
+      oper.ReconstructPhysicalVelocityFromUBar(ti);
 
       oper.CalcNorms();
 

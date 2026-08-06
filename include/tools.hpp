@@ -9,7 +9,7 @@ using namespace std;
 // Print all parameter read in from input file.
 void PrintParams(int nx, int ny, int nz, 
 		real_t Lx, real_t Ly, real_t Lz,
-                real_t clusterY, real_t clusterZ,
+                real_t clusterX, real_t clusterY, real_t clusterZ,
                 real_t t_final, real_t dt, int vis_steps, 
 		real_t Re, real_t Ha);
 

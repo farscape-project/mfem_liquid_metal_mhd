@@ -123,6 +123,7 @@ protected:
    LiPrecForms liprec;
 
    ParLinearForm rj, rphi, ru, rp;
+   ParBilinearForm *rhs_mu;
 
    // Vectors and numbers used for bilinear form coefficients.
    Vector *B;
@@ -142,6 +143,7 @@ protected:
    ConstantCoefficient *spCoeff;
    MatrixConstantCoefficient *fkBxVBxVcoeff;
    ConstantCoefficient *fReciprocalReCoeff;
+   ConstantCoefficient *alphaCoeff;
    ConstantCoefficient *fMassCoeff;
    ConstantCoefficient *smallPressureCoeff;
 
@@ -215,7 +217,9 @@ public:
 
    void UpdateIntegrators();
 
-   void SetGridFunctionsFromTrueDofs(int step);
+   void SetGridFunctionsFromTrueDofs();
+
+   void ReconstructPhysicalVelocityFromUBar(int step);
 
    void CalcNorms();
 

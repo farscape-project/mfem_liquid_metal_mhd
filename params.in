@@ -1,18 +1,19 @@
 ******** Mesh parameters *********
-nx              12    // mesh points in x-direction
-ny              8    // mesh points in y-direction
-nz              12    // mesh points in z-direction
+nx              16    // mesh points in x-direction
+ny              16    // mesh points in y-direction
+nz              16    // mesh points in z-direction
 
 Lx            1.0    // domain size in x-direction
 Ly            1.0    // domain size in y-direction
 Lz            1.0    // domain size in z-direction
 
-clusterY      1.01    // mesh clustering in y-direction
-clusterZ      1.01    // mesh clustering in z-direction
+clusterX      1.8    // mesh clustering in x-direction
+clusterY      1.8    // mesh clustering in y-direction
+clusterZ      1.8    // mesh clustering in z-direction
 
 ******** Timestepping parameters ********
-t_final       0.35    // final time-step
-dt            0.05    // time-step
+t_final       0.2    // final time-step
+dt            0.01    // time-step
 vis_steps       1    // visualisation step frequency
 
 ******** Dimensionless parameters ********

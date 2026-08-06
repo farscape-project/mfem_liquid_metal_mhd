@@ -2,7 +2,7 @@
 
 // Print all parameter read in from input file.
 void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
-                 real_t clusterY, real_t clusterZ,
+                 real_t clusterX, real_t clusterY, real_t clusterZ,
                  real_t t_final, real_t dt, int vis_steps, real_t Re, real_t Ha)
 {
    std::cout << " " << std::endl;
@@ -14,6 +14,7 @@ void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
    std::cout << "Lx = " << Lx << std::endl;
    std::cout << "Ly = " << Ly << std::endl;
    std::cout << "Lz = " << Lz << std::endl;
+   std::cout << "clusterX = " << clusterX << std::endl;
    std::cout << "clusterY = " << clusterY << std::endl;
    std::cout << "clusterZ = " << clusterZ << std::endl;
    std::cout << " " << std::endl;

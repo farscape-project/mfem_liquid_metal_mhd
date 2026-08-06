@@ -255,6 +255,7 @@ public:
         // Electric potential solve.
         Vector &yphi = yblock.GetBlock(1);
         Vector rphi = xblock.GetBlock(1);
+        rphi /= kappa_val;
         //MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
@@ -281,12 +282,14 @@ public:
         Vector rj = xblock.GetBlock(0);
         Vector GtYphi(rj.Size()), KtYu(rj.Size());
 
+        rj /= kappa_val;
+
         Gt->Mult(yphi, GtYphi);
-        GtYphi *= 2.0;
+        GtYphi *= 2.0 / kappa_val;
         logger << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
 
         Kt->Mult(yu, KtYu);
-        KtYu *= 2.0;
+        KtYu *= 2.0 / kappa_val;
         logger << "||KtYu|| = " << KtYu.Norml2() << std::endl;
 
         rj -= GtYphi;

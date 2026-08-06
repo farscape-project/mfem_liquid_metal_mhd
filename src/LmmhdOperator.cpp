@@ -42,7 +42,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
    lmmhd_solver->SetRelTol(1e-4);
    lmmhd_solver->SetAbsTol(1e-8);
-   lmmhd_solver->SetMaxIter(500);
+   lmmhd_solver->SetMaxIter(300);
    lmmhd_solver->SetPrintLevel(1);
    lmmhd_solver->SetKDim(500);
    lmmhd_solver->iterative_mode = true;
@@ -51,7 +51,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fgmres_monitor = new FGMRESLogMonitor(logger);
    lmmhd_solver->SetMonitor(*fgmres_monitor);
 
-   prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
+   //prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
 
    fes.Copy(spaces);
    ess_bdr.Copy(ess_bdr_marker);
@@ -100,6 +100,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    massCoeffValue = 2.0 / dt;
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
+   alphaCoeff = new ConstantCoefficient(alpha);
 
 
    /// Set up RHS linear forms.
@@ -211,18 +212,24 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.fu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
    // Integrator for A_AL(v, v').
    fluids.fu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
+   //fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
    // Integrator for O(u_n; v, v').  ADD BOUNDARY TERM HERE.
-   fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
-   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
+   fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
+   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, -0.5));
 
-   fluids.fu.Assemble();
-   fluids.fu.Finalize();
-
+   // Assembling fu here is redundant.
+   //fluids.fu.Assemble();
+   //fluids.fu.Finalize();
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
    fluids.smallPressure.Assemble(); 
    fluids.smallPressure.Finalize();
+
+   rhs_mu = new ParBilinearForm(spaces[2]);
+   rhs_mu->AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
+   rhs_mu->Assemble();
+   rhs_mu->Finalize();
 
 
    //*****************************************************************************************************//
@@ -240,7 +247,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.dj.Finalize();
 
    // Electric potential preconditioner.
-   mphiCoeff = new ConstantCoefficient(kappa_val); // Including kappa here although not present in algorithm 4.1.
+   mphiCoeff = new ConstantCoefficient(1.0); // Including kappa here although not present in algorithm 4.1.
    //mphiCoeff = new ConstantCoefficient(-kappa_val); // Including kappa here although not present in algorithm 4.1.
    //cout << "mphiCoeff value = " << mphiCoeff->constant << endl;
    //mphi = new ParBilinearForm(spaces[1]);
@@ -269,12 +276,15 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
    // Integrator for A_AL(v, v').
    liprec.fk.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
+   //liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
    // Integrator for O(u_n; v, v').
    liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
-   liprec.fk.Assemble();
-   liprec.fk.Finalize();
+   
+   // Assembling fk here is redundant.
+   //liprec.fk.Assemble();
+   //liprec.fk.Finalize();
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
 
@@ -320,17 +330,6 @@ void LmmhdOperator::UpdateUStar(int step)
    *ustar_coef = ustar_gf;
 }
 
-void LmmhdOperator::UpdateHistory()
-{
-
-   u_gf_n_2 = u_gf_n_1;
-   u_gf_n_1 = u_gf;
-
-   j_gf_n_1 = j_gf;
-   phi_gf_n_1 = phi_gf;
-   p_gf_n_1 = p_gf;
-}
-
 void LmmhdOperator::UpdateIntegrators()
 {
    fluids.fu.Update();
@@ -342,15 +341,24 @@ void LmmhdOperator::UpdateIntegrators()
    liprec.fk.Finalize();
 }
 
-void LmmhdOperator::SetGridFunctionsFromTrueDofs(int step)
+void LmmhdOperator::RemoveMeans()
+{
+   // Remove mean from pressure and potential.  Only do this if nullspace
+   // needs removing from the problem (i.e. all Neumann BCs).
+   potential_mean_remover.RemoveMean(X->GetBlock(1));
+   pressure_mean_remover.RemoveMean(X->GetBlock(3));
+}
+
+void LmmhdOperator::SetGridFunctionsFromTrueDofs()
 {
    j_gf.SetFromTrueDofs(X->GetBlock(0));
    phi_gf.SetFromTrueDofs(X->GetBlock(1));
    ubar_gf.SetFromTrueDofs(X->GetBlock(2));
    p_gf.SetFromTrueDofs(X->GetBlock(3));
+}
 
-   //fluids.fu.RecoverFEMSolution(X->GetBlock(2), ubar_gf, ubar_gf);
-
+void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
+{
    // Reconstruct physical velocity:
    if (step == 0)
    {
@@ -385,12 +393,14 @@ void LmmhdOperator::CalcNorms()
       logger << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;
 }
 
-void LmmhdOperator::RemoveMeans()
+void LmmhdOperator::UpdateHistory()
 {
-   // Remove mean from pressure and potential.  Only do this if nullspace
-   // needs removing from the problem (i.e. all Neumann BCs).
-   potential_mean_remover.RemoveMean(X->GetBlock(1));
-   pressure_mean_remover.RemoveMean(X->GetBlock(3));
+   u_gf_n_2 = u_gf_n_1;
+   u_gf_n_1 = u_gf;
+
+   j_gf_n_1 = j_gf;
+   phi_gf_n_1 = phi_gf;
+   p_gf_n_1 = p_gf;
 }
 
 void LmmhdOperator::SetBCs()
@@ -510,12 +520,10 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    RHS->GetBlock(0) -= Kt_bc;
 
 
-
-
-   ParBilinearForm mu(spaces[2]);
-   mu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
-   mu.Assemble();
-   mu.Finalize();
+   //ParBilinearForm mu(spaces[2]);
+   //mu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
+   //mu.Assemble();
+   //mu.Finalize();
 
    /*ParBilinearForm diffu(spaces[2]);
    diffu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
@@ -529,7 +537,7 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    convu.Finalize();*/
 
    HypreParMatrix *MuMat;//, *DiffuMat, *ConvuMat;
-   MuMat = mu.ParallelAssemble();
+   MuMat = rhs_mu->ParallelAssemble();
    //DiffuMat = diffu.ParallelAssemble();
    //ConvuMat = convu.ParallelAssemble();
 
@@ -546,9 +554,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    RHS->GetBlock(2).Add(1.0, Mu_u_old);
    //RHS->GetBlock(2).Add(-1.0, DiffuMat_u_old);
    //RHS->GetBlock(2).Add(-1.0, ConvuMat_u_old);
-
-
-
 
 
    A->SetBlock(0,0, MjMat);
@@ -592,6 +597,8 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
    lmmhd_solver->Mult(*RHS, *X);
 
+
+   // Calculating residual only.
    Vector residual(*RHS);
    A->Mult(*X, residual);
    residual.Neg();
