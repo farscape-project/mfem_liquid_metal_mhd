@@ -562,13 +562,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
    lmmhd_solver->SetPreconditioner(*P);
 
-   std::cout << "Initial residual = " << RHS->Norml2() << std::endl;
-
-   cout << "b_j    = " << RHS->GetBlock(0).Norml2() << endl;
-   cout << "b_phi  = " << RHS->GetBlock(1).Norml2() << endl;
-   cout << "b_ubar = " << RHS->GetBlock(2).Norml2() << endl;
-   cout << "b_p    = " << RHS->GetBlock(3).Norml2() << endl;
-
    lmmhd_solver->Mult(*RHS, *X);
 
 
@@ -579,7 +572,12 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    residual += *RHS;
 
    real_t norm = residual.Norml2();
-   std::cout << "norm = " << norm << std::endl;
+   real_t local_sq = residual * residual; // dot product
+   real_t global_sq;
+   MPI_Allreduce(&local_sq, &global_sq, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   real_t global_norm = std::sqrt(global_sq);
+   if (Mpi::Root()) std::cout << "global_norm = " << global_norm << std::endl;
+
 
    delete BMat_A;
    delete BtMat_A;
