@@ -178,14 +178,14 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.b.Finalize();
 
    // Bilinear form for current density.
-   mjCoeff = new ConstantCoefficient(kappa_val);
+   mjCoeff = new ConstantCoefficient(1.0);
    //cout << "mjCoeff value = " << mjCoeff->constant << endl;
    magnetics.mj.AddDomainIntegrator(new VectorFEMassIntegrator(*mjCoeff));
    magnetics.mj.Assemble();
    magnetics.mj.Finalize();
 
    // Mixed bilinear form for current density and electric potential coupling.
-   gCoeff = new ConstantCoefficient(-kappa_val);
+   gCoeff = new ConstantCoefficient(-1.0);
    //cout << "gCoeff value = " << gCoeff->constant << endl;
    magnetics.g.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(*gCoeff));
    magnetics.g.Assemble();
@@ -194,13 +194,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Mixed bilinear form for current density and velocity coupling.
    // VectorFEMassIntegrator(lambda) applies (lambda d, v').  In order to 
    // apply (d, B x v') we rearrange the identity to (-B x d, v') using the 
-   // identities a . (b x c) = c . (a x b) and (a x b) = - (b x a).  We also 
-   // multiply by kappa to include Hartmann number scaling.
+   // identities a . (b x c) = c . (a x b) and (a x b) = - (b x a).
    kCoeffVec = new Vector(dim);
    *kCoeffVec = 0.0;
    *kCoeffVec -= *B;
-   *kCoeffVec *= kappa_val;
-   *kCoeffVec *= -1.0;
    //std::cout << "kCoeffVec: " << (*kCoeffVec)(0) << ", " << (*kCoeffVec)(1) << ", " << (*kCoeffVec)(2) << std::endl;
    kCoeff = new CrossProductMatrixCoefficient(*kCoeffVec);
    coupling.k.AddDomainIntegrator(new VectorFEMassIntegrator(*kCoeff));
@@ -216,10 +213,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Integrator for O(u_n; v, v').  ADD BOUNDARY TERM HERE.
    fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
    fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, -0.5));
-
-   // Assembling fu here is redundant.
-   //fluids.fu.Assemble();
-   //fluids.fu.Finalize();
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
@@ -238,35 +231,26 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    /// Define integrators for preconditioner.
    // Current density preconditioner.
-   djCoeff = new ConstantCoefficient(kappa_val); // Including kappa here although not present in algorithm 4.1.
-   //cout << "djCoeff value = " << djCoeff->constant << endl;
-   //dj = new ParBilinearForm(spaces[0]);
+   djCoeff = new ConstantCoefficient(1.0);
    liprec.dj.AddDomainIntegrator(new VectorFEMassIntegrator(*djCoeff));  
    liprec.dj.AddDomainIntegrator(new DivDivIntegrator(*djCoeff));  
    liprec.dj.Assemble();
    liprec.dj.Finalize();
 
    // Electric potential preconditioner.
-   mphiCoeff = new ConstantCoefficient(1.0); // Including kappa here although not present in algorithm 4.1.
-   //mphiCoeff = new ConstantCoefficient(-kappa_val); // Including kappa here although not present in algorithm 4.1.
-   //cout << "mphiCoeff value = " << mphiCoeff->constant << endl;
-   //mphi = new ParBilinearForm(spaces[1]);
+   mphiCoeff = new ConstantCoefficient(1.0);
    liprec.mphi.AddDomainIntegrator(new MassIntegrator(*mphiCoeff));
    liprec.mphi.Assemble();
    liprec.mphi.Finalize();
 
    // Pressure preconditioner (part 1).
    mpCoeff = new ConstantCoefficient(1.0);
-   //cout << "mpCoeff value = " << mpCoeff->constant << endl;
-   //mp = new ParBilinearForm(spaces[3]);
    liprec.mp.AddDomainIntegrator(new MassIntegrator(*mpCoeff));
    liprec.mp.Assemble();
    liprec.mp.Finalize();
 
    // Pressure preconditioner (part 2).
    spCoeff = new ConstantCoefficient(1.0);
-   //cout << "spCoeff value = " << spCoeff->constant << endl;
-   //sp = new ParBilinearForm(spaces[3]);
    liprec.sp.AddDomainIntegrator(new DiffusionIntegrator(*spCoeff));
    liprec.sp.Assemble();
    liprec.sp.Finalize();
@@ -281,10 +265,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
-   
-   // Assembling fk here is redundant.
-   //liprec.fk.Assemble();
-   //liprec.fk.Finalize();
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
 
@@ -501,7 +481,25 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *GtMat = GMat->Transpose();
    HypreParMatrix *BtMat = BMat->Transpose();
    HypreParMatrix *KtMat = KMat->Transpose();
-   (*KtMat) *= -1.0; // KMat is negative and KtMat positive.
+
+   HypreParMatrix *BMat_A = new HypreParMatrix(*BMat);
+   HypreParMatrix *BtMat_A = new HypreParMatrix(*BtMat);
+   HypreParMatrix *FuMat_A = new HypreParMatrix(*FuMat);
+   HypreParMatrix *MjMat_A = new HypreParMatrix(*MjMat);
+   HypreParMatrix *GMat_A = new HypreParMatrix(*GMat);
+   HypreParMatrix *GtMat_A = new HypreParMatrix(*GtMat);
+   HypreParMatrix *KMat_A = new HypreParMatrix(*KMat);
+   HypreParMatrix *KtMat_A = new HypreParMatrix(*KtMat);
+   HypreParMatrix *smallPressureMat_A = new HypreParMatrix(*smallPressureMat);
+
+   // Apply kappa and negative signs in A matrix.
+   (*MjMat_A) *= kappa_val;
+   (*GMat_A) *= kappa_val;
+   (*GtMat_A) *= kappa_val;
+   (*KMat_A) *= -1.0;
+   (*KMat_A) *= kappa_val;   
+   (*KtMat_A) *= kappa_val;
+
 
    // Calculating contribution from velocity Dirichlet BC to RHS.
    HypreParVector u_bc(spaces[2]);
@@ -520,53 +518,29 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    RHS->GetBlock(0) -= Kt_bc;
 
 
-   //ParBilinearForm mu(spaces[2]);
-   //mu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
-   //mu.Assemble();
-   //mu.Finalize();
-
-   /*ParBilinearForm diffu(spaces[2]);
-   diffu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   diffu.Assemble();
-   diffu.Finalize();
-   
-   ParBilinearForm convu(spaces[2]);
-   convu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
-   convu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
-   convu.Assemble();
-   convu.Finalize();*/
-
-   HypreParMatrix *MuMat;//, *DiffuMat, *ConvuMat;
+   // Calculate un_1 term for rhs of velocity equation.
+   HypreParMatrix *MuMat;
    MuMat = rhs_mu->ParallelAssemble();
-   //DiffuMat = diffu.ParallelAssemble();
-   //ConvuMat = convu.ParallelAssemble();
 
    HypreParVector u_old(spaces[2]);
    u_gf_n_1.GetTrueDofs(u_old);
 
-   //Vector &u_old = X->GetBlock(2);
-
-   HypreParVector Mu_u_old(spaces[2]);//, DiffuMat_u_old(spaces[2]), ConvuMat_u_old(spaces[2]);
+   HypreParVector Mu_u_old(spaces[2]);
    MuMat->Mult(u_old, Mu_u_old);
-   //DiffuMat->Mult(u_old, DiffuMat_u_old);
-   //ConvuMat->Mult(u_old, ConvuMat_u_old);
-
    RHS->GetBlock(2).Add(1.0, Mu_u_old);
-   //RHS->GetBlock(2).Add(-1.0, DiffuMat_u_old);
-   //RHS->GetBlock(2).Add(-1.0, ConvuMat_u_old);
 
 
-   A->SetBlock(0,0, MjMat);
-   A->SetBlock(0,1, GtMat);
-   A->SetBlock(1,0, GMat);
+   A->SetBlock(0,0, MjMat_A);
+   A->SetBlock(0,1, GtMat_A);
+   A->SetBlock(1,0, GMat_A);
    // Set coupling (B^T and B) blocks.
-   A->SetBlock(2,3, BtMat);
-   A->SetBlock(3,2, BMat);
+   A->SetBlock(2,3, BtMat_A);
+   A->SetBlock(3,2, BMat_A);
    // Set K blocks for coupling J and U.
-   A->SetBlock(2,0, KMat);
-   A->SetBlock(0,2, KtMat);
-   A->SetBlock(2,2, FuMat);
-   A->SetBlock(3,3, smallPressureMat);
+   A->SetBlock(2,0, KMat_A);
+   A->SetBlock(0,2, KtMat_A);
+   A->SetBlock(2,2, FuMat_A);
+   A->SetBlock(3,3, smallPressureMat_A);
 
    lmmhd_solver->SetOperator(*A);
 
@@ -607,6 +581,15 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    real_t norm = residual.Norml2();
    std::cout << "norm = " << norm << std::endl;
 
+   delete BMat_A;
+   delete BtMat_A;
+   delete FuMat_A;
+   delete MjMat_A;
+   delete GMat_A;
+   delete GtMat_A;
+   delete KMat_A;
+   delete KtMat_A;
+   delete smallPressureMat_A;
 }
 
 LmmhdOperator::~LmmhdOperator() {

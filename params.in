@@ -12,7 +12,7 @@ clusterY      1.8    // mesh clustering in y-direction
 clusterZ      1.8    // mesh clustering in z-direction
 
 ******** Timestepping parameters ********
-t_final       0.2    // final time-step
+t_final       0.5    // final time-step
 dt            0.01    // time-step
 vis_steps       1    // visualisation step frequency
 

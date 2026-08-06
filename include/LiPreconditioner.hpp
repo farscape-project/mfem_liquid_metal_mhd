@@ -285,11 +285,11 @@ public:
         rj /= kappa_val;
 
         Gt->Mult(yphi, GtYphi);
-        GtYphi *= 2.0 / kappa_val;
+        GtYphi *= 2.0;
         logger << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
 
         Kt->Mult(yu, KtYu);
-        KtYu *= 2.0 / kappa_val;
+        KtYu *= 2.0;
         logger << "||KtYu|| = " << KtYu.Norml2() << std::endl;
 
         rj -= GtYphi;
