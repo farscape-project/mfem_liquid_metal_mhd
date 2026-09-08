@@ -184,6 +184,8 @@ protected:
    VectorFunctionCoefficient *velocity_DBC;
    VectorFunctionCoefficient *magnetic_field_coef;
    FunctionCoefficient *pressure_DBC;
+   VectorGridFunctionCoefficient *velocity_n_1_Coeff;
+   VectorSumCoefficient *velocity_bar_DBC;
 
    // Coefficients for zero RHS terms.
    ConstantCoefficient *zeroCoeff;

@@ -40,12 +40,12 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
    lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
-   lmmhd_solver->SetRelTol(1e-4);
-   lmmhd_solver->SetAbsTol(1e-8);
+   lmmhd_solver->SetRelTol(1e-8);
+   lmmhd_solver->SetAbsTol(1e-12);
    lmmhd_solver->SetMaxIter(300);
    lmmhd_solver->SetPrintLevel(1);
-   lmmhd_solver->SetKDim(500);
-   lmmhd_solver->iterative_mode = true;
+   lmmhd_solver->SetKDim(50);
+   lmmhd_solver->iterative_mode = false;
 
    // Add monitoring for output to log file.
    fgmres_monitor = new FGMRESLogMonitor(logger);
@@ -158,12 +158,20 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    phi_gf_n_1 = 0.0;
    p_gf_n_1 = 0.0;
 
+   // Coefficient for u_n_1.
+   velocity_n_1_Coeff = new VectorGridFunctionCoefficient(&u_gf_n_1);
+
+   // ubar boundary condition:
+   // ubar_n = 0.5 * (g + u_n_1).
+   velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, 0.5, 0.5);
+   //(*velocity_bar_DBC) *= 0.5;
 
    // Project BCs onto grid functions.
-   j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
+   j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
-   ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   //ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 
    ustar_gf = new ParGridFunction(spaces[2]);
@@ -386,10 +394,11 @@ void LmmhdOperator::UpdateHistory()
 void LmmhdOperator::SetBCs()
 {
    // Project BCs onto grid functions.
-   j_gf.ProjectBdrCoefficient(*currentD_DBC, *ess_bdr_marker[0]);
+   j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
-   ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   //ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
+   ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 }
 
@@ -493,12 +502,12 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *smallPressureMat_A = new HypreParMatrix(*smallPressureMat);
 
    // Apply kappa and negative signs in A matrix.
-   (*MjMat_A) *= kappa_val;
-   (*GMat_A) *= kappa_val;
-   (*GtMat_A) *= kappa_val;
+   //(*MjMat_A) *= kappa_val;
+   //(*GMat_A) *= kappa_val;
+   //(*GtMat_A) *= kappa_val;
    (*KMat_A) *= -1.0;
    (*KMat_A) *= kappa_val;   
-   (*KtMat_A) *= kappa_val;
+   //(*KtMat_A) *= kappa_val;
 
 
    // Calculating contribution from velocity Dirichlet BC to RHS.
@@ -553,10 +562,13 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParMatrix *SpMat = liprec.SpMat_h.As<HypreParMatrix>();
    HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();
 
+   HypreParMatrix *GtMat_P = new HypreParMatrix(*GtMat);
+   HypreParMatrix *KtMat_P = new HypreParMatrix(*KtMat);
+
    // Propagate matrices through to preconditioner.
    P->SetPressurePreconditioner(MpMat, SpMat);
    P->SetElectricPotentialPreconditioner(MphiMat);
-   P->SetCurrentDensityPreconditioner(DjMat, GtMat, KtMat);
+   P->SetCurrentDensityPreconditioner(DjMat, GtMat_P, KtMat_P);
    P->SetVelocityPreconditioner(FkMat, BtMat);
    P->UpdateVelocityPreconditioner(FkMat);
 
@@ -588,6 +600,8 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    delete KMat_A;
    delete KtMat_A;
    delete smallPressureMat_A;
+   delete GtMat_P;
+   delete KtMat_P;
 }
 
 LmmhdOperator::~LmmhdOperator() {

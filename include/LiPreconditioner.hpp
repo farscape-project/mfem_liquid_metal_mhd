@@ -76,7 +76,7 @@ protected:
 
     // Electric potential preconditioner solvers.
     CGSolver *MphiSolver;
-    OrthoSolver *MphiOrthoSolver;
+    //OrthoSolver *MphiOrthoSolver;
     //MUMPSSolver *MphiSolver;
     HypreSmoother *MphiPrec;
 
@@ -165,8 +165,8 @@ public:
         MphiPrec->SetType(HypreSmoother::GS, 6);
         MphiSolver->SetPreconditioner(*MphiPrec);
 
-        MphiOrthoSolver = new OrthoSolver(spaces[1]->GetComm());
-        MphiOrthoSolver->SetSolver(*MphiSolver);
+        //MphiOrthoSolver = new OrthoSolver(spaces[1]->GetComm());
+        //MphiOrthoSolver->SetSolver(*MphiSolver);
 
         //MphiSolver = new MUMPSSolver(MPI_COMM_WORLD);
         //MphiSolver->SetOperator(*MphiMat);
@@ -242,7 +242,10 @@ public:
         real_t spCoeff = 2.0 / dt;
         eta2tau = eta;
         eta2tau *= spCoeff;
-        yp = xi;  yp *= alpha1;  yp += eta2tau;  yp *= -1.0;
+        yp = xi;
+        yp *= alpha1;
+        yp += eta2tau;
+        yp *= -1.0;
 
         logger << "||xi|| = " << xi.Norml2() << std::endl;
         logger << "||eta|| = " << eta.Norml2() << std::endl;
@@ -255,9 +258,9 @@ public:
         // Electric potential solve.
         Vector &yphi = yblock.GetBlock(1);
         Vector rphi = xblock.GetBlock(1);
-        rphi /= kappa_val;
-        //MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
-        MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
+        //rphi /= kappa_val;
+        MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
+        //MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
 
         logger << "||yphi|| = " << yphi.Norml2() << std::endl;
@@ -282,7 +285,7 @@ public:
         Vector rj = xblock.GetBlock(0);
         Vector GtYphi(rj.Size()), KtYu(rj.Size());
 
-        rj /= kappa_val;
+        //rj /= kappa_val;
 
         Gt->Mult(yphi, GtYphi);
         GtYphi *= 2.0;

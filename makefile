@@ -1,4 +1,4 @@
-MFEM_DIR=../mfem-moose/framework/contrib/mfem/build-oprof
+MFEM_DIR=../mfem_moose_custOp/framework/contrib/mfem/build-opt
 ###MFEM_DIR=../../MOOSE_BUILDS/cust_ops/framework/contrib/mfem/build-opt
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
@@ -30,7 +30,11 @@ CXXFLAGS = $(MFEM_FLAGS) -Iinclude
 LDFLAGS =  $(MFEM_LIBS)
 
 CXXFLAGS += -fsanitize=address -g -O0
-LDFLAGS  += -fsanitize=address
+#LDFLAGS  += -fsanitize=address
+
+LDFLAGS = $(MFEM_LIBS)
+LDFLAGS := $(subst -lmfem,-lmfem-opt,$(LDFLAGS))
+LDFLAGS += -fsanitize=address
 
 all: $(TARGET)
 
