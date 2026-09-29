@@ -2,6 +2,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 
 #include "LmmhdOperator.hpp"
 #include "constants.hpp"
@@ -16,14 +17,15 @@ int main(int argc, char *argv[])
 {
    int debug = 0;
 
-   ofstream log_file("simulation.log");
-   Logger logger(log_file);
-
-   // Initialize MPI and HYPRE.
+   // Initialize MPI and HYPRE (before anything that queries the rank).
    Mpi::Init(argc, argv);
-   int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
    Hypre::Init();
+
+   // Only the root rank opens (and truncates) the log file; Logger only
+   // writes on the root rank.
+   ofstream log_file;
+   if (Mpi::Root()) { log_file.open("simulation.log"); }
+   Logger logger(log_file);
 
    mfem::tic();
 
@@ -57,16 +59,6 @@ int main(int argc, char *argv[])
    Bz = input.GetReal("Bz");
    // Grad-div (augmented Lagrangian) parameter; alpha = 0 disables the term.
    if (input.Has("alpha")) { alpha = input.GetReal("alpha"); }
-
-   // Update constants.
-   reciprocal_Re = 1.0 / Re;
-   kappa_val = Ha * Ha / Re;
-   neg_kappa_val = -kappa_val;
-   alpha1 = alpha + reciprocal_Re;
-   neg_alpha1 = -alpha1;
-
-
-   if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
 
    // Set fe_space orders.
    // The current density and electric potential orders MUST match
@@ -103,7 +95,33 @@ int main(int argc, char *argv[])
    
    args.AddOption(&order_currentD, "-oj", "--order-current",
                   "RT order k for the current density (potential uses L2 order k).");
+   args.AddOption(&Re, "-re", "--reynolds", "Reynolds number.");
+   args.AddOption(&Ha, "-ha", "--hartmann", "Hartmann number.");
+   args.AddOption(&alpha, "-alpha", "--grad-div", "Grad-div (augmented Lagrangian) parameter.");
+   args.AddOption(&debug, "-debug", "--debug", "Debug output level (enables preconditioner norm logging).");
    args.Parse();
+   if (!args.Good())
+   {
+      if (Mpi::Root()) { args.PrintUsage(cout); }
+      return 1;
+   }
+
+   vis_steps = std::max(1, vis_steps);
+
+   // Derived constants (after command-line overrides).
+   reciprocal_Re = 1.0 / Re;
+   kappa_val = Ha * Ha / Re;
+   neg_kappa_val = -kappa_val;
+   alpha1 = alpha + reciprocal_Re;
+   neg_alpha1 = -alpha1;
+   lid_z = Lz;
+
+   if (Mpi::Root())
+   {
+      PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
+      cout << "B = (" << Bx << ", " << By << ", " << Bz << "), alpha = " << alpha
+           << ", RT/L2 order = " << order_currentD << endl << endl;
+   }
 
    const int order_electPot = order_currentD;
    const int order_velocity = order_pressure + 1;
@@ -117,12 +135,12 @@ int main(int argc, char *argv[])
    int dim = mesh.Dimension();
 
    
-   // Cluster vertices in y and z.
+   // Cluster vertices towards the walls in x, y and z.
    int numVertices = mesh.GetNV();
    for (int i = 0; i < numVertices; i++)
    {
       real_t *v = mesh.GetVertex(i);
-      real_t xi = v[0] / Lx; // Normalize y
+      real_t xi = v[0] / Lx; // Normalize x
       real_t yi = v[1] / Ly; // Normalize y
       real_t zi = v[2] / Lz; // Normalize z
 
@@ -172,17 +190,20 @@ int main(int argc, char *argv[])
    // Define boundaries.
    // ----------------------------------------------------------------------------
    
-   // Essential (Dirichlet) boundary conditions for duct flow.
-   //                  {z1, y0, x1 (outlet), y1, x0 (inlet), z0}
+   // Essential (Dirichlet) boundary conditions.  Boundary attributes of
+   // Mesh::MakeCartesian3D (hexahedra):
+   //   1: z = 0,  2: y = 0,  3: x = Lx,  4: y = Ly,  5: x = 0,  6: z = Lz.
+   //
+   // Duct flow:           {z0, y0, x1 (outlet), y1, x0 (inlet), z1}
    //int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
    //int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
    //int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
    //int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
 
-   // Essential (Dirichlet) boundary conditions for lid-driven cavity.
-   //                  {z1, y0, x1, y1, x0, z0}
+   // Lid-driven cavity (lid at z = Lz, see BoundaryConditions.hpp).
+   //                     {z0, y0, x1, y1, x0, z1}
    int currentD_bcs[] = {1,  1,  1,  1,  1,  1};
-   int electPot_bcs[] = {0,  0,  0,  0,  0,  0};
+   int electPot_bcs[] = {0,  0,  0,  0,  0,  0};   // L2 space: no boundary dofs
    int pressure_bcs[] = {0,  0,  0,  0,  0,  0};
    int velocity_bcs[] = {1,  1,  1,  1,  1,  1};
 
@@ -197,19 +218,11 @@ int main(int argc, char *argv[])
    ess_bdr[2] = &ess_boundary_marker_velocity;
    ess_bdr[3] = &ess_boundary_marker_pressure;
 
-   Array<int> pressure_ess_tdof, velocity_ess_tdof, currentD_ess_tdof, electPot_ess_tdof;
-   currentD_fespace.GetEssentialTrueDofs(ess_boundary_marker_currentD, currentD_ess_tdof);
-   electPot_fespace.GetEssentialTrueDofs(ess_boundary_marker_electPot, electPot_ess_tdof);
-   pressure_fespace.GetEssentialTrueDofs(ess_boundary_marker_pressure, pressure_ess_tdof);
-   velocity_fespace.GetEssentialTrueDofs(ess_boundary_marker_velocity, velocity_ess_tdof);
-
    // Print mesh statistics.
    if (Mpi::Root()) PrintFESpaces(j_space_size, phi_space_size, v_space_size, p_space_size);
-   
-   ParGridFunction uN_1(&velocity_fespace);
-   GridFunction du(&velocity_fespace);
 
-   // Define block structure of the solution vector (u then p).
+
+   // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);
    block_trueOffsets[0] = 0;
    block_trueOffsets[1] = j_space_size;
@@ -217,11 +230,6 @@ int main(int argc, char *argv[])
    block_trueOffsets[3] = v_space_size;
    block_trueOffsets[4] = p_space_size;
    block_trueOffsets.PartialSum();
-
-   // Initialise time-loop details.
-   real_t t = 0.0;
-   int ti_out = 0; // Time step output index.
-   int ti = 0;
 
    // Initialise liquid-metal MHD operator.
    LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, logger);
@@ -236,27 +244,32 @@ int main(int argc, char *argv[])
 
    oper.SetGridFunctionsFromTrueDofs();
 
-   // Set up visualisation in Paraview.
+   // Set up visualisation in Paraview (cycle 0 holds the initial condition).
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
    pvdc.SetPrefixPath("data");
    pvdc.SetDataFormat(VTKFormat::BINARY);
    pvdc.SetHighOrderOutput(true);
    pvdc.SetLevelsOfDetail(2);
    pvdc.SetCycle(0);
-   pvdc.SetTime(t);
+   pvdc.SetTime(0.0);
    pvdc.RegisterField("current density", j_gf);
    pvdc.RegisterField("electric potential", phi_gf);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
    pvdc.Save();
 
-   while (t < t_final)
+   // Time loop.  An integer step count avoids an extra step from
+   // floating-point accumulation of t.
+   const int num_steps = static_cast<int>(std::ceil(t_final / dt - 1e-8));
+   real_t t = 0.0;
+
+   for (int ti = 0; ti < num_steps; ti++)
    {
       if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
       logger << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl;
-            
-      oper.UpdateUStar(ti); // Update value of u* in convection integrators each time-step/Picard iteration.
-      oper.UpdateIntegrators(); // Propagate updated u* into F integrators.
+
+      oper.UpdateUStar(ti);     // Extrapolated u* at t^{n+1/2} for the linearised convection term.
+      oper.UpdateIntegrators(); // Re-assemble Fu and Fk with the new u*.
 
       oper.Step(t, dt);
 
@@ -270,15 +283,16 @@ int main(int argc, char *argv[])
 
       oper.UpdateHistory();
 
-      // Save data.
-      pvdc.SetCycle(ti);
-      pvdc.SetTime(t);
-      pvdc.Save();
+      t = (ti + 1) * dt;
 
-      ti += 1;
-      t += dt;
-
-      //if (res < tolerance) break;
+      // Save data.  The velocity is u^{n+1} at time t; the midpoint scheme
+      // gives the current density, potential and pressure at t - dt/2.
+      if ((ti + 1) % vis_steps == 0 || ti + 1 == num_steps)
+      {
+         pvdc.SetCycle(ti + 1);
+         pvdc.SetTime(t);
+         pvdc.Save();
+      }
    }
 
    if (Mpi::Root()) { std::cout << "Total simulation time: " << mfem::toc() << std::endl; }

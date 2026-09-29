@@ -1,4 +1,5 @@
 #include "mfem.hpp"
+#include "constants.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -59,8 +60,8 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
       f(1) = 0.0;
    }
 
-   // Lid-driven cavity.
-   if (x(2) > 0.999)
+   // Lid-driven cavity: lid at z = Lz (lid_z is set from Lz in main()).
+   if (x(2) > lid_z * (1.0 - 1e-6))
    {
       f(0) = 1.0;
    }

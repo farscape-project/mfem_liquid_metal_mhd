@@ -18,3 +18,6 @@ extern real_t neg_kappa_val;
 extern real_t Bx;
 extern real_t By;
 extern real_t Bz;
+
+// Height of the moving lid (z = Lz) for the lid-driven cavity.
+extern real_t lid_z;
