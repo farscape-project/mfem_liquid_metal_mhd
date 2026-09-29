@@ -1,3 +1,5 @@
+#pragma once
+
 // constants.hpp
 
 #include "mfem.hpp"
