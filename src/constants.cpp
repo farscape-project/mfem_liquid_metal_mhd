@@ -20,3 +20,5 @@ real_t neg_kappa_val(-kappa_val);
 real_t Bx(0.0);
 real_t By(0.0);
 real_t Bz(1.0);
+
+real_t lid_z(1.0);

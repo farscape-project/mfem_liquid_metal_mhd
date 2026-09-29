@@ -18,8 +18,11 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
 
     DenseMatrix dshape(nd, dim);
 
-    // Pick quadrature rule.
-    const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * el.GetOrder());
+    // Pick quadrature rule.  The integrand (u*.grad phi_k) phi_j has degree
+    // ~3p per coordinate direction on tensor-product elements (plus geometry),
+    // so 2p under-integrates for Q2 velocity.
+    const int ir_order = 3 * el.GetOrder() + Trans.OrderW();
+    const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), ir_order);
 
     // Loop through quadrature points and determine element matrix contributions.
     for (int i = 0; i < ir->GetNPoints(); i++)

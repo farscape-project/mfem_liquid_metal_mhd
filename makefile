@@ -1,51 +1,64 @@
-MFEM_DIR=../mfem_moose_custOp/framework/contrib/mfem/build-opt
+# Path to an MFEM build (build directory or install prefix containing
+# config/config.mk).  Override on the command line, e.g.
+#    make MFEM_DIR=/path/to/mfem MFEM_LIB_SUFFIX=
+MFEM_DIR ?= ../mfem_moose_custOp/framework/contrib/mfem/build-opt
 ###MFEM_DIR=../../MOOSE_BUILDS/cust_ops/framework/contrib/mfem/build-opt
-CONFIG_MK = $(MFEM_DIR)/config/config.mk
 
+# MOOSE builds of MFEM name the library libmfem-opt; set to empty for a
+# standard MFEM build.
+MFEM_LIB_SUFFIX ?= -opt
+
+CONFIG_MK = $(MFEM_DIR)/config/config.mk
 include $(CONFIG_MK)
 
-# Source files and executable
+# BUILD=release (default: MFEM's optimisation flags) or BUILD=debug
+# (-g -O0 with AddressSanitizer).  Use release builds for any timing or
+# iteration-count study.
+BUILD ?= release
+
 TARGET = lmmhd_solver
 
-# Source files
 SRC = lmmhd_solver.cpp \
       src/VectorConvectionIntegrator.cpp \
       src/LmmhdOperator.cpp \
       src/constants.cpp \
       src/tools.cpp
 
-# Header files (for reference only)
-INC = include/VectorConvectionIntegrator.hpp \
-      include/LmmhdOperator.hpp \
-      include/constants.hpp \
-      include/LiPreconditioner.hpp \
-      include/CrossProductMatrixCoefficient.hpp \
-      include/tools.hpp \
-      include/BoundaryConditions.hpp \
-      include/InputParser.hpp
+OBJ = $(SRC:.cpp=.o)
 
-# Compiler and flags
+TEST_TARGETS = tests/test_convection_skew
+TEST_OBJ = tests/test_convection_skew.o src/VectorConvectionIntegrator.o
+
+DEP = $(OBJ:.o=.d) $(TEST_OBJ:.o=.d)
+
 CXX = $(MFEM_CXX)
-CXXFLAGS = $(MFEM_FLAGS) -Iinclude
-LDFLAGS =  $(MFEM_LIBS)
+# -MMD -MP: track header dependencies (header-only code such as
+# LiPreconditioner.hpp and InputParser.hpp is otherwise never rebuilt).
+CXXFLAGS = $(MFEM_FLAGS) -Iinclude -MMD -MP
+LDLIBS = $(subst -lmfem,-lmfem$(MFEM_LIB_SUFFIX),$(MFEM_LIBS))
 
-CXXFLAGS += -fsanitize=address -g -O0
-#LDFLAGS  += -fsanitize=address
-
-LDFLAGS = $(MFEM_LIBS)
-LDFLAGS := $(subst -lmfem,-lmfem-opt,$(LDFLAGS))
-LDFLAGS += -fsanitize=address
+ifeq ($(BUILD),debug)
+   CXXFLAGS += -g -O0 -fsanitize=address
+   LDFLAGS += -fsanitize=address
+endif
 
 all: $(TARGET)
 
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+$(TARGET): $(OBJ)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
-# Generate an error message if the MFEM library is not built and exit
-$(MFEM_LIB_FILE):
-	$(error The MFEM library is not built)
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+tests/test_convection_skew: $(TEST_OBJ)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
+test: $(TEST_TARGETS)
+	./tests/test_convection_skew
+
+-include $(DEP)
 
 clean:
-	rm -f $(TARGET) *.o *~ core
+	rm -f $(TARGET) $(TEST_TARGETS) $(OBJ) $(TEST_OBJ) $(DEP) *~ core
 
-.PHONY: all clean
+.PHONY: all clean test

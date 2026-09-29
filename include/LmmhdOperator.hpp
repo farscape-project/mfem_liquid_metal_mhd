@@ -1,3 +1,5 @@
+#pragma once
+
 #include "mfem.hpp"
 #include "BoundaryConditions.hpp"
 #include "VectorConvectionIntegrator.hpp"
@@ -106,16 +108,16 @@ protected:
 
    //std::unique_ptr<Solver> lmmhd_solver;
    //std::unique_ptr<Operator> A;
-   FGMRESSolver *lmmhd_solver;
-   BlockOperator *A;
+   FGMRESSolver *lmmhd_solver = nullptr;
+   BlockOperator *A = nullptr;
 
-   BlockVector *X, *Xn_1;
-   BlockVector *RHS;
+   BlockVector *X = nullptr, *Xn_1 = nullptr;
+   BlockVector *RHS = nullptr;
 
-   LiPreconditioner *P;
-   Array2D<HypreParMatrix *> *blocks;
+   LiPreconditioner *P = nullptr;
 
-   OrthoSolver *prec_ortho_solver;
+   // True once the time-independent blocks and preconditioner pieces exist.
+   bool constant_blocks_ready = false;
 
    MagneticBlock magnetics;
    NavierBlock fluids;
@@ -123,32 +125,32 @@ protected:
    LiPrecForms liprec;
 
    ParLinearForm rj, rphi, ru, rp;
-   ParBilinearForm *rhs_mu;
+   ParBilinearForm *rhs_mu = nullptr;
 
    // Vectors and numbers used for bilinear form coefficients.
-   Vector *B;
-   Vector *kCoeffVec;
+   Vector *B = nullptr;
+   Vector *kCoeffVec = nullptr;
    real_t massCoeffValue;
 
    // Coefficients used in bilinear forms.
-   ConstantCoefficient *bCoeff;
-   ConstantCoefficient *bTCoeff;
-   ConstantCoefficient *mjCoeff;
-   ConstantCoefficient *gCoeff;
-   ConstantCoefficient *gTCoeff;
-   CrossProductMatrixCoefficient *kCoeff;
-   ConstantCoefficient *djCoeff;
-   ConstantCoefficient *mphiCoeff;
-   ConstantCoefficient *mpCoeff;
-   ConstantCoefficient *spCoeff;
-   MatrixConstantCoefficient *fkBxVBxVcoeff;
-   ConstantCoefficient *fReciprocalReCoeff;
-   ConstantCoefficient *alphaCoeff;
-   ConstantCoefficient *fMassCoeff;
-   ConstantCoefficient *smallPressureCoeff;
+   ConstantCoefficient *bCoeff = nullptr;
+   ConstantCoefficient *bTCoeff = nullptr;
+   ConstantCoefficient *mjCoeff = nullptr;
+   ConstantCoefficient *gCoeff = nullptr;
+   ConstantCoefficient *gTCoeff = nullptr;
+   CrossProductMatrixCoefficient *kCoeff = nullptr;
+   ConstantCoefficient *djCoeff = nullptr;
+   ConstantCoefficient *mphiCoeff = nullptr;
+   ConstantCoefficient *mpCoeff = nullptr;
+   ConstantCoefficient *spCoeff = nullptr;
+   MatrixConstantCoefficient *fkBxVBxVcoeff = nullptr;
+   ConstantCoefficient *fReciprocalReCoeff = nullptr;
+   ConstantCoefficient *alphaCoeff = nullptr;
+   ConstantCoefficient *fMassCoeff = nullptr;
+   ConstantCoefficient *smallPressureCoeff = nullptr;
 
-   ConstantCoefficient *mpCoeffNorm;
-   ConstantCoefficient *spCoeffNorm;
+   ConstantCoefficient *mpCoeffNorm = nullptr;
+   ConstantCoefficient *spCoeffNorm = nullptr;
 
    Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
    ParGridFunction *ustar_gf, j_gf, phi_gf, u_gf, p_gf;
@@ -156,6 +158,9 @@ protected:
    ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
    ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
    std::unique_ptr<VectorGridFunctionCoefficient> ustar_coef;
+
+   // Discrete divergence RT_k -> L2_k, used to monitor charge conservation.
+   std::unique_ptr<ParDiscreteLinearOperator> div_j;
    Vector ustar_vec;
 
    // HypreParMatrices for operator blocks.
@@ -173,30 +178,33 @@ protected:
    HypreParMatrix *GtMat = nullptr;
    HypreParMatrix *KMat = nullptr;
    HypreParMatrix *KtMat = nullptr;
+   HypreParMatrix *KtFullMat = nullptr; // K^T without essential-dof elimination (for BC lifting).
+   HypreParMatrix *KMatScaled = nullptr; // -kappa K (momentum-row coupling block).
+   HypreParMatrix *MuMat = nullptr;      // (2/tau) velocity mass matrix for the RHS.
 
    HypreParMatrix *MpMatNorm = nullptr;
    HypreParMatrix *SpMatNorm = nullptr;
 
    // Boundary conditions.
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
-   VectorFunctionCoefficient *currentD_DBC;
-   FunctionCoefficient *electPot_DBC;
-   VectorFunctionCoefficient *velocity_DBC;
-   VectorFunctionCoefficient *magnetic_field_coef;
-   FunctionCoefficient *pressure_DBC;
-   VectorGridFunctionCoefficient *velocity_n_1_Coeff;
-   VectorSumCoefficient *velocity_bar_DBC;
+   VectorFunctionCoefficient *currentD_DBC = nullptr;
+   FunctionCoefficient *electPot_DBC = nullptr;
+   VectorFunctionCoefficient *velocity_DBC = nullptr;
+   VectorFunctionCoefficient *magnetic_field_coef = nullptr;
+   FunctionCoefficient *pressure_DBC = nullptr;
+   VectorGridFunctionCoefficient *velocity_n_1_Coeff = nullptr;
+   VectorSumCoefficient *velocity_bar_DBC = nullptr;
 
    // Coefficients for zero RHS terms.
-   ConstantCoefficient *zeroCoeff;
-   ConstantCoefficient *oneCoeff;
-   VectorFunctionCoefficient *vectorZeroCoeff;
+   ConstantCoefficient *zeroCoeff = nullptr;
+   ConstantCoefficient *oneCoeff = nullptr;
+   VectorFunctionCoefficient *vectorZeroCoeff = nullptr;
 
    int dim;
    real_t dt;
    int debug;
    Logger &logger;
-   FGMRESLogMonitor *fgmres_monitor;
+   FGMRESLogMonitor *fgmres_monitor = nullptr;
 
    RemoveMeanProjector potential_mean_remover;
    RemoveMeanProjector pressure_mean_remover;
@@ -219,6 +227,10 @@ public:
 
    void UpdateIntegrators();
 
+   /// Current-density block solver in the preconditioner: MUMPS (default) or
+   /// CG + HypreADS as in Algorithm 4.1.  Call before the first Step().
+   void UseADSForCurrentDensity(bool use_ads) { P->UseADSForCurrentDensity(use_ads); }
+
    void SetGridFunctionsFromTrueDofs();
 
    void ReconstructPhysicalVelocityFromUBar(int step);
@@ -232,6 +244,9 @@ public:
    void FormASystem();
 
    void FormPSystem();
+
+   // Build the time-independent blocks of A and of the preconditioner once.
+   void SetupConstantBlocks();
 
    //void CheckMatrices();
 
