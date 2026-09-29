@@ -68,6 +68,15 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root()) PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha);
 
+   // Set fe_space orders.
+   // The current density and electric potential orders MUST match
+   // (RT_k x L2_k): then div(RT_k) = L2_k and the discrete constraint
+   // (div J_h, psi) = 0 for all psi in L2_k gives div J_h = 0 pointwise, i.e.
+   // exact charge conservation.  RT_1 x L2_0 only enforces zero net flux per
+   // element.
+   int order_currentD = 1;
+   int order_pressure = 1;
+
    // Command line options.
    OptionsParser args(argc, argv);
    args.AddOption(&t_final, "-tf", "--t-final",
@@ -92,14 +101,13 @@ int main(int argc, char *argv[])
    args.AddOption(&clusterY, "-cy", "--cluster-y", "Clustering intensity in y direction.");
    args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
    
+   args.AddOption(&order_currentD, "-oj", "--order-current",
+                  "RT order k for the current density (potential uses L2 order k).");
    args.Parse();
 
-   // Set fe_space orders.
-   int order_currentD = 1;
-   int order_electPot = 0;
-   int order_pressure = 1;
-   int order_velocity;
-   order_velocity = order_pressure + 1;
+   const int order_electPot = order_currentD;
+   const int order_velocity = order_pressure + 1;
+
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);

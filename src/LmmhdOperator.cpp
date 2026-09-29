@@ -311,6 +311,13 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
 
+   // Discrete divergence of the current density (exact when the potential
+   // space is L2 of the same order as the RT space).
+   div_j = std::make_unique<ParDiscreteLinearOperator>(spaces[0], spaces[1]);
+   div_j->AddDomainInterpolator(new DivergenceInterpolator);
+   div_j->Assemble();
+   div_j->Finalize();
+
    //*****************************************************************************************************//
    //**************************************** Preconditioner *********************************************//
    //*****************************************************************************************************//
@@ -406,6 +413,19 @@ void LmmhdOperator::CalcNorms()
       real_t pres_rel_l2 = rel_L2_norm(p_gf, p_gf_n_1, spaces[3]);
       if (Mpi::Root()) {std::cout << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;}
       logger << "Relative L2 Norm for pressure: " << pres_rel_l2 << std::endl;
+
+      // Charge conservation: ||div J_h||_L2 relative to ||J_h||_L2.  With
+      // matching RT_k x L2_k spaces this should be at the level of the linear
+      // solver tolerance.
+      ParGridFunction divj_gf(spaces[1]);
+      div_j->Mult(j_gf, divj_gf);
+      ConstantCoefficient zero_s(0.0);
+      Vector zero_v(dim); zero_v = 0.0;
+      VectorConstantCoefficient zero_vc(zero_v);
+      const real_t divj_l2 = divj_gf.ComputeL2Error(zero_s);
+      const real_t j_l2 = j_gf.ComputeL2Error(zero_vc);
+      if (Mpi::Root()) {std::cout << "||div J||_L2 = " << divj_l2 << ", ||J||_L2 = " << j_l2 << std::endl;}
+      logger << "||div J||_L2 = " << divj_l2 << ", ||J||_L2 = " << j_l2 << std::endl;
 }
 
 void LmmhdOperator::UpdateHistory()
