@@ -310,6 +310,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
+   P->SetVerbose(debug > 0);
 
    // Discrete divergence of the current density (exact when the potential
    // space is L2 of the same order as the RT space).
@@ -321,9 +322,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //*****************************************************************************************************//
    //**************************************** Preconditioner *********************************************//
    //*****************************************************************************************************//
-
-   RemoveMeanProjector potential_mean_remover(*spaces[1]);
-   RemoveMeanProjector pressure_mean_remover(*spaces[3]);
 
 }
 
@@ -649,7 +647,6 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    residual.Neg();
    residual += *RHS;
 
-   real_t norm = residual.Norml2();
    real_t local_sq = residual * residual; // dot product
    real_t global_sq;
    MPI_Allreduce(&local_sq, &global_sq, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

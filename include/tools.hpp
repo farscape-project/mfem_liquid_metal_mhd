@@ -23,15 +23,16 @@ real_t cluster_symmetric(real_t xi, real_t factor);
 // Checkpoint function for debugging.
 void checkpoint(int num);
 
-// Calculate relative L2-norm of grid functions.
-//real_t rel_L2_norm(Vector X, Vector Xn_1, ParFiniteElementSpace *fespace);
+// Relative change ||gf - gfN_1|| / ||gf|| between time levels, using the
+// global Euclidean norm of the true-dof vectors (collective over the
+// communicator of fespace).
 real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace);
 
 class RemoveMeanProjector
 {
 private:
 
-   ParLinearForm *mass_lf = nullptr;
+   MPI_Comm comm = MPI_COMM_NULL;
    ConstantCoefficient onecoeff;
    Vector one_vec, mass_vec;
    real_t volume = 0.0;
