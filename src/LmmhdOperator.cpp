@@ -218,9 +218,15 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Integrator for A_AL(v, v').
    fluids.fu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
    //fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
-   // Integrator for O(u_n; v, v').  ADD BOUNDARY TERM HERE.
+   // Integrator for the skew-symmetric convection form
+   //    O(u*; v, v') = 1/2 (u*.grad v, v') - 1/2 (u*.grad v', v).
+   // ConservativeVectorConvectionIntegrator(q, a) represents -a (v, q.grad v'),
+   // so a = +0.5 gives the required -1/2 (u*.grad v', v).  (Passing -0.5 here
+   // produces the symmetric part of convection, which integrates to
+   // -1/2 ((div u*) v, v') and removes transport from the momentum equation.)
+   // TODO: outflow boundary term for open (duct) configurations.
    fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
-   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, -0.5));
+   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
@@ -270,8 +276,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
    //liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
    // Integrator for O(u_n; v, v').
-   liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef,0.5));
-   liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef,-0.5));
+   liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
+   liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
 
    P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
