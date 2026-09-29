@@ -17,7 +17,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       rphi(fes[1]),
       ru(fes[2]),
       rp(fes[3]),
-      lmmhd_solver(),
       dim(dim_),
       dt(dt_),
       debug(debug_),
@@ -548,143 +547,123 @@ void LmmhdOperator::FormPSystem()
   liprec.fk.FormSystemMatrix(ess_tdof_u, liprec.FkMat_h);
 }
 
+void LmmhdOperator::SetupConstantBlocks()
+{
+   // Everything except Fu / Fk is independent of time and of u*, so the
+   // matrices, their transposes and the corresponding preconditioner pieces
+   // (including the MUMPS factorisation / AMG hierarchies) are built once.
+   // The matrices returned through the OperatorHandles are owned by the
+   // forms and are not re-created by later FormLinearSystem calls.
+   MjMat = magnetics.MjMat_h.As<HypreParMatrix>();
+   GMat  = magnetics.GMat_h.As<HypreParMatrix>();
+   KMat  = coupling.KMat_h.As<HypreParMatrix>();
+   BMat  = fluids.BMat_h.As<HypreParMatrix>();
+   HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
+
+   GtMat = GMat->Transpose();
+   BtMat = BMat->Transpose();
+   KtMat = KMat->Transpose();
+
+   // Momentum-row coupling block -kappa K (the J and phi rows are left
+   // unscaled; LiPreconditioner is consistent with this scaling, see its
+   // header comment).
+   KMatScaled = new HypreParMatrix(*KMat);
+   (*KMatScaled) *= -kappa_val;
+
+   // Mass matrix for the (2/tau) (u^n, v') term on the right-hand side.
+   MuMat = rhs_mu->ParallelAssemble();
+
+   A->SetBlock(0,0, MjMat);
+   A->SetBlock(0,1, GtMat);
+   A->SetBlock(1,0, GMat);
+   A->SetBlock(0,2, KtMat);
+   A->SetBlock(2,0, KMatScaled);
+   A->SetBlock(2,3, BtMat);
+   A->SetBlock(3,2, BMat);
+   A->SetBlock(3,3, smallPressureMat);
+
+   FormPSystem();
+   P->SetPressurePreconditioner(liprec.MpMat_h.As<HypreParMatrix>(),
+                                liprec.SpMat_h.As<HypreParMatrix>());
+   P->SetElectricPotentialPreconditioner(liprec.MphiMat_h.As<HypreParMatrix>());
+   P->SetCurrentDensityPreconditioner(liprec.DjMat_h.As<HypreParMatrix>(),
+                                      GtMat, KtMat);
+
+   constant_blocks_ready = true;
+}
+
 void LmmhdOperator::Step(real_t &time, real_t dt)
 {
-
    SetBCs();
 
    FormASystem(); // FormLinearSystem and FormRectangularLinearSystem calls for entries of A matrix.
 
-   // Build A matrix.
-   HypreParMatrix *BMat = fluids.BMat_h.As<HypreParMatrix>();
-   HypreParMatrix *FuMat = fluids.FuMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MjMat = magnetics.MjMat_h.As<HypreParMatrix>();
-   HypreParMatrix *GMat = magnetics.GMat_h.As<HypreParMatrix>();
-   HypreParMatrix *KMat = coupling.KMat_h.As<HypreParMatrix>();
-   HypreParMatrix *smallPressureMat = fluids.smallPressureMat_h.As<HypreParMatrix>();
+   if (!constant_blocks_ready) { SetupConstantBlocks(); }
 
-   // Transposes.
-   HypreParMatrix *GtMat = GMat->Transpose();
-   HypreParMatrix *BtMat = BMat->Transpose();
-   HypreParMatrix *KtMat = KMat->Transpose();
-
-   HypreParMatrix *BMat_A = new HypreParMatrix(*BMat);
-   HypreParMatrix *BtMat_A = new HypreParMatrix(*BtMat);
-   HypreParMatrix *FuMat_A = new HypreParMatrix(*FuMat);
-   HypreParMatrix *MjMat_A = new HypreParMatrix(*MjMat);
-   HypreParMatrix *GMat_A = new HypreParMatrix(*GMat);
-   HypreParMatrix *GtMat_A = new HypreParMatrix(*GtMat);
-   HypreParMatrix *KMat_A = new HypreParMatrix(*KMat);
-   HypreParMatrix *KtMat_A = new HypreParMatrix(*KtMat);
-   HypreParMatrix *smallPressureMat_A = new HypreParMatrix(*smallPressureMat);
-
-   // Apply kappa and negative signs in A matrix.
-   //(*MjMat_A) *= kappa_val;
-   //(*GMat_A) *= kappa_val;
-   //(*GtMat_A) *= kappa_val;
-   (*KMat_A) *= -1.0;
-   (*KMat_A) *= kappa_val;   
-   //(*KtMat_A) *= kappa_val;
-
+   // Fu changes every step (u* in the convection term), so its matrix is
+   // re-created by the form and must be re-registered with the operator.
+   FuMat = fluids.FuMat_h.As<HypreParMatrix>();
+   A->SetBlock(2,2, FuMat);
 
    // (The velocity Dirichlet lifting into the current equation is done in
    // FormASystem() with the un-eliminated K^T.)
 
-
-   // Calculate un_1 term for rhs of velocity equation.
-   HypreParMatrix *MuMat;
-   MuMat = rhs_mu->ParallelAssemble();
-
-   HypreParVector u_old(spaces[2]);
-   u_gf_n_1.GetTrueDofs(u_old);
-
-   HypreParVector Mu_u_old(spaces[2]);
-   MuMat->Mult(u_old, Mu_u_old);
-   RHS->GetBlock(2).Add(1.0, Mu_u_old);
-
-
-   A->SetBlock(0,0, MjMat_A);
-   A->SetBlock(0,1, GtMat_A);
-   A->SetBlock(1,0, GMat_A);
-   // Set coupling (B^T and B) blocks.
-   A->SetBlock(2,3, BtMat_A);
-   A->SetBlock(3,2, BMat_A);
-   // Set K blocks for coupling J and U.
-   A->SetBlock(2,0, KMat_A);
-   A->SetBlock(0,2, KtMat_A);
-   A->SetBlock(2,2, FuMat_A);
-   A->SetBlock(3,3, smallPressureMat_A);
+   // (2/tau) (u^n, v') term on the right-hand side of the velocity equation.
+   // Essential rows keep the Dirichlet values set by FormLinearSystem.
+   {
+      Vector u_old(spaces[2]->GetTrueVSize());
+      u_gf_n_1.GetTrueDofs(u_old);
+      Vector Mu_u_old(spaces[2]->GetTrueVSize());
+      MuMat->Mult(u_old, Mu_u_old);
+      Mu_u_old.SetSubVector(ess_tdof_u, 0.0);
+      RHS->GetBlock(2) += Mu_u_old;
+   }
 
    lmmhd_solver->SetOperator(*A);
 
-   FormPSystem(); // FormLinearSystem and FormRectangularLinearSystem calls for preconditioner.
-
-   // Build P matrices.
-   HypreParMatrix *DjMat = liprec.DjMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MphiMat = liprec.MphiMat_h.As<HypreParMatrix>();
-   HypreParMatrix *MpMat = liprec.MpMat_h.As<HypreParMatrix>();
-   HypreParMatrix *SpMat = liprec.SpMat_h.As<HypreParMatrix>();
-   HypreParMatrix *FkMat = liprec.FkMat_h.As<HypreParMatrix>();
-
-   HypreParMatrix *GtMat_P = new HypreParMatrix(*GtMat);
-   HypreParMatrix *KtMat_P = new HypreParMatrix(*KtMat);
-
-   // Propagate matrices through to preconditioner.
-   P->SetPressurePreconditioner(MpMat, SpMat);
-   P->SetElectricPotentialPreconditioner(MphiMat);
-   P->SetCurrentDensityPreconditioner(DjMat, GtMat_P, KtMat_P);
+   // Velocity preconditioner (depends on u*).
+   liprec.fk.FormSystemMatrix(ess_tdof_u, liprec.FkMat_h);
+   FkMat = liprec.FkMat_h.As<HypreParMatrix>();
    P->SetVelocityPreconditioner(FkMat, BtMat);
-   P->UpdateVelocityPreconditioner(FkMat);
 
    lmmhd_solver->SetPreconditioner(*P);
 
    lmmhd_solver->Mult(*RHS, *X);
 
-
-   // Calculating residual only.
+   // Report the true residual of the block system.
    Vector residual(*RHS);
    A->Mult(*X, residual);
    residual.Neg();
    residual += *RHS;
-
-   real_t local_sq = residual * residual; // dot product
-   real_t global_sq;
-   MPI_Allreduce(&local_sq, &global_sq, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   real_t global_norm = std::sqrt(global_sq);
+   const real_t global_norm = ParNormlp(residual, 2.0, MPI_COMM_WORLD);
    if (Mpi::Root()) std::cout << "global_norm = " << global_norm << std::endl;
-
-
-   delete BMat_A;
-   delete BtMat_A;
-   delete FuMat_A;
-   delete MjMat_A;
-   delete GMat_A;
-   delete GtMat_A;
-   delete KMat_A;
-   delete KtMat_A;
-   delete smallPressureMat_A;
-   delete GtMat_P;
-   delete KtMat_P;
+   logger << "FGMRES iterations: " << lmmhd_solver->GetNumIterations()
+          << ", true residual = " << global_norm << std::endl;
 }
 
-LmmhdOperator::~LmmhdOperator() {
-
-   delete prec_ortho_solver;
+LmmhdOperator::~LmmhdOperator()
+{
+   delete lmmhd_solver;
+   delete fgmres_monitor;
+   delete A;
+   delete X;
+   delete Xn_1;
+   delete RHS;
+   delete P;
 
    delete currentD_DBC;
    delete electPot_DBC;
    delete pressure_DBC;
+   delete velocity_DBC;
+   delete velocity_n_1_Coeff;
+   delete velocity_bar_DBC;
 
    delete zeroCoeff;
    delete oneCoeff;
    delete vectorZeroCoeff;
 
-   delete velocity_DBC;
-
    delete B;
-
    delete fkBxVBxVcoeff;
-
    delete fMassCoeff;
    delete fReciprocalReCoeff;
    delete alphaCoeff;
@@ -692,29 +671,25 @@ LmmhdOperator::~LmmhdOperator() {
    delete ustar_gf;
 
    delete bCoeff;
-
    delete mjCoeff;
-
    delete gCoeff;
-
    delete kCoeffVec;
    delete kCoeff;
-
    delete smallPressureCoeff;
-
-   delete RHS;
 
    delete djCoeff;
    delete mphiCoeff;
    delete mpCoeff;
    delete spCoeff;
 
-   delete P;
+   delete rhs_mu;
 
-   delete blocks;
-
-   delete BtMat;
+   // Matrices owned by this class (the others are owned by the forms'
+   // OperatorHandles).
    delete GtMat;
+   delete BtMat;
    delete KtMat;
    delete KtFullMat;
+   delete KMatScaled;
+   delete MuMat;
 }

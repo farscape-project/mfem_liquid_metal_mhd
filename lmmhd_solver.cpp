@@ -225,6 +225,9 @@ int main(int argc, char *argv[])
 
    // Initialise liquid-metal MHD operator.
    LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, logger);
+   // Current-density block of the preconditioner: "mumps" (direct, default)
+   // or "ads" (5 CG iterations with Hiptmair-Xu, as in Algorithm 4.1).
+   oper.UseADSForCurrentDensity(input.Has("dj_solver") && input.GetString("dj_solver") == "ads");
 
    ParGridFunction *j_gf = oper.GetCurrentDPointer();
    ParGridFunction *phi_gf = oper.GetPotentialPointer();

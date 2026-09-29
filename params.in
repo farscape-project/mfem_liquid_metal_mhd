@@ -34,3 +34,4 @@ Bz            1.0     // Magnetic field (z-component)
 
 ******** Discretisation parameters ********
 alpha         1.0     // grad-div (augmented Lagrangian) parameter; 0 disables the term
+dj_solver     mumps   // current-density preconditioner block: mumps | ads
