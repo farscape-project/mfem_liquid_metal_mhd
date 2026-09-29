@@ -174,6 +174,13 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 
+   // Initial condition u^0: zero in the interior, Dirichlet data on the
+   // boundary.  The history must hold u^0 so that the first midpoint step uses
+   // ubar_bc = 0.5 (g + u^0) = g and u^1 = 2 ubar - u^0.
+   u_gf_n_1 = u_gf;
+   u_gf_n_2 = u_gf;
+   ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
+
    ustar_gf = new ParGridFunction(spaces[2]);
    ustar_gf->ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]); // Project BC on first time-step.
    ustar_coef = std::make_unique<VectorGridFunctionCoefficient>(ustar_gf);
@@ -326,11 +333,9 @@ int LmmhdOperator::OperatorSize(const Array<ParFiniteElementSpace *> fes)
 
 void LmmhdOperator::UpdateUStar(int step)
 {
+   // u* approximates u at t^{n+1/2}: u^0 on the first step, then the
+   // second-order extrapolation (3 u^n - u^{n-1}) / 2.
    if (step == 0)
-   {
-      *ustar_gf = u_gf;
-   }
-   else if (step == 1)
    {
       *ustar_gf = u_gf_n_1;
    }
@@ -375,18 +380,12 @@ void LmmhdOperator::SetGridFunctionsFromTrueDofs()
 
 void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
 {
-   // Reconstruct physical velocity:
-   if (step == 0)
-   {
-      u_gf = ubar_gf;
-   }
-   else
-   {
-      // u_n = 2*u_bar_n - u_{n-1}
-      u_gf = ubar_gf;
-      u_gf *= 2.0;
-      u_gf -= u_gf_n_1;
-   }
+   // Reconstruct physical velocity from the midpoint value:
+   // u^{n+1} = 2 ubar - u^n (for every step, including the first; u_gf_n_1
+   // holds the initial condition before the first step).
+   u_gf = ubar_gf;
+   u_gf *= 2.0;
+   u_gf -= u_gf_n_1;
 }
 
 void LmmhdOperator::CalcNorms()
