@@ -227,9 +227,16 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Integrator for (v, v').
    fluids.fu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
-   // Integrator for A_AL(v, v').
+   // Integrators for A_AL(v, v') = 1/Re (grad v, grad v') + alpha (div v, div v').
+   // The grad-div (augmented Lagrangian) term must be present in both the
+   // system and the preconditioner: the pressure Schur-complement
+   // approximation in LiPreconditioner uses alpha1 = alpha + 1/Re.
+   // ElasticityIntegrator(lambda, mu) with mu = 0 gives lambda (div v, div v').
    fluids.fu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   //fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
+   if (alpha != 0.0)
+   {
+      fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
+   }
    // Integrator for the skew-symmetric convection form
    //    O(u*; v, v') = 1/2 (u*.grad v, v') - 1/2 (u*.grad v', v).
    // ConservativeVectorConvectionIntegrator(q, a) represents -a (v, q.grad v'),
@@ -284,9 +291,12 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Bilinear form for velocity preconditioner.
    // Integrator for (v, v').
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
-   // Integrator for A_AL(v, v').
+   // Integrators for A_AL(v, v').
    liprec.fk.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   //liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
+   if (alpha != 0.0)
+   {
+      liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
+   }
    // Integrator for O(u_n; v, v').
    liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
@@ -661,6 +671,7 @@ LmmhdOperator::~LmmhdOperator() {
 
    delete fMassCoeff;
    delete fReciprocalReCoeff;
+   delete alphaCoeff;
 
    delete ustar_gf;
 

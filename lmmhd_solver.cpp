@@ -55,6 +55,8 @@ int main(int argc, char *argv[])
    Bx = input.GetReal("Bx");
    By = input.GetReal("By");
    Bz = input.GetReal("Bz");
+   // Grad-div (augmented Lagrangian) parameter; alpha = 0 disables the term.
+   if (input.Has("alpha")) { alpha = input.GetReal("alpha"); }
 
    // Update constants.
    reciprocal_Re = 1.0 / Re;
