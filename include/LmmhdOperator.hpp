@@ -173,6 +173,7 @@ protected:
    HypreParMatrix *GtMat = nullptr;
    HypreParMatrix *KMat = nullptr;
    HypreParMatrix *KtMat = nullptr;
+   HypreParMatrix *KtFullMat = nullptr; // K^T without essential-dof elimination (for BC on RHS).
 
    HypreParMatrix *MpMatNorm = nullptr;
    HypreParMatrix *SpMatNorm = nullptr;

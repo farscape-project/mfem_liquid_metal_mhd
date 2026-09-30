@@ -109,17 +109,17 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    ru.Assemble();
 
    // Set up rhs for pressure solve.
-   ParLinearForm rp(spaces[3]);
+   //ParLinearForm rp(spaces[3]);
    rp.AddDomainIntegrator(new DomainLFIntegrator(*zeroCoeff));
    rp.Assemble();
 
    // Set up rhs for current density solve.
-   ParLinearForm rj(spaces[0]);
+   //ParLinearForm rj(spaces[0]);
    rj.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vectorZeroCoeff));
    rj.Assemble();
 
    // Set up rhs for electric potential solve.
-   ParLinearForm rphi(spaces[1]);
+   //ParLinearForm rphi(spaces[1]);
    rphi.AddDomainIntegrator(new DomainLFIntegrator(*zeroCoeff));
    rphi.Assemble();
 
@@ -212,6 +212,13 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    coupling.k.Assemble();
    coupling.k.Finalize();
 
+   {
+   // Keep an un-eliminated copy of K^T for accounting for the velocity Dirichlet BC.
+      HypreParMatrix *KFull = coupling.k.ParallelAssemble();
+      KtFullMat = KFull->Transpose();
+      delete KFull;
+   }
+
 
    // Integrator for (v, v').
    fluids.fu.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
@@ -220,7 +227,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
    // Integrator for O(u_n; v, v').  ADD BOUNDARY TERM HERE.
    fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
-   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, -0.5));
+   fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
@@ -410,6 +417,10 @@ void LmmhdOperator::FormASystem()
    Vector Rp, Rphi, Ru, X_dummy;
    Vector aux_x, aux_rhs;
 
+   Vector zero_phi(spaces[1]->GetVSize()); zero_phi = 0.0;
+   Vector zero_u(spaces[2]->GetVSize()); zero_u = 0.0;
+   Vector zero_p(spaces[3]->GetVSize()); zero_p = 0.0;
+
    magnetics.mj.FormLinearSystem(ess_tdof_j,
                                  j_gf,
                                  rj,
@@ -421,7 +432,7 @@ void LmmhdOperator::FormASystem()
    magnetics.g.FormRectangularLinearSystem(ess_tdof_j,
                                              ess_tdof_phi,
                                              j_gf,
-                                             rphi,
+                                             zero_phi,
                                              magnetics.GMat_h,
                                              X_dummy,
                                              Rphi);
@@ -437,12 +448,13 @@ void LmmhdOperator::FormASystem()
 
    coupling.k.FormRectangularLinearSystem(ess_tdof_j, 
                                           ess_tdof_u,
-                                          j_gf, 
-                                          ru, 
+                                          j_gf,
+                                          zero_u,
                                           coupling.KMat_h,
-                                          X_dummy, 
+                                          X_dummy,
                                           Ru);
-   RHS->GetBlock(2) += Ru;
+   // Block (2,0) is -kappa K: Ru = -K j_bc.
+   RHS->GetBlock(2).Add(-kappa_val, Ru);
 
    fluids.smallPressure.FormLinearSystem(ess_tdof_p,
                                           p_gf,
@@ -455,11 +467,33 @@ void LmmhdOperator::FormASystem()
    fluids.b.FormRectangularLinearSystem(ess_tdof_u,
                                           ess_tdof_p,
                                           ubar_gf,
-                                          rp,
+                                          zero_p,
                                           fluids.BMat_h,
                                           X_dummy,
                                           Rp);
    RHS->GetBlock(3) += Rp;
+
+   // Block (0,2) is K^T: lift the velocity Dirichlet data into Ohm's law
+   // using the un-eliminated K^T, then restore the essential current rows.
+   {
+      Vector u_bc(spaces[2]->GetTrueVSize());
+      u_bc = 0.0;
+      const Vector &Xu = X->GetBlock(2);
+      for (int i = 0; i < ess_tdof_u.Size(); i++)
+      {
+         u_bc(ess_tdof_u[i]) = Xu(ess_tdof_u[i]);
+      }
+      Vector Kt_bc(spaces[0]->GetTrueVSize());
+      KtFullMat->Mult(u_bc, Kt_bc);
+      Vector &Rj = RHS->GetBlock(0);
+      Rj -= Kt_bc;
+      const Vector &Xj = X->GetBlock(0);
+      for (int i = 0; i < ess_tdof_j.Size(); i++)
+      {
+         Rj(ess_tdof_j[i]) = Xj(ess_tdof_j[i]);
+      }
+   }
+
 }
 
 void LmmhdOperator::FormPSystem()
@@ -511,7 +545,7 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
 
    // Calculating contribution from velocity Dirichlet BC to RHS.
-   HypreParVector u_bc(spaces[2]);
+   /*HypreParVector u_bc(spaces[2]);
    u_bc = 0.0;
 
    // Fill only essential true DOFs
@@ -524,7 +558,7 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    HypreParVector Kt_bc(spaces[0]);
    KtMat->Mult(u_bc, Kt_bc);
 
-   RHS->GetBlock(0) -= Kt_bc;
+   RHS->GetBlock(0) -= Kt_bc;*/
 
 
    // Calculate un_1 term for rhs of velocity equation.
@@ -652,4 +686,5 @@ LmmhdOperator::~LmmhdOperator() {
    delete BtMat;
    delete GtMat;
    delete KtMat;
+   delete KtFullMat;
 }

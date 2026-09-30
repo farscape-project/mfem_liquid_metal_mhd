@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
    args.Parse();
 
    // Set fe_space orders.
-   int order_currentD = 1;
+   int order_currentD = 0;  // Check order based on MFEM/paper.
    int order_electPot = 0;
    int order_pressure = 1;
    int order_velocity;
