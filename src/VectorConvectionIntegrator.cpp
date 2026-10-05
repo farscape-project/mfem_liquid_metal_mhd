@@ -19,7 +19,8 @@ void VectorConvectionIntegrator::AssembleElementMatrix(
     DenseMatrix dshape(nd, dim);
 
     // Pick quadrature rule.
-    const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), 2 * el.GetOrder());
+    const int ir_order = 3 * el.GetOrder() + Trans.OrderW();
+    const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), ir_order);
 
     // Loop through quadrature points and determine element matrix contributions.
     for (int i = 0; i < ir->GetNPoints(); i++)
