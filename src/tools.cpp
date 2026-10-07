@@ -65,68 +65,52 @@ void checkpoint(int num)
    cout << endl;
 }
 
-// Calculate relative L2-norm of grid functions.
+// Relative change between time levels (global norm of true-dof vectors).
 real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace)
 {
-   //ParGridFunction gf(fespace);
-   //ParGridFunction gfN_1(fespace);
    ParGridFunction diff_gf(fespace);
-   //gf.SetFromTrueDofs(X);
-   //gfN_1.SetFromTrueDofs(Xn_1);
    diff_gf = gf;
    diff_gf -= gfN_1;
 
-   //real_t l2_diff_global = 0.0;
-   real_t l2_global = 0.0;
+   Vector diff_t, gf_t;
+   diff_gf.GetTrueDofs(diff_t);
+   gf.GetTrueDofs(gf_t);
 
-   real_t l2_diff = diff_gf.Norml2();
-   real_t l2 = gf.Norml2();
+   // Vector::Norml2() is rank-local; ParNormlp reduces over all ranks.
+   const real_t l2_diff = ParNormlp(diff_t, 2.0, fespace->GetComm());
+   const real_t l2 = ParNormlp(gf_t, 2.0, fespace->GetComm());
 
-   //real_t rel_l2 = l2_diff / (l2 + 1e-16);
-
-   // Note: check whether MPI_Allreduce is necessary.  I believe the separate threads 
-   // should be handled by Norml2().
-   //MPI_Allreduce(&l2_diff, &l2_diff_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   //MPI_Allreduce(&l2, &l2_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-   //real_t rel_l2 = l2_diff_global / (l2_global + 1e-16);
-   real_t rel_l2 = l2_diff / (l2 + 1e-16);
-
-   return rel_l2;
+   return l2_diff / (l2 + 1e-16);
 }
 
 
 RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
+   : comm(fes.GetComm())
 {
-   ConstantCoefficient one_coeff(1.0);
+   // Integrals of the basis functions (true-dof vector).
+   ParLinearForm mass_lf(&fes);
+   mass_lf.AddDomainIntegrator(new DomainLFIntegrator(onecoeff));
+   mass_lf.Assemble();
 
-   // Set up integral.
-   mass_lf = new ParLinearForm(&fes);
-   auto *dlfi = new DomainLFIntegrator(onecoeff);
-   mass_lf->AddDomainIntegrator(dlfi);
-   mass_lf->Assemble();
-
-   HypreParVector *tmp = mass_lf->ParallelAssemble();
+   HypreParVector *tmp = mass_lf.ParallelAssemble();
    mass_vec = *tmp;
    delete tmp;
 
-   // Do volume integral.
+   // True-dof representation of the constant function 1.
    ParGridFunction one_gf(&fes);
    one_gf.ProjectCoefficient(onecoeff);
    one_gf.GetTrueDofs(one_vec);
-   volume = InnerProduct(mass_vec, one_vec);
+
+   // Global volume.  (The two-argument InnerProduct is rank-local.)
+   volume = InnerProduct(comm, mass_vec, one_vec);
 }
 
 void RemoveMeanProjector::RemoveMean(Vector &v) const
 {
-   const real_t integral = InnerProduct(mass_vec, v);
-   //const real_t integral = mass_lf->operator()(v);
-
+   // Global integral: using the rank-local InnerProduct here subtracted a
+   // different constant on every rank.
+   const real_t integral = InnerProduct(comm, mass_vec, v);
    const real_t mean = integral / volume;
-
-   //std::cout << "integral = " << integral << std::endl;
-   //std::cout << "volume = " << volume << std::endl;
-   //std::cout << "mean = " << mean << std::endl;
 
    v.Add(-mean, one_vec);
 }

@@ -98,8 +98,16 @@ protected:
 
     Logger &logger;
 
+    // Per-application norm logging (collective; off by default because it
+    // costs several global reductions per preconditioner application).
+    bool verbose = false;
+
+    real_t GNorm(const Vector &v) const { return ParNormlp(v, 2.0, MPI_COMM_WORLD); }
+
 
 public:
+    void SetVerbose(bool v) { verbose = v; }
+
     // Constructor
     LiPreconditioner(Array<ParFiniteElementSpace *> &fes,
         const Array<int> &offsets_,
@@ -247,9 +255,9 @@ public:
         yp += eta2tau;
         yp *= -1.0;
 
-        logger << "||xi|| = " << xi.Norml2() << std::endl;
-        logger << "||eta|| = " << eta.Norml2() << std::endl;
-        logger << "||yp|| = " << yp.Norml2() << std::endl;
+        if (verbose) { logger << "||xi|| = " << GNorm(xi) << std::endl; }
+        if (verbose) { logger << "||eta|| = " << GNorm(eta) << std::endl; }
+        if (verbose) { logger << "||yp|| = " << GNorm(yp) << std::endl; }
 
         // Testing solving Mp and Sp together, rather than separately.
         //LpSolver->Mult(rp, yp);
@@ -263,7 +271,7 @@ public:
         //MphiOrthoSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
 
-        logger << "||yphi|| = " << yphi.Norml2() << std::endl;
+        if (verbose) { logger << "||yphi|| = " << GNorm(yphi) << std::endl; }
 
         // Velocity solve.
         Vector ru = xblock.GetBlock(2);
@@ -272,14 +280,14 @@ public:
         Bt->Mult(yp, BtYp);
         ru -= BtYp; // Get right hand side of Fk yu = ru - Bt * yp
 
-        logger << "||BtYp|| = " << BtYp.Norml2() << std::endl;
-        logger << "||ru|| = " << ru.Norml2() << std::endl;
+        if (verbose) { logger << "||BtYp|| = " << GNorm(BtYp) << std::endl; }
+        if (verbose) { logger << "||ru|| = " << GNorm(ru) << std::endl; }
 
         Vector &yu = yblock.GetBlock(2);
         yu = 0.0;
         FkSolver->Mult(ru, yu); // Solve yu = Fk^-1 (ru - Bt * yp)
 
-        logger << "||yu|| = " << yu.Norml2() << std::endl;
+        if (verbose) { logger << "||yu|| = " << GNorm(yu) << std::endl; }
 
         // Current density solve.
         Vector rj = xblock.GetBlock(0);
@@ -289,26 +297,26 @@ public:
 
         Gt->Mult(yphi, GtYphi);
         GtYphi *= 2.0;
-        logger << "||GtYphi|| = " << GtYphi.Norml2() << std::endl;
+        if (verbose) { logger << "||GtYphi|| = " << GNorm(GtYphi) << std::endl; }
 
         Kt->Mult(yu, KtYu);
         KtYu *= 2.0;
-        logger << "||KtYu|| = " << KtYu.Norml2() << std::endl;
+        if (verbose) { logger << "||KtYu|| = " << GNorm(KtYu) << std::endl; }
 
         rj -= GtYphi;
         rj -= KtYu;
-        logger << "||rj|| = " << rj.Norml2() << std::endl;
+        if (verbose) { logger << "||rj|| = " << GNorm(rj) << std::endl; }
 
         Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
         DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
 
-        logger << "||yj|| = " << yj.Norml2() << std::endl;
+        if (verbose) { logger << "||yj|| = " << GNorm(yj) << std::endl; }
 
-        logger << "||rphi|| = " << rphi.Norml2() << std::endl;
-        logger << "||rp|| = " << rp.Norml2() << std::endl;
+        if (verbose) { logger << "||rphi|| = " << GNorm(rphi) << std::endl; }
+        if (verbose) { logger << "||rp|| = " << GNorm(rp) << std::endl; }
 
-        logger << "||y|| = " << y.Norml2() << std::endl;
+        if (verbose) { logger << "||y|| = " << GNorm(y) << std::endl; }
     }
 
     virtual void SetOperator(const Operator &op) override { }
