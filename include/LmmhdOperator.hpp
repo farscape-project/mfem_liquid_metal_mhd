@@ -156,6 +156,9 @@ protected:
    ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
    ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
    std::unique_ptr<VectorGridFunctionCoefficient> ustar_coef;
+
+   // Discrete divergence RT_k -> L2_k, used to monitor charge conservation.
+   std::unique_ptr<ParDiscreteLinearOperator> div_j;
    Vector ustar_vec;
 
    // HypreParMatrices for operator blocks.

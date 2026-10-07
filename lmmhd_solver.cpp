@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
    args.AddOption(&clusterX, "-cx", "--cluster-x", "Clustering intensity in x direction.");
    args.AddOption(&clusterY, "-cy", "--cluster-y", "Clustering intensity in y direction.");
    args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
-   
+
    args.Parse();
 
    // Set fe_space orders.
