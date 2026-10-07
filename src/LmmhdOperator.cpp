@@ -419,6 +419,8 @@ void LmmhdOperator::FormASystem()
    Vector Rp, Rphi, Ru, X_dummy;
    Vector aux_x, aux_rhs;
 
+   // The mixed forms are only used to remove contribution from Dirichlet BC 
+   // to the RHS. They are, therefore given a zero test-space vector.
    Vector zero_phi(spaces[1]->GetVSize()); zero_phi = 0.0;
    Vector zero_u(spaces[2]->GetVSize()); zero_u = 0.0;
    Vector zero_p(spaces[3]->GetVSize()); zero_p = 0.0;
@@ -431,15 +433,6 @@ void LmmhdOperator::FormASystem()
                                  RHS->GetBlock(0),
                                  true);
 
-   // The mixed forms are only used to lift essential trial data into the
-   // off-diagonal blocks, so they are given a zero test-space vector.  Passing
-   // the diagonal blocks' linear forms here (as before) counted those forms
-   // twice in the velocity and pressure rows.
-   Vector zero_phi(spaces[1]->GetVSize()); zero_phi = 0.0;
-   Vector zero_u(spaces[2]->GetVSize());   zero_u = 0.0;
-   Vector zero_p(spaces[3]->GetVSize());   zero_p = 0.0;
-
-   // Block (1,0) is G: lifting gives -G j_bc.
    magnetics.g.FormRectangularLinearSystem(ess_tdof_j,
                                              ess_tdof_phi,
                                              j_gf,
@@ -457,7 +450,6 @@ void LmmhdOperator::FormASystem()
                               RHS->GetBlock(2),
                               true);
 
-   // Block (2,0) is -kappa K: Ru = -K j_bc, so the lifting is -kappa * Ru.
    coupling.k.FormRectangularLinearSystem(ess_tdof_j,
                                           ess_tdof_u,
                                           j_gf,
@@ -465,6 +457,7 @@ void LmmhdOperator::FormASystem()
                                           coupling.KMat_h,
                                           X_dummy,
                                           Ru);
+
    // Block (2,0) is -kappa K: Ru = -K j_bc.
    RHS->GetBlock(2).Add(-kappa_val, Ru);
 
