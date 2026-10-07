@@ -109,17 +109,14 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    ru.Assemble();
 
    // Set up rhs for pressure solve.
-   //ParLinearForm rp(spaces[3]);
    rp.AddDomainIntegrator(new DomainLFIntegrator(*zeroCoeff));
    rp.Assemble();
 
    // Set up rhs for current density solve.
-   //ParLinearForm rj(spaces[0]);
    rj.AddDomainIntegrator(new VectorFEDomainLFIntegrator(*vectorZeroCoeff));
    rj.Assemble();
 
    // Set up rhs for electric potential solve.
-   //ParLinearForm rphi(spaces[1]);
    rphi.AddDomainIntegrator(new DomainLFIntegrator(*zeroCoeff));
    rphi.Assemble();
 
@@ -212,8 +209,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    coupling.k.Assemble();
    coupling.k.Finalize();
 
+   // Keep an un-eliminated copy of K^T for moving the contribution from the velocity Dirichlet
+   // contribution to the RHS.
    {
-   // Keep an un-eliminated copy of K^T for accounting for the velocity Dirichlet BC.
       HypreParMatrix *KFull = coupling.k.ParallelAssemble();
       KtFullMat = KFull->Transpose();
       delete KFull;
@@ -433,6 +431,15 @@ void LmmhdOperator::FormASystem()
                                  RHS->GetBlock(0),
                                  true);
 
+   // The mixed forms are only used to lift essential trial data into the
+   // off-diagonal blocks, so they are given a zero test-space vector.  Passing
+   // the diagonal blocks' linear forms here (as before) counted those forms
+   // twice in the velocity and pressure rows.
+   Vector zero_phi(spaces[1]->GetVSize()); zero_phi = 0.0;
+   Vector zero_u(spaces[2]->GetVSize());   zero_u = 0.0;
+   Vector zero_p(spaces[3]->GetVSize());   zero_p = 0.0;
+
+   // Block (1,0) is G: lifting gives -G j_bc.
    magnetics.g.FormRectangularLinearSystem(ess_tdof_j,
                                              ess_tdof_phi,
                                              j_gf,
@@ -450,7 +457,8 @@ void LmmhdOperator::FormASystem()
                               RHS->GetBlock(2),
                               true);
 
-   coupling.k.FormRectangularLinearSystem(ess_tdof_j, 
+   // Block (2,0) is -kappa K: Ru = -K j_bc, so the lifting is -kappa * Ru.
+   coupling.k.FormRectangularLinearSystem(ess_tdof_j,
                                           ess_tdof_u,
                                           j_gf,
                                           zero_u,
@@ -468,6 +476,7 @@ void LmmhdOperator::FormASystem()
                                           RHS->GetBlock(3),
                                           true);
 
+   // Block (3,2) is B: lifting gives -B ubar_bc.
    fluids.b.FormRectangularLinearSystem(ess_tdof_u,
                                           ess_tdof_p,
                                           ubar_gf,
@@ -477,7 +486,7 @@ void LmmhdOperator::FormASystem()
                                           Rp);
    RHS->GetBlock(3) += Rp;
 
-   // Block (0,2) is K^T: lift the velocity Dirichlet data into Ohm's law
+   // Block (0,2) is K^T: remove contribution from the velocity Dirichlet data
    // using the un-eliminated K^T, then restore the essential current rows.
    {
       Vector u_bc(spaces[2]->GetTrueVSize());
@@ -497,7 +506,6 @@ void LmmhdOperator::FormASystem()
          Rj(ess_tdof_j[i]) = Xj(ess_tdof_j[i]);
       }
    }
-
 }
 
 void LmmhdOperator::FormPSystem()
