@@ -223,10 +223,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Integrators for A_AL(v, v') = 1/Re (grad v, grad v') + alpha (div v, div v').
    // ElasticityIntegrator(lambda, mu) with mu = 0 gives lambda (div v, div v').
    fluids.fu.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   if (alpha != 0.0)
-   {
-      fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
-   }
+   //if (alpha != 0.0) { fluids.fu.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff)); }
    // Integrator for the skew-symmetric convection form
    //    O(u*; v, v') = 1/2 (u*.grad v, v') - 1/2 (u*.grad v', v).
    // ConservativeVectorConvectionIntegrator(q, a) represents -a (v, q.grad v'),
@@ -281,10 +278,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fMassCoeff));
    // Integrators for A_AL(v, v').
    liprec.fk.AddDomainIntegrator(new VectorDiffusionIntegrator(*fReciprocalReCoeff));
-   if (alpha != 0.0)
-   {
-      liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff));
-   }
+   //if (alpha != 0.0) { liprec.fk.AddDomainIntegrator(new ElasticityIntegrator(*alphaCoeff, *zeroCoeff)); }
    // Integrator for O(u_n; v, v').
    liprec.fk.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
