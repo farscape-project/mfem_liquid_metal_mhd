@@ -111,10 +111,7 @@ public:
     /// true = 5 CG iterations preconditioned by Hiptmair-Xu (HypreADS), as in
     /// Algorithm 4.1 of Li et al. (2019).  Call before
     /// SetCurrentDensityPreconditioner().
-    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }
-
-    // The Set*Preconditioner methods may be called repeatedly; previously
-    // created solvers are released first.
+    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }s
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
@@ -166,7 +163,7 @@ public:
 
         FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetRelTol(1e-3);
-        // MFEM's default is 10 iterations, which usually stops well short
+        // MFEM's default is 10 iterations, which may stop short
         // of the 1e-3 tolerance used in Algorithm 4.1.
         FkSolver->SetMaxIter(200);
         FkSolver->SetKDim(50);
@@ -175,8 +172,7 @@ public:
         // Algorithm 4.1 uses additive Schwarz; BoomerAMG is used here.  The
         // velocity is a vector H1 field ordered byNODES, so use systems AMG.
         FkPrec = new HypreBoomerAMG(*FkMat);
-        FkPrec->SetSystemsOptions(spaces[2]->GetVDim(),
-                                  spaces[2]->GetOrdering() == Ordering::byNODES);
+        FkPrec->SetSystemsOptions(spaces[2]->GetVDim(), spaces[2]->GetOrdering() == Ordering::byNODES);
         FkPrec->SetPrintLevel(0);
         FkPrec->SetCycleType(2);
         FkPrec->SetRelaxType(6);
@@ -240,8 +236,7 @@ public:
         SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1,
-        // but it is required: it is the Cahouet-Chabard term matching the
-        // (2/tau) mass matrix in Fk, i.e. S^{-1} ~ alpha1 Mp^{-1} + (2/tau) Sp^{-1}.
+        // but it is required.
         Vector eta2tau(rp.Size());
         real_t spCoeff = 2.0 / dt;
         eta2tau = eta;

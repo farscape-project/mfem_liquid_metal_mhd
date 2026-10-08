@@ -65,7 +65,9 @@ void checkpoint(int num)
    cout << endl;
 }
 
-// Relative change between time levels (global norm of true-dof vectors).
+// Relative change ||gf - gfN_1|| / ||gf|| between time levels, using the
+// global Euclidean norm of the true-dof vectors (collective over the
+// communicator of fespace).
 real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace)
 {
    ParGridFunction diff_gf(fespace);

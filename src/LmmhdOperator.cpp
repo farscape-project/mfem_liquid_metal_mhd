@@ -58,8 +58,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    X = new BlockVector(block_trueOffsets);
    Xn_1 = new BlockVector(block_trueOffsets);
    RHS = new BlockVector(block_trueOffsets);
-   *X = 0.0;   // BlockVector entries are not initialised; X is written to the
-               // initial output via SetGridFunctionsFromTrueDofs().
+   *X = 0.0;
    *Xn_1 = 0.0;
    *RHS = 0.0;
 
@@ -123,15 +122,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    rphi.Assemble();
 
    // Dirichlet boundary conditions.
-   //Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_p;
    spaces[0]->GetEssentialTrueDofs(*ess_bdr_marker[0], ess_tdof_j);
    spaces[1]->GetEssentialTrueDofs(*ess_bdr_marker[1], ess_tdof_phi);
    spaces[2]->GetEssentialTrueDofs(*ess_bdr_marker[2], ess_tdof_u);
    spaces[3]->GetEssentialTrueDofs(*ess_bdr_marker[3], ess_tdof_p);
-
-   // Pin a pressure DoF.
-   //ess_tdof_p.SetSize(1);
-   //ess_tdof_p[0] = 1.0;
 
    // Set up grid functions.
    j_gf.SetSpace(spaces[0]);
@@ -163,13 +157,11 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // ubar boundary condition:
    // ubar_n = 0.5 * (g + u_n_1).
    velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, 0.5, 0.5);
-   //(*velocity_bar_DBC) *= 0.5;
 
    // Project BCs onto grid functions.
    j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
-   //ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
    ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 
@@ -186,21 +178,18 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // Mixed bilinear form for velocity and pressure coupling.
    bCoeff = new ConstantCoefficient(-1.0);
-   //cout << "bCoeff value = " << bCoeff->constant << endl;
    fluids.b.AddDomainIntegrator(new VectorDivergenceIntegrator(*bCoeff));
    fluids.b.Assemble();
    fluids.b.Finalize();
 
    // Bilinear form for current density.
    mjCoeff = new ConstantCoefficient(1.0);
-   //cout << "mjCoeff value = " << mjCoeff->constant << endl;
    magnetics.mj.AddDomainIntegrator(new VectorFEMassIntegrator(*mjCoeff));
    magnetics.mj.Assemble();
    magnetics.mj.Finalize();
 
    // Mixed bilinear form for current density and electric potential coupling.
    gCoeff = new ConstantCoefficient(-1.0);
-   //cout << "gCoeff value = " << gCoeff->constant << endl;
    magnetics.g.AddDomainIntegrator(new MixedScalarDivergenceIntegrator(*gCoeff));
    magnetics.g.Assemble();
    magnetics.g.Finalize();
@@ -212,7 +201,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    kCoeffVec = new Vector(dim);
    *kCoeffVec = 0.0;
    *kCoeffVec -= *B;
-   //std::cout << "kCoeffVec: " << (*kCoeffVec)(0) << ", " << (*kCoeffVec)(1) << ", " << (*kCoeffVec)(2) << std::endl;
    kCoeff = new CrossProductMatrixCoefficient(*kCoeffVec);
    coupling.k.AddDomainIntegrator(new VectorFEMassIntegrator(*kCoeff));
    coupling.k.Assemble();
@@ -336,7 +324,6 @@ void LmmhdOperator::UpdateUStar(int step)
       *ustar_gf *= 0.5;
    }
 
-   //*ustar_gf = 0.0;
    *ustar_coef = ustar_gf;
 }
 
@@ -402,12 +389,8 @@ void LmmhdOperator::CalcNorms()
       ParGridFunction divj_gf(spaces[1]);
       div_j->Mult(j_gf, divj_gf);
       ConstantCoefficient zero_s(0.0);
-      Vector zero_v(dim); zero_v = 0.0;
-      VectorConstantCoefficient zero_vc(zero_v);
       const real_t divj_l2 = divj_gf.ComputeL2Error(zero_s);
-      const real_t j_l2 = j_gf.ComputeL2Error(zero_vc);
-      if (Mpi::Root()) {std::cout << "||div J||_L2 = " << divj_l2 << ", ||J||_L2 = " << j_l2 << std::endl;}
-      logger << "||div J||_L2 = " << divj_l2 << ", ||J||_L2 = " << j_l2 << std::endl;
+      if (Mpi::Root()) {std::cout << "Charge conservation check: ||div J||_L2 = " << divj_l2 << std::endl;}
 }
 
 void LmmhdOperator::UpdateHistory()
@@ -426,7 +409,6 @@ void LmmhdOperator::SetBCs()
    j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
    phi_gf.ProjectBdrCoefficient(*electPot_DBC, *ess_bdr_marker[1]);
    u_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
-   //ubar_gf.ProjectBdrCoefficient(*velocity_DBC, *ess_bdr_marker[2]);
    ubar_gf.ProjectBdrCoefficient(*velocity_bar_DBC, *ess_bdr_marker[2]);
    p_gf.ProjectBdrCoefficient(*pressure_DBC, *ess_bdr_marker[3]);
 }
@@ -489,7 +471,7 @@ void LmmhdOperator::FormASystem()
                                           RHS->GetBlock(3),
                                           true);
 
-   // Block (3,2) is B: lifting gives -B ubar_bc.
+   // Block (3,2) is B: Rp = -B ubar_bc.
    fluids.b.FormRectangularLinearSystem(ess_tdof_u,
                                           ess_tdof_p,
                                           ubar_gf,
@@ -572,7 +554,7 @@ void LmmhdOperator::SetupConstantBlocks()
    P->SetCurrentDensityPreconditioner(liprec.DjMat_h.As<HypreParMatrix>(),
                                       GtMat, KtMat);
 
-   constant_blocks_ready = true;
+   constant_blocks_assembled = true;
 }
 
 void LmmhdOperator::Step(real_t &time, real_t dt)
@@ -581,28 +563,12 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
 
    FormASystem(); // FormLinearSystem and FormRectangularLinearSystem calls for entries of A matrix.
 
-   if (!constant_blocks_ready) { SetupConstantBlocks(); }
+   if (!constant_blocks_assembled) { SetupConstantBlocks(); }
 
    // Fu changes every step (u* in the convection term), so its matrix is
    // re-created by the form and must be re-registered with the operator.
    FuMat = fluids.FuMat_h.As<HypreParMatrix>();
    A->SetBlock(2,2, FuMat);
-
-   // Calculating contribution from velocity Dirichlet BC to RHS.
-   /*HypreParVector u_bc(spaces[2]);
-   u_bc = 0.0;
-
-   // Fill only essential true DOFs
-   for (int i = 0; i < ess_tdof_u.Size(); i++)
-   {
-      int tdof = ess_tdof_u[i];
-      u_bc(tdof) = X->GetBlock(2)(tdof);
-   }
-
-   HypreParVector Kt_bc(spaces[0]);
-   KtMat->Mult(u_bc, Kt_bc);
-
-   RHS->GetBlock(0) -= Kt_bc;*/
 
    // (2/tau) (u^n, v') term on the right-hand side of the velocity equation.
    // Essential rows keep the Dirichlet values set by FormLinearSystem.
@@ -631,10 +597,9 @@ void LmmhdOperator::Step(real_t &time, real_t dt)
    A->Mult(*X, residual);
    residual.Neg();
    residual += *RHS;
-   const real_t global_norm = ParNormlp(residual, 2.0, MPI_COMM_WORLD);
-   if (Mpi::Root()) std::cout << "global_norm = " << global_norm << std::endl;
-   logger << "FGMRES iterations: " << lmmhd_solver->GetNumIterations()
-          << ", true residual = " << global_norm << std::endl;
+   //const real_t global_norm = ParNormlp(residual, 2.0, MPI_COMM_WORLD);
+   //if (Mpi::Root()) std::cout << "global_norm = " << global_norm << std::endl;
+   logger << "FGMRES iterations: " << lmmhd_solver->GetNumIterations() << std::endl;
 }
 
 LmmhdOperator::~LmmhdOperator()

@@ -117,7 +117,7 @@ protected:
    LiPreconditioner *P = nullptr;
 
    // True once the time-independent blocks and preconditioner pieces exist.
-   bool constant_blocks_ready = false;
+   bool constant_blocks_assembled = false;
 
    MagneticBlock magnetics;
    NavierBlock fluids;

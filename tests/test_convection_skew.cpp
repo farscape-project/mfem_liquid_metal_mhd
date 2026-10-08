@@ -51,13 +51,11 @@ int main(int argc, char *argv[])
    ustar_gf.ProjectCoefficient(ustar_coef);
    VectorGridFunctionCoefficient ustar(&ustar_gf);
 
-   const real_t defect_fixed = SkewDefect(fes, ustar, 0.5);
-   const real_t defect_old = SkewDefect(fes, ustar, -0.5);
+   const real_t defect = SkewDefect(fes, ustar, 0.5);
 
-   std::cout << "max|C + C^T| / max|C| with a = +0.5 (fixed):    " << defect_fixed << "\n"
-             << "max|C + C^T| / max|C| with a = -0.5 (original): " << defect_old << std::endl;
+   std::cout << "max|C + C^T| / max|C| with a = +0.5:    " << defect << std::endl;
 
-   const bool ok = defect_fixed < 1e-12;
+   const bool ok = defect < 1e-12;
    std::cout << (ok ? "PASS" : "FAIL") << std::endl;
    return ok ? 0 : 1;
 }
