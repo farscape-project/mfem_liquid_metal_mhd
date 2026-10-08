@@ -58,7 +58,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    X = new BlockVector(block_trueOffsets);
    Xn_1 = new BlockVector(block_trueOffsets);
    RHS = new BlockVector(block_trueOffsets);
+   *X = 0.0;   // BlockVector entries are not initialised; X is written to the
+               // initial output via SetGridFunctionsFromTrueDofs().
    *Xn_1 = 0.0;
+   *RHS = 0.0;
 
    A = new BlockOperator(block_trueOffsets);
 
