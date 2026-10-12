@@ -364,7 +364,7 @@ void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
    u_gf -= u_gf_n_1;
 }
 
-void LmmhdOperator::CalcNorms()
+real_t LmmhdOperator::CalcNorms()
 {
       // Calculate relative L2-norm of grid functions between this and previous time-step.
       real_t cd_rel_l2 = rel_L2_norm(j_gf, j_gf_n_1, spaces[0]);
@@ -391,6 +391,8 @@ void LmmhdOperator::CalcNorms()
       ConstantCoefficient zero_s(0.0);
       const real_t divj_l2 = divj_gf.ComputeL2Error(zero_s);
       if (Mpi::Root()) {std::cout << "Charge conservation check: ||div J||_L2 = " << divj_l2 << std::endl;}
+
+      return std::max({cd_rel_l2, elp_rel_l2, vel_rel_l2, pres_rel_l2});
 }
 
 void LmmhdOperator::UpdateHistory()

@@ -235,7 +235,7 @@ public:
 
    void ReconstructPhysicalVelocityFromUBar(int step);
 
-   void CalcNorms();
+   real_t CalcNorms();
 
    void RemoveMeans();
 

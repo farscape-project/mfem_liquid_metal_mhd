@@ -203,8 +203,7 @@ int main(int argc, char *argv[])
    ess_bdr[3] = &ess_boundary_marker_pressure;
 
    // Print mesh statistics.
-   if (Mpi::Root()) PrintFESpaces(j_space_size, phi_space_size, v_space_size, p_space_size);
-
+   if (Mpi::Root()) PrintFESpaces(j_space->GlobalTrueVSize(), phi_space->GlobalTrueVSize(), v_space->GlobalTrueVSize(), p_space->GlobalTrueVSize());
 
    // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);
@@ -220,7 +219,7 @@ int main(int argc, char *argv[])
 
    // Current-density block of the preconditioner: "mumps" (direct, default)
    // or "ads" (5 CG iterations with Hiptmair-Xu, as in Algorithm 4.1).
-   oper.UseADSForCurrentDensity("mumps");
+   oper.UseADSForCurrentDensity("ads");
 
    ParGridFunction *j_gf = oper.GetCurrentDPointer();
    ParGridFunction *phi_gf = oper.GetPotentialPointer();
@@ -229,11 +228,15 @@ int main(int argc, char *argv[])
 
    oper.SetGridFunctionsFromTrueDofs();
 
+   FiniteElementCollection *phi_vis_fec = new H1_FECollection(1, mesh->Dimension());
+   ParFiniteElementSpace phi_vis_fes(pmesh, phi_vis_fec);
+   ParGridFunction phi_vis(&phi_vis_fes);
+
    // Set up visualisation in Paraview (cycle 0 holds the initial condition).
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
    pvdc.SetPrefixPath("data");
    pvdc.SetDataFormat(VTKFormat::BINARY);
-   pvdc.SetHighOrderOutput(true);
+   pvdc.SetHighOrderOutput(false);
    pvdc.SetLevelsOfDetail(2);
    pvdc.SetCycle(0);
    pvdc.SetTime(0.0);
@@ -264,7 +267,7 @@ int main(int argc, char *argv[])
 
       oper.ReconstructPhysicalVelocityFromUBar(ti);
 
-      oper.CalcNorms();
+      const real_t residual = oper.CalcNorms();
 
       oper.UpdateHistory();
 
@@ -277,6 +280,12 @@ int main(int argc, char *argv[])
          pvdc.SetCycle(ti + 1);
          pvdc.SetTime(t);
          pvdc.Save();
+      }
+
+      if (residual < 1.0e-5)
+      {
+         std::cout << "Resuidual reached.  Simulation terminated." << std::endl;
+         break;
       }
    }
 

@@ -111,7 +111,7 @@ public:
     /// true = 5 CG iterations preconditioned by Hiptmair-Xu (HypreADS), as in
     /// Algorithm 4.1 of Li et al. (2019).  Call before
     /// SetCurrentDensityPreconditioner().
-    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }s
+    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
