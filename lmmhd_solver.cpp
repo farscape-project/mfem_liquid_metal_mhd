@@ -174,19 +174,17 @@ int main(int argc, char *argv[])
    // Define boundaries.
    // ----------------------------------------------------------------------------
    
-   // Essential (Dirichlet) boundary conditions.  Boundary attributes of
-   // Mesh::MakeCartesian3D (hexahedra):
-   //   1: z = 0,  2: y = 0,  3: x = Lx,  4: y = Ly,  5: x = 0,  6: z = Lz.
-   //
+   // Essential (Dirichlet) boundary conditions for square duct.
    // Duct flow:           {z0, y0, x1 (outlet), y1, x0 (inlet), z1}
-   //int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
-   //int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
-   //int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
-   //int velocity_bcs[] = {1,  1,  0,           1,  1,          1};
+   /*int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
+   int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
+   int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
+   int velocity_bcs[] = {1,  1,  0,           1,  1,          1};*/
 
-   // Lid-driven cavity (lid at z = Lz, see BoundaryConditions.hpp).
+   // Essential (Dirichlet) boundary conditions for lid-driven cavity 
+   // (lid at z = Lz, see BoundaryConditions.hpp).
    //                     {z0, y0, x1, y1, x0, z1}
-   int currentD_bcs[] = {1,  1,  1,  1,  1,  1};
+   int currentD_bcs[] = {0,  0,  0,  0,  0,  0};
    int electPot_bcs[] = {0,  0,  0,  0,  0,  0};   // L2 space: no boundary dofs
    int pressure_bcs[] = {0,  0,  0,  0,  0,  0};
    int velocity_bcs[] = {1,  1,  1,  1,  1,  1};
@@ -203,7 +201,7 @@ int main(int argc, char *argv[])
    ess_bdr[3] = &ess_boundary_marker_pressure;
 
    // Print mesh statistics.
-   if (Mpi::Root()) PrintFESpaces(j_space->GlobalTrueVSize(), phi_space->GlobalTrueVSize(), v_space->GlobalTrueVSize(), p_space->GlobalTrueVSize());
+   if (Mpi::Root()) PrintFESpaces(currentD_fespace.GlobalTrueVSize(), electPot_fespace.GlobalTrueVSize(), velocity_fespace.GlobalTrueVSize(), pressure_fespace.GlobalTrueVSize());
 
    // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);
@@ -227,10 +225,6 @@ int main(int argc, char *argv[])
    ParGridFunction *p_gf = oper.GetPressurePointer();
 
    oper.SetGridFunctionsFromTrueDofs();
-
-   FiniteElementCollection *phi_vis_fec = new H1_FECollection(1, mesh->Dimension());
-   ParFiniteElementSpace phi_vis_fes(pmesh, phi_vis_fec);
-   ParGridFunction phi_vis(&phi_vis_fes);
 
    // Set up visualisation in Paraview (cycle 0 holds the initial condition).
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
@@ -284,7 +278,7 @@ int main(int argc, char *argv[])
 
       if (residual < 1.0e-5)
       {
-         std::cout << "Resuidual reached.  Simulation terminated." << std::endl;
+         if (Mpi::Root()) { std::cout << "Resuidual reached.  Simulation terminated." << std::endl; }
          break;
       }
    }

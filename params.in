@@ -28,6 +28,6 @@ Ha            10.0
 //Re              500.0
 //Ha              70.7107   // N = 10 case
 
-Bx            0.0     // Magnetic field (x-component)
+Bx            1.0     // Magnetic field (x-component)
 By            0.0     // Magnetic field (y-component)
-Bz            1.0     // Magnetic field (z-component)
+Bz            0.0     // Magnetic field (z-component)

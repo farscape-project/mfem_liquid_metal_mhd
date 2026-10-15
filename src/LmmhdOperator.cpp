@@ -342,7 +342,7 @@ void LmmhdOperator::RemoveMeans()
 {
    // Remove mean from pressure and potential.  Only do this if nullspace
    // needs removing from the problem (i.e. all Neumann BCs).
-   potential_mean_remover.RemoveMean(X->GetBlock(1));
+   //potential_mean_remover.RemoveMean(X->GetBlock(1));
    pressure_mean_remover.RemoveMean(X->GetBlock(3));
 }
 
