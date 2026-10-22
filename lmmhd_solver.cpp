@@ -217,7 +217,12 @@ int main(int argc, char *argv[])
    if (Mpi::Root()) PrintFESpaces(j_glob, phi_glob, u_glob, p_glob);
 
    // Create save directory if auto option chosen.
-   if (save_dir == "auto"){save_dir = "data_" + std::to_string(total_dofs_glob);}
+   if (save_dir == "auto")
+   {
+      save_dir = "data_" + std::to_string(total_dofs_glob) + \
+         "_Ha_" + std::to_string(std::lround(Ha)) + \
+         "_Re_" + std::to_string(std::lround(Re));
+   }
 
    // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);

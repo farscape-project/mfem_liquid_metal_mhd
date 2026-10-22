@@ -12,7 +12,7 @@ clusterY      1.8    // mesh clustering in y-direction
 clusterZ      1.8    // mesh clustering in z-direction
 
 ******** Timestepping parameters ********
-t_final       0.1    // final time-step
+t_final       2.0    // final time-step
 dt            0.01    // time-step
 vis_steps       5    // visualisation step frequency
 
@@ -32,4 +32,4 @@ Bx            1.0     // Magnetic field (x-component)
 By            0.0     // Magnetic field (y-component)
 Bz            0.0     // Magnetic field (z-component)
 
-SaveDirectory       auto   // Name of output directory.  auto generates automatically based on number of DoFs.
+SaveDirectory       auto   // Name of output directory.  auto generates automatically based on number of DoFs, Re, and Ha.
