@@ -200,8 +200,13 @@ int main(int argc, char *argv[])
    ess_bdr[2] = &ess_boundary_marker_velocity;
    ess_bdr[3] = &ess_boundary_marker_pressure;
 
+   const HYPRE_BigInt j_glob   = currentD_fespace.GlobalTrueVSize();
+   const HYPRE_BigInt phi_glob = electPot_fespace.GlobalTrueVSize();
+   const HYPRE_BigInt u_glob   = velocity_fespace.GlobalTrueVSize();
+   const HYPRE_BigInt p_glob   = pressure_fespace.GlobalTrueVSize();
+
    // Print mesh statistics.
-   if (Mpi::Root()) PrintFESpaces(currentD_fespace.GlobalTrueVSize(), electPot_fespace.GlobalTrueVSize(), velocity_fespace.GlobalTrueVSize(), pressure_fespace.GlobalTrueVSize());
+   if (Mpi::Root()) PrintFESpaces(j_glob, phi_glob, u_glob, p_glob);
 
    // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);
