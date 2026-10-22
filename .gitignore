@@ -11,3 +11,8 @@ params.in_squareDuct
 *.o
 *.d
 tests/test_convection_skew
+
+*.slurm
+*.sh
+*.csv
+*.txt

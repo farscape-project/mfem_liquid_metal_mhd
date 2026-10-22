@@ -8,6 +8,7 @@
 #include "constants.hpp"
 #include "InputParser.hpp"
 #include "tools.hpp"
+#include "scaling_timer.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -20,6 +21,10 @@ int main(int argc, char *argv[])
    // Initialize MPI and HYPRE (before anything that queries the rank).
    Mpi::Init(argc, argv);
    Hypre::Init();
+
+   ScalingTimer timer;
+   timer.start("Total");
+   timer.start("Setup");
 
    // Only the root rank opens (and truncates) the log file; Logger only
    // writes on the root rank.
@@ -49,6 +54,8 @@ int main(int argc, char *argv[])
    real_t t_final = input.GetReal("t_final");
    real_t dt = input.GetReal("dt");
    int vis_steps = input.GetInt("vis_steps");
+
+   std::string save_dir = input.GetString("SaveDirectory");
 
    // Dimensionless parameters
    Re = input.GetReal("Re");
@@ -204,9 +211,13 @@ int main(int argc, char *argv[])
    const HYPRE_BigInt phi_glob = electPot_fespace.GlobalTrueVSize();
    const HYPRE_BigInt u_glob   = velocity_fespace.GlobalTrueVSize();
    const HYPRE_BigInt p_glob   = pressure_fespace.GlobalTrueVSize();
+   const HYPRE_BigInt total_dofs_glob = j_glob + phi_glob + u_glob + p_glob; 
 
    // Print mesh statistics.
    if (Mpi::Root()) PrintFESpaces(j_glob, phi_glob, u_glob, p_glob);
+
+   // Create save directory if auto option chosen.
+   if (save_dir == "auto"){save_dir = "data_" + std::to_string(total_dofs_glob);}
 
    // Define block structure of the solution vector (j, phi, ubar, p).
    Array<int> block_trueOffsets(5);
@@ -233,7 +244,7 @@ int main(int argc, char *argv[])
 
    // Set up visualisation in Paraview (cycle 0 holds the initial condition).
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
-   pvdc.SetPrefixPath("data");
+   pvdc.SetPrefixPath(save_dir);
    pvdc.SetDataFormat(VTKFormat::BINARY);
    pvdc.SetHighOrderOutput(false);
    pvdc.SetLevelsOfDetail(2);
@@ -245,6 +256,8 @@ int main(int argc, char *argv[])
    pvdc.RegisterField("pressure", p_gf);
    pvdc.Save();
 
+   timer.stop("Setup");
+
    // Time loop.  An integer step count avoids an extra step from
    // floating-point accumulation of t.
    const int num_steps = static_cast<int>(std::ceil(t_final / dt - 1e-8));
@@ -255,11 +268,18 @@ int main(int argc, char *argv[])
       if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
       logger << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl;
 
+      timer.start("UpdateIntegrators");
+
       oper.UpdateUStar(ti);     // Extrapolated u* at t^{n+1/2} for the linearised convection term.
       oper.UpdateIntegrators(); // Re-assemble Fu and Fk with the new u*.
 
-      oper.Step(t, dt);
+      timer.stop("UpdateIntegrators");
 
+      timer.start("Solve");
+      oper.Step(t, dt);
+      timer.stop("Solve");
+
+      timer.start("UpdatesAfterSolve");
       oper.RemoveMeans();
 
       oper.SetGridFunctionsFromTrueDofs();
@@ -269,9 +289,11 @@ int main(int argc, char *argv[])
       const real_t residual = oper.CalcNorms();
 
       oper.UpdateHistory();
+      timer.stop("UpdatesAfterSolve");
 
       t = (ti + 1) * dt;
 
+      timer.start("DataIO");
       // Save data.  The velocity is u^{n+1} at time t; the midpoint scheme
       // gives the current density, potential and pressure at t - dt/2.
       if ((ti + 1) % vis_steps == 0 || ti + 1 == num_steps)
@@ -280,6 +302,7 @@ int main(int argc, char *argv[])
          pvdc.SetTime(t);
          pvdc.Save();
       }
+      timer.stop("DataIO");
 
       if (residual < 1.0e-5)
       {
@@ -289,6 +312,9 @@ int main(int argc, char *argv[])
    }
 
    if (Mpi::Root()) { std::cout << "Total simulation time: " << mfem::toc() << std::endl; }
+
+   timer.stop("Total");
+   timer.report(total_dofs_glob);
 
    return 0;
 }

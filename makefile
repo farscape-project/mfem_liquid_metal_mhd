@@ -1,8 +1,9 @@
 # Path to an MFEM build (build directory or install prefix containing
 # config/config.mk).  Override on the command line, e.g.
 #    make MFEM_DIR=/path/to/mfem MFEM_LIB_SUFFIX=
-MFEM_DIR ?= ../mfem_moose_custOp/framework/contrib/mfem/build-opt
+#MFEM_DIR ?= ../mfem_moose_custOp/framework/contrib/mfem/build-opt
 ###MFEM_DIR=../../MOOSE_BUILDS/cust_ops/framework/contrib/mfem/build-opt
+MFEM_DIR ?= ../moose/framework/contrib/mfem/build-opt
 
 # MOOSE builds of MFEM name the library libmfem-opt; set to empty for a
 # standard MFEM build.
