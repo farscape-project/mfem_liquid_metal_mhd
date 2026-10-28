@@ -1,6 +1,7 @@
 # Directories
 data*
 old
+old_data
 
 # Simulation files
 lmmhd_solver
@@ -16,3 +17,6 @@ tests/test_convection_skew
 *.sh
 *.csv
 *.txt
+
+stdout*
+stderr*

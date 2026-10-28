@@ -22,3 +22,4 @@ real_t By(0.0);
 real_t Bz(1.0);
 
 real_t lid_z(1.0);
+real_t lid_h(0.0);

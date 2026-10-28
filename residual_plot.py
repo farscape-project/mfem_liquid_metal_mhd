@@ -5,8 +5,16 @@ import re
 import matplotlib.pyplot as plt
 from collections import defaultdict
 import os
+import sys
 
-logfile = "simulation.log"
+# Take the log file from the command line, or prompt for it if not given
+if len(sys.argv) > 1:
+    logfile = sys.argv[1]
+else:
+    logfile = input("Log file to plot (e.g. stdout.472084): ").strip()
+
+if not os.path.isfile(logfile):
+    sys.exit(f"Error: '{logfile}' not found")
 
 # ------------------------------------------------------------
 # Storage

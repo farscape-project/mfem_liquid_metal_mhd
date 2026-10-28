@@ -143,7 +143,11 @@ int main(int argc, char *argv[])
    //ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
-   
+
+   // Set ramp-up for smooth lid-BC.
+   lid_z = Lz;
+   lid_h = Lz * (1.0 - cluster_symmetric((nz - 1.0) / nz, clusterZ));
+   if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.

@@ -41,7 +41,7 @@ inline real_t outflow_term_func(const Vector & x)
 }
 
 
-inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
+/*inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
 {
    f = 0.0;
 
@@ -63,15 +63,37 @@ inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
    }
 
    // Lid-driven cavity: lid at z = Lz (lid_z is set in constants.cpp).
-   if (x(2) > lid_z * (1.0 - 1e-6))
-   {
-      f(0) = 1.0;
+   const real_t s = (x(2) - (lid_z - lid_h)) / lid_h;   // 0 at z = 1-h, 1 at z = 1
+   if (s >= 1.0)
+   { 
+      f(0) = 1.0; 
    }
+   else if (s > 0.0)
+   {
+      f(0) = s * s * (3.0 - 2.0 * s);
+   }
+
+   //if (x(2) > lid_z * (1.0 - 1e-6))
+   //{
+   //   f(0) = 1.0;
+   //}
 
    //if (x.Size() == 3)
    //{
    //   f(2) = 0.0;
    //}
+}*/
+
+inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
+{
+   f = 0.0;
+
+   // Lid-driven cavity: lid at z = Lz (lid_z is set in constants.cpp).
+   const real_t s = (x(2) - (lid_z - lid_h)) / lid_h;   // 0 at z = 1-h, 1 at z = 1
+   if (s >= 1.0)
+   { 
+      f(0) = 1.0; 
+   }
 }
 
 inline void currentD_dbc_vec_func(const Vector & x, Vector & f)

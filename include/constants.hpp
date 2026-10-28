@@ -21,5 +21,6 @@ extern real_t Bx;
 extern real_t By;
 extern real_t Bz;
 
-// Height of the moving lid (z = Lz) for the lid-driven cavity.
+// Location and height of the moving lid for the lid-driven cavity.
 extern real_t lid_z;
+extern real_t lid_h;
