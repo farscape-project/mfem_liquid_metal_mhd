@@ -38,6 +38,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
+   theta = 0.6;
+
    lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
    lmmhd_solver->SetRelTol(1e-8);
    lmmhd_solver->SetAbsTol(1e-12);
@@ -98,7 +100,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    kappaBxVBxV *= kappa_val;
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
-   massCoeffValue = 2.0 / dt;
+   massCoeffValue = 1.0 / (theta * dt);
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
    fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
    alphaCoeff = new ConstantCoefficient(alpha);
@@ -156,7 +158,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // ubar boundary condition:
    // ubar_n = 0.5 * (g + u_n_1).
-   velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, 0.5, 0.5);
+   velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, theta, 1.0 - theta);
 
    // Project BCs onto grid functions.
    j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
@@ -181,6 +183,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fluids.b.AddDomainIntegrator(new VectorDivergenceIntegrator(*bCoeff));
    fluids.b.Assemble();
    fluids.b.Finalize();
+
+   // Version for divergence check (un-elimineated).
+   BFullMat = fluids.b.ParallelAssemble();
 
    // Bilinear form for current density.
    mjCoeff = new ConstantCoefficient(1.0);
@@ -281,7 +286,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
 
-   P = new LiPreconditioner(spaces, block_trueOffsets, dt, logger);
+   P = new LiPreconditioner(spaces, block_trueOffsets, dt, theta, logger);
    P->SetVerbose(debug > 0);
 
    // Discrete divergence of the current density (exact when the potential
@@ -319,9 +324,8 @@ void LmmhdOperator::UpdateUStar(int step)
    else
    {
       *ustar_gf = u_gf_n_1;
-      *ustar_gf *= 3.0;
-      ustar_gf->Add(-1.0, u_gf_n_2);
-      *ustar_gf *= 0.5;
+      *ustar_gf *= (1.0 + theta);
+      ustar_gf->Add(-theta, u_gf_n_2);
    }
 
    *ustar_coef = ustar_gf;
@@ -356,12 +360,15 @@ void LmmhdOperator::SetGridFunctionsFromTrueDofs()
 
 void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
 {
-   // Reconstruct physical velocity from the midpoint value:
-   // u^{n+1} = 2 ubar - u^n (for every step, including the first; u_gf_n_1
-   // holds the initial condition before the first step).
+   if (step == 0 && theta == 0.5)
+   {
+      u_gf = ubar_gf; 
+      return; 
+   }
+
    u_gf = ubar_gf;
-   u_gf *= 2.0;
-   u_gf -= u_gf_n_1;
+   u_gf.Add(-(1.0 - theta), u_gf_n_1);
+   u_gf *= 1.0 / theta;
 }
 
 real_t LmmhdOperator::CalcNorms()
@@ -391,6 +398,14 @@ real_t LmmhdOperator::CalcNorms()
       ConstantCoefficient zero_s(0.0);
       const real_t divj_l2 = divj_gf.ComputeL2Error(zero_s);
       if (Mpi::Root()) {std::cout << "Charge conservation check: ||div J||_L2 = " << divj_l2 << std::endl;}
+
+      // Divergence check for velocity.
+      Vector ut, Bu(spaces[3]->GetTrueVSize());
+      u_gf.GetTrueDofs(ut);            // u^n including the Dirichlet values
+      BFullMat->Mult(ut, Bu);
+      const real_t Bu_norm = ParNormlp(Bu, 2.0, MPI_COMM_WORLD);
+      if (Mpi::Root()) { std::cout << "Weak divergence check: ||B u^n|| = " << Bu_norm << std::endl; }
+
 
       return std::max({cd_rel_l2, elp_rel_l2, vel_rel_l2, pres_rel_l2});
 }
@@ -655,4 +670,5 @@ LmmhdOperator::~LmmhdOperator()
    delete KtFullMat;
    delete KMatScaled;
    delete MuMat;
+   delete BFullMat;
 }

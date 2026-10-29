@@ -58,6 +58,7 @@ protected:
     int nBlocks;
     Array<int> offsets;
     real_t dt;
+    real_t theta;
 
     // Pressure preconditioner solvers.
     CGSolver *MpSolver = nullptr;
@@ -94,11 +95,13 @@ public:
     LiPreconditioner(Array<ParFiniteElementSpace *> &fes,
         const Array<int> &offsets_,
         real_t &dt_,
+        real_t &theta_,
         Logger &logger_)
         : Solver(offsets_.Last()),
             nBlocks(offsets_.Size()-1),
             offsets(0),
             dt(dt_),
+            theta(theta_),
             logger(logger_)
     {
         fes.Copy(spaces);
@@ -238,7 +241,7 @@ public:
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1,
         // but it is required.
         Vector eta2tau(rp.Size());
-        real_t spCoeff = 2.0 / dt;
+        real_t spCoeff = 1.0 / (theta * dt);
         eta2tau = eta;
         eta2tau *= spCoeff;
         yp = xi;

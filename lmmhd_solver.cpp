@@ -59,7 +59,8 @@ int main(int argc, char *argv[])
 
    // Dimensionless parameters
    Re = input.GetReal("Re");
-   Ha = input.GetReal("Ha");
+   //Ha = input.GetReal("Ha");
+   kappa_val = input.GetReal("kappa");
 
    Bx = input.GetReal("Bx");
    By = input.GetReal("By");
@@ -103,13 +104,14 @@ int main(int argc, char *argv[])
    vis_steps = std::max(1, vis_steps);
 
    // Derived constants (after command-line overrides).
+   Ha = sqrt(kappa_val * Re);
    reciprocal_Re = 1.0 / Re;
-   kappa_val = Ha * Ha / Re;
+   //kappa_val = Ha * Ha / Re;
    neg_kappa_val = -kappa_val;
    alpha1 = alpha + reciprocal_Re;
    neg_alpha1 = -alpha1;
 
-   if (Mpi::Root()) { PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, Ha); }
+   if (Mpi::Root()) { PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, kappa_val, Ha); }
 
    // Set fe_space orders.
    int order_currentD = 0;  // Check order based on MFEM/paper.
@@ -147,7 +149,7 @@ int main(int argc, char *argv[])
    // Set ramp-up for smooth lid-BC.
    lid_z = Lz;
    lid_h = Lz * (1.0 - cluster_symmetric((nz - 1.0) / nz, clusterZ));
-   if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
+   //if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
@@ -224,7 +226,7 @@ int main(int argc, char *argv[])
    if (save_dir == "auto")
    {
       save_dir = "data_" + std::to_string(total_dofs_glob) + \
-         "_Ha_" + std::to_string(std::lround(Ha)) + \
+         "_kappa_" + std::to_string(std::lround(kappa_val)) + \
          "_Re_" + std::to_string(std::lround(Re));
    }
 

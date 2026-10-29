@@ -1,4 +1,4 @@
-# Plots the logged values (residuals and preconditioner norms) from the 
+# Plots the logged values (FGMRES residuals and relative L2 norms) from the
 # MFEM liquid-metal MHD simulation. Values are saved by MFEM in simulation.log.
 
 import re
@@ -20,27 +20,25 @@ if not os.path.isfile(logfile):
 # Storage
 # ------------------------------------------------------------
 
-residuals = []  # (timestep, local_iter, residual)
-precond_norms = defaultdict(list)
+residuals = []  # (timestep, pass, local_iter, residual)
 l2_timesteps = defaultdict(list)
-field_norms = defaultdict(list)
 
 global_iter = 0
-global_iter_hist = []
 timestep = -1
+timestep_boundaries = []  # (global_iter at start of step, timestep)
 
 dirname = "plots/residuals/"
 os.makedirs(dirname, exist_ok=True)
-
-timestep_boundaries = []
 
 # ------------------------------------------------------------
 # Regex patterns
 # ------------------------------------------------------------
 
 step_re = re.compile(r"Time step (\d+), time = ([0-9.eE+-]+)")
-iter_re = re.compile(r"FGMRES iteration\s*:\s*(\d+).*?\|\|\s*r\s*\|\|\s*=\s*([0-9.eE+-]+)")
-norm_re = re.compile(r"\|\|(\w+)\|\|\s*=\s*([0-9.eE+-]+)")
+# Matches e.g. "   Pass :  2   Iteration :  51  || r || = 5.72468e-05"
+iter_re = re.compile(
+    r"Pass\s*:\s*(\d+)\s+Iteration\s*:\s*(\d+)\s+\|\|\s*r\s*\|\|\s*=\s*([0-9.eE+-]+)"
+)
 l2_re = re.compile(r"Relative L2 Norm for (.+?):\s*([0-9.eE+-]+)")
 
 # ------------------------------------------------------------
@@ -54,19 +52,16 @@ with open(logfile, "r") as f:
         if m:
             timestep = int(m.group(1))
             timestep_boundaries.append((global_iter, timestep))
-            global_iter_hist.append(global_iter)
             continue
 
         m = iter_re.search(line)
         if m:
-            it = int(m.group(1))
-            r = float(m.group(2))
-            residuals.append((timestep, it, r))
+            p = int(m.group(1))
+            it = int(m.group(2))
+            r = float(m.group(3))
+            residuals.append((timestep, p, it, r))
             global_iter += 1
             continue
-
-        for name, val in norm_re.findall(line):
-            precond_norms[name].append((global_iter, float(val)))
 
         m = l2_re.search(line)
         if m:
@@ -75,50 +70,24 @@ with open(logfile, "r") as f:
             l2_timesteps[field].append((timestep, val))
             continue
 
-        # = field_norm_re.search(line)
-        #if m:
-        #    field = m.group(1)
-        #    val = float(m.group(2))
-        #    field_norms[field].append((timestep, val))
-
-
-global_iters = []
-for i in range(0,len(global_iter_hist)-1):
-    global_iters.append(global_iter_hist[i+1] - global_iter_hist[i])
+if not residuals:
+    sys.exit("No FGMRES residuals found in the log - check the iteration line format.")
 
 # ------------------------------------------------------------
-# 0. Functions to make plots look nice.
+# 0. Helpers to make plots look nice
 # ------------------------------------------------------------
 
 def add_verticals_at_time_steps(timestep_boundaries):
-
-    # Vertical lines marking timestep boundaries
     for xpos, ts in timestep_boundaries:
-        plt.axvline(
-            x=xpos,
-            color='gray',
-            linestyle='--',
-            linewidth=0.75,
-            alpha=0.5
-        )
-    return
+        plt.axvline(x=xpos, color='gray', linestyle='--', linewidth=0.75, alpha=0.5)
+
 
 def add_timestep_boundaries_as_2nd_axis(timestep_boundaries):
-
     ax = plt.gca()
-
-    # Add label on top axis
     ax_top = ax.secondary_xaxis('top')
-    # Put ticks where timesteps begin
-    tick_positions = [p for p, ts in timestep_boundaries]
-    tick_labels = [ts for p, ts in timestep_boundaries]
-    ax_top.set_xticks(tick_positions)
-    ax_top.set_xticklabels(tick_labels)
-
+    ax_top.set_xticks([p for p, ts in timestep_boundaries])
+    ax_top.set_xticklabels([ts for p, ts in timestep_boundaries])
     ax_top.set_xlabel("Time step")
-
-    return
-
 
 # ------------------------------------------------------------
 # 1. FGMRES residual plot
@@ -126,110 +95,35 @@ def add_timestep_boundaries_as_2nd_axis(timestep_boundaries):
 
 plt.figure()
 add_verticals_at_time_steps(timestep_boundaries)
-plt.semilogy([r[2] for r in residuals])
-plt.xlabel("Iteration")
+plt.semilogy(range(len(residuals)), [r[3] for r in residuals])
+plt.xlabel("Cumulative iteration")
 add_timestep_boundaries_as_2nd_axis(timestep_boundaries)
 plt.ylabel("||r||")
 plt.title("FGMRES Residual History")
 plt.grid(True, axis='y', linestyle='--')
 plt.tight_layout()
-plt.savefig(''.join([dirname,"gmres_residual.png"]), dpi=300)
+plt.savefig(os.path.join(dirname, "gmres_residual.png"), dpi=300)
 plt.close()
 
 # ------------------------------------------------------------
-# 2a. Residual-type norms (r family)
+# 2. L2 norms per timestep
 # ------------------------------------------------------------
 
-plt.figure()
-add_verticals_at_time_steps(timestep_boundaries)
+if l2_timesteps:
+    plt.figure()
+    for field, data in l2_timesteps.items():
+        x = [d[0] for d in data]
+        y = [d[1] for d in data]
+        plt.semilogy(x, y, marker='o', label=field)
 
-for name, data in precond_norms.items():
-    if not name.startswith("r"):
-        continue
+    plt.xlabel("Time step")
+    plt.ylabel("Relative L2 Norm")
+    plt.title("Field Convergence per Time Step")
+    plt.legend()
+    plt.grid(True, linestyle='--')
+    plt.tight_layout()
+    plt.savefig(os.path.join(dirname, "l2_norms.png"), dpi=300)
+    plt.close()
 
-    x = [d[0] for d in data]
-    y = [d[1] for d in data]
-    plt.plot(x, y, label=name)
-
-plt.yscale("log")
-plt.xlabel("Iteration")
-add_timestep_boundaries_as_2nd_axis(timestep_boundaries)
-plt.ylabel("Norm value")
-plt.title("Residual-type norms (r family)")
-plt.legend()
-plt.grid(True, axis='y', linestyle='--')
-plt.tight_layout()
-plt.savefig(''.join([dirname,"preconditioner_norms_r.png"]), dpi=300)
-plt.close()
-
-# ------------------------------------------------------------
-# 2b. Solution-update norms (y family)
-# ------------------------------------------------------------
-
-plt.figure()
-add_verticals_at_time_steps(timestep_boundaries)
-
-for name, data in precond_norms.items():
-    if not name.startswith("y"):
-        continue
-
-    x = [d[0] for d in data]
-    y = [d[1] for d in data]
-    plt.plot(x, y, label=name)
-
-plt.yscale("log")
-plt.xlabel("Iteration")
-add_timestep_boundaries_as_2nd_axis(timestep_boundaries)
-plt.ylabel("Norm value")
-plt.title("Solution-update norms (y family)")
-plt.legend()
-plt.grid(True, axis='y', linestyle='--')
-plt.tight_layout()
-plt.savefig(''.join([dirname,"preconditioner_norms_y.png"]), dpi=300)
-plt.close()
-
-# ------------------------------------------------------------
-# 2c. Other internal norms
-# ------------------------------------------------------------
-
-plt.figure()
-add_verticals_at_time_steps(timestep_boundaries)
-
-for name, data in precond_norms.items():
-    if name.startswith("r") or name.startswith("y"):
-        continue
-
-    x = [d[0] for d in data]
-    y = [d[1] for d in data]
-    plt.plot(x, y, label=name)
-
-plt.yscale("log")
-plt.xlabel("Iteration")
-add_timestep_boundaries_as_2nd_axis(timestep_boundaries)
-plt.ylabel("Norm value")
-plt.title("Other preconditioner norms")
-plt.legend()
-plt.grid(True, axis='y', linestyle='--')
-plt.tight_layout()
-plt.savefig(''.join([dirname,"preconditioner_norms_other.png"]), dpi=300)
-plt.close()
-
-# ------------------------------------------------------------
-# 3. L2 norms per timestep
-# ------------------------------------------------------------
-
-plt.figure()
-
-for field, data in l2_timesteps.items():
-    x = [d[0] for d in data]
-    y = [d[1] for d in data]
-    plt.semilogy(x, y, marker='o', label=field)
-
-plt.xlabel("Time step")
-plt.ylabel("Relative L2 Norm")
-plt.title("Field Convergence per Time Step")
-plt.legend()
-plt.grid(True, linestyle='--')
-plt.tight_layout()
-plt.savefig(''.join([dirname,"l2_timesteps.png"]), dpi=300)
-plt.close()
+print(f"Parsed {len(residuals)} FGMRES iterations over "
+      f"{len(timestep_boundaries)} time steps; plots saved to {dirname}")

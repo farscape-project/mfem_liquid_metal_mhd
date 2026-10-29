@@ -99,6 +99,8 @@ struct LiPrecForms
 class LmmhdOperator : public TimeDependentOperator
 {
 protected:
+
+   real_t theta;
    // Size of the Operator
    int OperatorSize(const Array<ParFiniteElementSpace *> spaces);
 
@@ -181,6 +183,7 @@ protected:
    HypreParMatrix *KtFullMat = nullptr; // K^T without essential-dof elimination (for BC on RHS).
    HypreParMatrix *KMatScaled = nullptr; // -kappa K (momentum-row coupling block).
    HypreParMatrix *MuMat = nullptr;      // (2/tau) velocity mass matrix for the RHS.
+   HypreParMatrix *BFullMat = nullptr;
 
    HypreParMatrix *MpMatNorm = nullptr;
    HypreParMatrix *SpMatNorm = nullptr;

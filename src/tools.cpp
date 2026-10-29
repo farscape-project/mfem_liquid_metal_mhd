@@ -3,7 +3,7 @@
 // Print all parameter read in from input file.
 void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
                  real_t clusterX, real_t clusterY, real_t clusterZ,
-                 real_t t_final, real_t dt, int vis_steps, real_t Re, real_t Ha)
+                 real_t t_final, real_t dt, int vis_steps, real_t Re, real_t N, real_t Ha)
 {
    std::cout << " " << std::endl;
    std::cout << "================ Simulation Parameters ================" << std::endl;
@@ -28,7 +28,7 @@ void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
    std::cout << "------ Dimensionless Parameters -------" << std::endl;
    std::cout << "Re = " << Re << std::endl;
    std::cout << "Ha = " << Ha << std::endl;
-   std::cout << "kappa = " << Ha * Ha / Re << std::endl;
+   std::cout << "kappa = " << N << std::endl;
    std::cout << "=======================================================" << std::endl;
    std::cout << " " << std::endl;
    std::cout << " " << std::endl;

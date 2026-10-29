@@ -12,16 +12,16 @@ clusterY      1.8    // mesh clustering in y-direction
 clusterZ      1.8    // mesh clustering in z-direction
 
 ******** Timestepping parameters ********
-t_final       2.0    // final time-step
+t_final       10.0    // final time-step
 dt            0.01    // time-step
 vis_steps       5    // visualisation step frequency
 
 ******** Dimensionless parameters ********
 Re            200.0    // Reynolds number
-Ha            14.14   // sqrt(200 / 1) for N = 1. Hartmann number, dependent on half width of channel = 1.
+kappa         1.0      // Coupling number, kappa = Ha^2 / Re (often called N).
 
 Bx            1.0     // Magnetic field (x-component)
 By            0.0     // Magnetic field (y-component)
 Bz            0.0     // Magnetic field (z-component)
 
-SaveDirectory       auto   // Name of output directory.  auto generates automatically based on number of DoFs, Re, and Ha.
+SaveDirectory auto   // Name of output directory (auto results in automatically generated name).
