@@ -152,10 +152,10 @@ int main(int argc, char *argv[])
    int pressure_bcs[] = {0,  0,  0,  0,  0,  0};
    int velocity_bcs[] = {1,  1,  1,  1,  1,  1};
 
-   Array<int> ess_boundary_marker_currentD(currentD_bcs, 6);
-   Array<int> ess_boundary_marker_electPot(electPot_bcs, 6);
-   Array<int> ess_boundary_marker_pressure(pressure_bcs, 6);
-   Array<int> ess_boundary_marker_velocity(velocity_bcs, 6);
+   Array<int> ess_boundary_marker_currentD(currentD_bcs, pmesh.bdr_attributes.Max());
+   Array<int> ess_boundary_marker_electPot(electPot_bcs, pmesh.bdr_attributes.Max());
+   Array<int> ess_boundary_marker_pressure(pressure_bcs, pmesh.bdr_attributes.Max());
+   Array<int> ess_boundary_marker_velocity(velocity_bcs, pmesh.bdr_attributes.Max());
 
    Array<Array<int> *> ess_bdr(4);
    ess_bdr[0] = &ess_boundary_marker_currentD;
