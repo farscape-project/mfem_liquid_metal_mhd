@@ -3,6 +3,7 @@
 #include "mfem.hpp"
 #include "BoundaryConditions.hpp"
 #include "VectorConvectionIntegrator.hpp"
+#include "parameters.hpp"
 #include "constants.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
 #include "LiPreconditioner.hpp"
@@ -99,6 +100,7 @@ struct LiPrecForms
 class LmmhdOperator : public TimeDependentOperator
 {
 protected:
+   lmmhd::Parameters params;
 
    real_t theta;
    // Size of the Operator
@@ -204,8 +206,6 @@ protected:
    VectorFunctionCoefficient *vectorZeroCoeff = nullptr;
 
    int dim;
-   real_t dt;
-   int debug;
    Logger &logger;
    FGMRESLogMonitor *fgmres_monitor = nullptr;
 
@@ -214,10 +214,10 @@ protected:
 
 public:
    LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, 
-                  Logger &logger);
+                  Array<int> &block_trueOffsets, int dim, 
+                  const lmmhd::Parameters &params, Logger &logger);
 
-   void Step(real_t &time, real_t dt);
+   void Step(real_t &time);
 
    void UpdateUStar(int step);
 
@@ -232,7 +232,7 @@ public:
 
    /// Current-density block solver in the preconditioner: MUMPS (default) or
    /// CG + HypreADS as in Algorithm 4.1.  Call before the first Step().
-   void UseADSForCurrentDensity(bool use_ads) { P->UseADSForCurrentDensity(use_ads); }
+   //void UseADSForCurrentDensity(bool use_ads) { P->UseADSForCurrentDensity(use_ads); }
 
    void SetGridFunctionsFromTrueDofs();
 

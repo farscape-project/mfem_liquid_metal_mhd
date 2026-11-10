@@ -3,6 +3,7 @@
 #include "mfem.hpp"
 #include "constants.hpp"
 #include "tools.hpp"
+#include "parameters.hpp"
 
 using namespace mfem;
 using namespace std;
@@ -41,7 +42,7 @@ using namespace std;
 //
 //  4. Solve Dj y_j = r_j - 2 G^T y_phi - 2 K^T y_u by 5 iterations of CG solver with 
 //     the HX preconditioner.
-//     [here: MUMPS by default, or CG + HypreADS with UseADSForCurrentDensity(true)]
+//     [here: MUMPS by default, or CG + HypreADS with use_ads_for_currentdensity = true]
 //
 // Scaling: the paper writes the J and phi rows of the system (and of P)
 // multiplied by kappa.  LmmhdOperator assembles those rows unscaled (Mj, G^T,
@@ -59,6 +60,7 @@ protected:
     Array<int> offsets;
     real_t dt;
     real_t theta;
+    real_t alpha1;
 
     // Pressure preconditioner solvers.
     CGSolver *MpSolver = nullptr;
@@ -78,7 +80,7 @@ protected:
     // Current density preconditioner solvers.
     Solver *DjSolver = nullptr;     // MUMPSSolver or CGSolver
     HypreADS *DjPrec = nullptr;     // only used with the CG + ADS option
-    bool dj_use_ads = false;
+    bool dj_use_ads;
 
     HypreParMatrix *Gt = nullptr;   // not owned
     HypreParMatrix *Kt = nullptr;   // not owned
@@ -96,12 +98,16 @@ public:
         const Array<int> &offsets_,
         real_t &dt_,
         real_t &theta_,
+        real_t alpha1_,
+        bool dj_use_ads_,
         Logger &logger_)
         : Solver(offsets_.Last()),
             nBlocks(offsets_.Size()-1),
             offsets(0),
             dt(dt_),
             theta(theta_),
+            alpha1(alpha1_),
+            dj_use_ads(dj_use_ads_),
             logger(logger_)
     {
         fes.Copy(spaces);
@@ -109,12 +115,6 @@ public:
     }
 
     void SetVerbose(bool v) { verbose = v; }
-
-    /// Select the current-density block solver: false = MUMPS (direct),
-    /// true = 5 CG iterations preconditioned by Hiptmair-Xu (HypreADS), as in
-    /// Algorithm 4.1 of Li et al. (2019).  Call before
-    /// SetCurrentDensityPreconditioner().
-    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }
 
     void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
     {
@@ -189,6 +189,7 @@ public:
         delete DjSolver; delete DjPrec;
         DjSolver = nullptr; DjPrec = nullptr;
 
+        // Option set in parameters.hpp.
         if (dj_use_ads)
         {
             // Algorithm 4.1: 5 CG iterations with the HX (ADS) preconditioner.

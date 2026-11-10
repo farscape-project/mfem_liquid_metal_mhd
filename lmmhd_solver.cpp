@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "LmmhdOperator.hpp"
+#include "parameters.hpp"
 #include "constants.hpp"
 #include "InputParser.hpp"
 #include "tools.hpp"
@@ -16,8 +17,6 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   int debug = 0;
-
    // Initialize MPI and HYPRE (before anything that queries the rank).
    Mpi::Init(argc, argv);
    Hypre::Init();
@@ -37,6 +36,16 @@ int main(int argc, char *argv[])
    // Read in parameters from file.
    InputParser input("params.in");
 
+   lmmhd::Parameters p; // Create parameters object from defaults.
+
+   // Overwrite members of parameters from params.in.
+   p.time.dt       = input.GetReal("dt");
+   p.time.theta    = input.GetReal("theta");
+   p.physics.Re    = input.GetReal("Re");
+   p.physics.kappa = input.GetReal("kappa");
+   p.physics.B     = {input.GetReal("Bx"), input.GetReal("By"), input.GetReal("Bz")};
+   p.physics.alpha = input.GetReal("alpha");
+
    // Mesh parameters
    int nx = input.GetInt("nx");
    int ny = input.GetInt("ny");
@@ -52,70 +61,13 @@ int main(int argc, char *argv[])
 
    // Timestepping
    real_t t_final = input.GetReal("t_final");
-   real_t dt = input.GetReal("dt");
    int vis_steps = input.GetInt("vis_steps");
+   vis_steps = std::max(1, vis_steps);
 
    std::string save_dir = input.GetString("SaveDirectory");
 
-   // Dimensionless parameters
-   Re = input.GetReal("Re");
-   kappa_val = input.GetReal("kappa");
-
-   Bx = input.GetReal("Bx");
-   By = input.GetReal("By");
-   Bz = input.GetReal("Bz");
-
-   // Command line options.
-   OptionsParser args(argc, argv);
-   args.AddOption(&t_final, "-tf", "--t-final",
-                  "Final time; start time is 0.");
-   args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step.");
-   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
-                  "Visualize every n-th timestep.");
-   args.AddOption(&nx, "-nx", "--num-elements-x",
-                  "Number of elements in the x direction.");
-   args.AddOption(&ny, "-ny", "--num-elements-y",
-                  "Number of elements in the y direction.");
-   args.AddOption(&nz, "-nz", "--num-elements-z",
-                  "Number of elements in the z direction.");
-   args.AddOption(&Lx, "-lx", "--length-x",
-                  "Length of the domain in the x direction.");
-   args.AddOption(&Ly, "-ly", "--length-y",
-                  "Length of the domain in the y direction.");
-   args.AddOption(&Lz, "-lz", "--length-z",
-                  "Length of the domain in the z direction.");
-   args.AddOption(&clusterX, "-cx", "--cluster-x", "Clustering intensity in x direction.");
-   args.AddOption(&clusterY, "-cy", "--cluster-y", "Clustering intensity in y direction.");
-   args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
-
-   args.AddOption(&Re, "-re", "--reynolds", "Reynolds number.");
-   args.AddOption(&alpha, "-alpha", "--grad-div", "Grad-div (augmented Lagrangian) parameter.");
-   args.AddOption(&debug, "-debug", "--debug", "Debug output level (enables preconditioner norm logging).");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
-      return 1;
-   }
-
-   vis_steps = std::max(1, vis_steps);
-
-   // Derived constants (after command-line overrides).
-   Ha = sqrt(kappa_val * Re);
-   reciprocal_Re = 1.0 / Re;
-   neg_kappa_val = -kappa_val;
-   alpha1 = alpha + reciprocal_Re;
-   neg_alpha1 = -alpha1;
-
-   if (Mpi::Root()) { PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, dt, vis_steps, Re, kappa_val, Ha); }
-
-   // Set fe_space orders.
-   int order_currentD = 0;  // Check order based on MFEM/paper.
-   int order_electPot = 0;
-   int order_pressure = 1;
-   int order_velocity;
-   order_velocity = order_pressure + 1;
+   real_t Ha = sqrt(p.physics.kappa * p.physics.Re);
+   if (Mpi::Root()) { PrintParams(nx, ny, nz, Lx, Ly, Lz, clusterX, clusterY, clusterZ, t_final, p.time.dt, vis_steps, p.physics.Re, p.physics.kappa, Ha); }
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
@@ -153,20 +105,20 @@ int main(int argc, char *argv[])
    // Finite Element Spaces.
    // ----------------------------------------------------------------------------
    // HDiv finite elements for current density.
-   RT_FECollection currentD_fec(order_currentD, dim);
+   RT_FECollection currentD_fec(p.discretisation.order_current_density, dim);
    ParFiniteElementSpace currentD_fespace(&pmesh, &currentD_fec);
 
    // L2 finite elements for electric scalar potential.
-   L2_FECollection electPot_fec(order_electPot, dim);
+   L2_FECollection electPot_fec(p.discretisation.OrderPotential(), dim);
    ParFiniteElementSpace electPot_fespace(&pmesh, &electPot_fec);
 
    // H1 continuous Lagrange finite elements (order_pressure + 1)
    // for velocity.
-   H1_FECollection velocity_fec(order_velocity, dim);
+   H1_FECollection velocity_fec(p.discretisation.OrderVelocity(), dim);
    ParFiniteElementSpace velocity_fespace(&pmesh, &velocity_fec, dim);
 
    // H1 continuous Lagrange finite elements for pressure.
-   H1_FECollection pressure_fec(order_pressure, dim);
+   H1_FECollection pressure_fec(p.discretisation.order_pressure, dim);
    ParFiniteElementSpace pressure_fespace(&pmesh, &pressure_fec);
 
 
@@ -224,8 +176,8 @@ int main(int argc, char *argv[])
    if (save_dir == "auto")
    {
       save_dir = "data_" + std::to_string(total_dofs_glob) + \
-         "_kappa_" + std::to_string(std::lround(kappa_val)) + \
-         "_Re_" + std::to_string(std::lround(Re));
+         "_kappa_" + std::to_string(std::lround(p.physics.kappa)) + \
+         "_Re_" + std::to_string(std::lround(p.physics.Re));
    }
 
    // Define block structure of the solution vector (j, phi, ubar, p).
@@ -238,10 +190,7 @@ int main(int argc, char *argv[])
    block_trueOffsets.PartialSum();
 
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, dt, debug, logger);
-
-   // Current-density block of the preconditioner.
-   oper.UseADSForCurrentDensity(true); // true = CG + HypreADS, false = MUMPS
+   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, p, logger);
 
    ParGridFunction *j_gf = oper.GetCurrentDPointer();
    ParGridFunction *phi_gf = oper.GetPotentialPointer();
@@ -268,7 +217,7 @@ int main(int argc, char *argv[])
 
    // Time loop.  An integer step count avoids an extra step from
    // floating-point accumulation of t.
-   const int num_steps = static_cast<int>(std::ceil(t_final / dt - 1e-8));
+   const int num_steps = static_cast<int>(std::ceil(t_final / p.time.dt - 1e-8));
    real_t t = 0.0;
 
    for (int ti = 0; ti < num_steps; ti++)
@@ -284,7 +233,7 @@ int main(int argc, char *argv[])
       timer.stop("UpdateIntegrators");
 
       timer.start("Solve");
-      oper.Step(t, dt);
+      oper.Step(t);
       timer.stop("Solve");
 
       timer.start("UpdatesAfterSolve");
@@ -299,7 +248,7 @@ int main(int argc, char *argv[])
       oper.UpdateHistory();
       timer.stop("UpdatesAfterSolve");
 
-      t = (ti + 1) * dt;
+      t = (ti + 1) * p.time.dt;
 
       timer.start("DataIO");
       // Save data.  The velocity is u^{n+1} at time t; the midpoint scheme

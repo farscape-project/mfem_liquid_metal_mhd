@@ -4,10 +4,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             Array<Array<int> *> &ess_bdr,
                             Array<int> &offsets,
                             int dim_,
-                            real_t dt_,
-                            int debug_,
+                            const lmmhd::Parameters &params_,
                             Logger &logger_)
    : TimeDependentOperator(OperatorSize(fes)),
+      params(params_),
       block_trueOffsets(offsets),
       magnetics(fes[0],fes[1]),
       fluids(fes[2],fes[3]),
@@ -18,8 +18,6 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
       ru(fes[2]),
       rp(fes[3]),
       dim(dim_),
-      dt(dt_),
-      debug(debug_),
       logger(logger_),
       potential_mean_remover(*fes[1]),
       pressure_mean_remover(*fes[3])
@@ -38,12 +36,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
-   theta = 0.6;
-
    lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
-   lmmhd_solver->SetRelTol(1e-8);
-   lmmhd_solver->SetAbsTol(1e-12);
-   lmmhd_solver->SetMaxIter(300);
+   lmmhd_solver->SetRelTol(params.solver.rel_tol);
+   lmmhd_solver->SetAbsTol(params.solver.abs_tol);
+   lmmhd_solver->SetMaxIter(params.solver.max_iter);
    lmmhd_solver->SetPrintLevel(1);
    lmmhd_solver->SetKDim(50);
    lmmhd_solver->iterative_mode = false;
@@ -80,9 +76,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    // Set up magnetic field vector B.
    B = new Vector(dim);
    *B = 0.0;
-   (*B)(0) = Bx;
-   (*B)(1) = By;
-   (*B)(2) = Bz;
+   for (int i = 0; i < 3; i++)
+   {
+      (*B)(i) = params.physics.B[i];
+   }
 
    /// Set up coefficients for f bilinear forms in Update. 
    // Set up Matrix coefficient for the integrator (Kv, Kv') where 
@@ -97,13 +94,13 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    }
    DenseMatrix kappaBxVBxV(dim);
    kappaBxVBxV = BxVBxV;
-   kappaBxVBxV *= kappa_val;
+   kappaBxVBxV *= params.physics.kappa;
    fkBxVBxVcoeff = new MatrixConstantCoefficient(kappaBxVBxV);
 
-   massCoeffValue = 1.0 / (theta * dt);
+   massCoeffValue = 1.0 / (params.time.theta * params.time.dt);
    fMassCoeff = new ConstantCoefficient(massCoeffValue);
-   fReciprocalReCoeff = new ConstantCoefficient(reciprocal_Re);
-   alphaCoeff = new ConstantCoefficient(alpha);
+   fReciprocalReCoeff = new ConstantCoefficient(params.physics.reciprocalRe());
+   alphaCoeff = new ConstantCoefficient(params.physics.alpha);
 
 
    /// Set up RHS linear forms.
@@ -158,7 +155,7 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
 
    // ubar boundary condition:
    // ubar_n = 0.5 * (g + u_n_1).
-   velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, theta, 1.0 - theta);
+   velocity_bar_DBC = new VectorSumCoefficient(*velocity_DBC, *velocity_n_1_Coeff, params.time.theta, 1.0 - params.time.theta);
 
    // Project BCs onto grid functions.
    j_gf.ProjectBdrCoefficientNormal(*currentD_DBC, *ess_bdr_marker[0]);
@@ -286,8 +283,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
 
-   P = new LiPreconditioner(spaces, block_trueOffsets, dt, theta, logger);
-   P->SetVerbose(debug > 0);
+   P = new LiPreconditioner(spaces, block_trueOffsets, params.time.dt, params.time.theta, 
+                     params.physics.alpha1(), params.solver.use_ads_for_current_density, logger);
+   P->SetVerbose(params.solver.debug > 0);
 
    // Discrete divergence of the current density (exact when the potential
    // space is L2 of the same order as the RT space).
@@ -324,8 +322,8 @@ void LmmhdOperator::UpdateUStar(int step)
    else
    {
       *ustar_gf = u_gf_n_1;
-      *ustar_gf *= (1.0 + theta);
-      ustar_gf->Add(-theta, u_gf_n_2);
+      *ustar_gf *= (1.0 + params.time.theta);
+      ustar_gf->Add(-params.time.theta, u_gf_n_2);
    }
 
    *ustar_coef = ustar_gf;
@@ -367,8 +365,8 @@ void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
    }
 
    u_gf = ubar_gf;
-   u_gf.Add(-(1.0 - theta), u_gf_n_1);
-   u_gf *= 1.0 / theta;
+   u_gf.Add(-(1.0 - params.time.theta), u_gf_n_1);
+   u_gf *= 1.0 / params.time.theta;
 }
 
 real_t LmmhdOperator::CalcNorms()
@@ -478,7 +476,7 @@ void LmmhdOperator::FormASystem()
                                           Ru);
 
    // Block (2,0) is -kappa K: Ru = -K j_bc.
-   RHS->GetBlock(2).Add(-kappa_val, Ru);
+   RHS->GetBlock(2).Add(-params.physics.kappa, Ru);
 
    fluids.smallPressure.FormLinearSystem(ess_tdof_p,
                                           p_gf,
@@ -550,7 +548,7 @@ void LmmhdOperator::SetupConstantBlocks()
    // unscaled; LiPreconditioner is consistent with this scaling, see its
    // header comment).
    KMatScaled = new HypreParMatrix(*KMat);
-   (*KMatScaled) *= -kappa_val;
+   (*KMatScaled) *= -params.physics.kappa;
 
    // Mass matrix for the (2/tau) (u^n, v') term on the right-hand side.
    MuMat = rhs_mu->ParallelAssemble();
@@ -574,7 +572,7 @@ void LmmhdOperator::SetupConstantBlocks()
    constant_blocks_assembled = true;
 }
 
-void LmmhdOperator::Step(real_t &time, real_t dt)
+void LmmhdOperator::Step(real_t &time)
 {
    SetBCs();
 
