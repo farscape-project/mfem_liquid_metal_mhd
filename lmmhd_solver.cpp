@@ -59,7 +59,6 @@ int main(int argc, char *argv[])
 
    // Dimensionless parameters
    Re = input.GetReal("Re");
-   //Ha = input.GetReal("Ha");
    kappa_val = input.GetReal("kappa");
 
    Bx = input.GetReal("Bx");
@@ -91,7 +90,6 @@ int main(int argc, char *argv[])
    args.AddOption(&clusterZ, "-cz", "--cluster-z", "Clustering intensity in z direction.");
 
    args.AddOption(&Re, "-re", "--reynolds", "Reynolds number.");
-   args.AddOption(&Ha, "-ha", "--hartmann", "Hartmann number.");
    args.AddOption(&alpha, "-alpha", "--grad-div", "Grad-div (augmented Lagrangian) parameter.");
    args.AddOption(&debug, "-debug", "--debug", "Debug output level (enables preconditioner norm logging).");
    args.Parse();
@@ -106,7 +104,6 @@ int main(int argc, char *argv[])
    // Derived constants (after command-line overrides).
    Ha = sqrt(kappa_val * Re);
    reciprocal_Re = 1.0 / Re;
-   //kappa_val = Ha * Ha / Re;
    neg_kappa_val = -kappa_val;
    alpha1 = alpha + reciprocal_Re;
    neg_alpha1 = -alpha1;
