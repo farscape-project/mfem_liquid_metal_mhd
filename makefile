@@ -19,8 +19,9 @@ BUILD ?= release
 
 TARGET = lmmhd_solver
 
-SRC = lmmhd_solver.cpp \
+SRC = main.cpp \
       src/VectorConvectionIntegrator.cpp \
+      src/LmmhdTimeStepper.cpp \
       src/LmmhdOperator.cpp \
       src/tools.cpp
 

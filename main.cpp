@@ -4,6 +4,7 @@
 #include <fstream>
 #include <cmath>
 
+#include "LmmhdTimeStepper.hpp"
 #include "LmmhdOperator.hpp"
 #include "parameters.hpp"
 #include "Discretisation.hpp"
@@ -109,7 +110,7 @@ int main(int argc, char *argv[])
    int p_space_size = spaces[3]->GetTrueVSize();
 
 
-   // Define boundaries.
+   // Define boundary conditions.
    BoundaryConditions bcs = MakeBoundaryConditions(input.GetString("Case"), pmesh, input);
    //if (Mpi::Root()) { std::cout << "Boundary conditions: " << bcs.description << std::endl; }
    Array<Array<int> *> ess_bdr = bcs.EssentialMarkers();
@@ -131,25 +132,7 @@ int main(int argc, char *argv[])
          "_Re_" + std::to_string(std::lround(p.physics.Re));
    }
 
-   // Define block structure of the solution vector (j, phi, ubar, p).
-   Array<int> block_trueOffsets(5);
-   block_trueOffsets[0] = 0;
-   block_trueOffsets[1] = j_space_size;
-   block_trueOffsets[2] = phi_space_size;
-   block_trueOffsets[3] = v_space_size;
-   block_trueOffsets[4] = p_space_size;
-   block_trueOffsets.PartialSum();
-
-
-   // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, bcs, block_trueOffsets, dim, p, logger);
-
-   ParGridFunction *j_gf = oper.GetCurrentDPointer();
-   ParGridFunction *phi_gf = oper.GetPotentialPointer();
-   ParGridFunction *u_gf = oper.GetVelocityPointer();
-   ParGridFunction *p_gf = oper.GetPressurePointer();
-
-   oper.SetGridFunctionsFromTrueDofs();
+   LmmhdTimeStepper timeStepper(spaces, MakeBoundaryConditions(input.GetString("Case"), pmesh, input), p, logger);
 
    // Set up visualisation in Paraview (cycle 0 holds the initial condition).
    ParaViewDataCollection pvdc("lmmhd", &pmesh);
@@ -159,55 +142,31 @@ int main(int argc, char *argv[])
    pvdc.SetLevelsOfDetail(2);
    pvdc.SetCycle(0);
    pvdc.SetTime(0.0);
-   pvdc.RegisterField("current density", j_gf);
-   pvdc.RegisterField("electric potential", phi_gf);
-   pvdc.RegisterField("velocity", u_gf);
-   pvdc.RegisterField("pressure", p_gf);
+   pvdc.RegisterField("current density", &timeStepper.CurrentDensity());
+   pvdc.RegisterField("electric potential", &timeStepper.Potential());
+   pvdc.RegisterField("velocity", &timeStepper.Velocity());
+   pvdc.RegisterField("pressure", &timeStepper.Pressure());
    pvdc.Save();
 
    timer.stop("Setup");
 
    // Time loop.
    const int num_steps = static_cast<int>(std::ceil(t_final / p.time.dt - 1e-8));
-   real_t t = 0.0;
 
-   for (int ti = 0; ti < num_steps; ti++)
+   while (timeStepper.StepIndex() < num_steps)
    {
-      if (Mpi::Root()) { std::cout << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl; }
-      logger << "Time step " << ti << ", time = " << t << ", time elapsed = " << mfem::toc() << std::endl;
+      if (Mpi::Root()) { std::cout << "Time step " << timeStepper.StepIndex() << ", time = " << timeStepper.Time() << ", time elapsed = " << mfem::toc() << std::endl; }
+      logger << "Time step " << timeStepper.StepIndex() << ", time = " << timeStepper.Time() << ", time elapsed = " << mfem::toc() << std::endl;
 
-      timer.start("UpdateIntegrators");
+      const real_t residual = timeStepper.SolveTimeStep();
 
-      oper.UpdateUStar(ti);     // Extrapolated u* at t^{n+1/2} for the linearised convection term.
-      oper.UpdateIntegrators(); // Re-assemble Fu and Fk with the new u*.
-
-      timer.stop("UpdateIntegrators");
-
-      timer.start("Solve");
-      oper.Step(t);
-      timer.stop("Solve");
-
-      timer.start("UpdatesAfterSolve");
-      oper.RemoveMeans();
-
-      oper.SetGridFunctionsFromTrueDofs();
-
-      oper.ReconstructPhysicalVelocityFromUBar(ti);
-
-      const real_t residual = oper.CalcNorms();
-
-      oper.UpdateHistory();
-      timer.stop("UpdatesAfterSolve");
-
-      t = (ti + 1) * p.time.dt;
+      const int n = timeStepper.StepIndex(); // StepIndex() is updated by timeStepper.
 
       timer.start("DataIO");
-      // Save data.  The velocity is u^{n+1} at time t; the midpoint scheme
-      // gives the current density, potential and pressure at t - dt/2.
-      if ((ti + 1) % vis_steps == 0 || ti + 1 == num_steps)
+      if (n % vis_steps == 0 || n == num_steps)
       {
-         pvdc.SetCycle(ti + 1);
-         pvdc.SetTime(t);
+         pvdc.SetCycle(n);
+         pvdc.SetTime(timeStepper.Time());
          pvdc.Save();
       }
       timer.stop("DataIO");
