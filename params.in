@@ -1,3 +1,6 @@
+******** Case *********
+Case          lid_driven_cavity
+
 ******** Mesh parameters *********
 nx              8    // mesh points in x-direction
 ny              8    // mesh points in y-direction

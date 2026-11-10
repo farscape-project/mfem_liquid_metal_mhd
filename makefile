@@ -22,7 +22,6 @@ TARGET = lmmhd_solver
 SRC = lmmhd_solver.cpp \
       src/VectorConvectionIntegrator.cpp \
       src/LmmhdOperator.cpp \
-      src/constants.cpp \
       src/tools.cpp
 
 OBJ = $(SRC:.cpp=.o)

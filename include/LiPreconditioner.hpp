@@ -1,7 +1,6 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "constants.hpp"
 #include "tools.hpp"
 #include "parameters.hpp"
 

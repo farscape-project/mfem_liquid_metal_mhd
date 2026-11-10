@@ -1,7 +1,7 @@
 #include "LmmhdOperator.hpp"
 
 LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
-                            Array<Array<int> *> &ess_bdr,
+                            BoundaryConditions &bcs_,
                             Array<int> &offsets,
                             int dim_,
                             const lmmhd::Parameters &params_,
@@ -51,7 +51,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
 
    fes.Copy(spaces);
-   ess_bdr.Copy(ess_bdr_marker);
+   //ess_bdr.Copy(ess_bdr_marker);
+   Array<Array<int> *> markers = bcs_.EssentialMarkers();
+   markers.Copy(ess_bdr_marker);
 
    X = new BlockVector(block_trueOffsets);
    Xn_1 = new BlockVector(block_trueOffsets);
@@ -71,7 +73,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    oneCoeff = new ConstantCoefficient(1.0);
    vectorZeroCoeff = new VectorFunctionCoefficient(dim, zero_func);
 
-   velocity_DBC = new VectorFunctionCoefficient(dim, velocity_dbc_vec_func);
+   //velocity_DBC = &velocity_dbc;
+   MFEM_VERIFY(bcs_.velocity, "BoundaryConditions: velocity Dirichlet data not set");
+   velocity_DBC = bcs_.velocity.get();
+   //velocity_DBC = new VectorFunctionCoefficient(dim, velocity_dbc_vec_func);
 
    // Set up magnetic field vector B.
    B = new Vector(dim);
@@ -630,7 +635,6 @@ LmmhdOperator::~LmmhdOperator()
    delete currentD_DBC;
    delete electPot_DBC;
    delete pressure_DBC;
-   delete velocity_DBC;
    delete velocity_n_1_Coeff;
    delete velocity_bar_DBC;
 

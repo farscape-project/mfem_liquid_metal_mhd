@@ -4,7 +4,6 @@
 #include "BoundaryConditions.hpp"
 #include "VectorConvectionIntegrator.hpp"
 #include "parameters.hpp"
-#include "constants.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
 #include "LiPreconditioner.hpp"
 
@@ -194,7 +193,7 @@ protected:
    Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
    VectorFunctionCoefficient *currentD_DBC = nullptr;
    FunctionCoefficient *electPot_DBC = nullptr;
-   VectorFunctionCoefficient *velocity_DBC = nullptr;
+   VectorCoefficient *velocity_DBC = nullptr;
    VectorFunctionCoefficient *magnetic_field_coef = nullptr;
    FunctionCoefficient *pressure_DBC = nullptr;
    VectorGridFunctionCoefficient *velocity_n_1_Coeff = nullptr;
@@ -213,9 +212,12 @@ protected:
    RemoveMeanProjector pressure_mean_remover;
 
 public:
-   LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, 
-                  const lmmhd::Parameters &params, Logger &logger);
+   LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
+                  BoundaryConditions &bcs,
+                  Array<int> &block_trueOffsets,
+                  int dim, 
+                  const lmmhd::Parameters &params, 
+                  Logger &logger);
 
    void Step(real_t &time);
 

@@ -6,7 +6,6 @@
 
 #include "LmmhdOperator.hpp"
 #include "parameters.hpp"
-#include "constants.hpp"
 #include "InputParser.hpp"
 #include "tools.hpp"
 #include "scaling_timer.hpp"
@@ -14,10 +13,18 @@
 using namespace std;
 using namespace mfem;
 
+// Select case, e.g. lid-driven cavity or square duct.
+static BoundaryConditions MakeBoundaryConditions(const std::string &name, ParMesh &pmesh, const InputParser &input)
+{
+   if (name == "lid_driven_cavity") { return LidDrivenCavity(pmesh, input.GetReal("Lx")); }
+   //if (name == "square_duct") { return SquareDuct(pmesh); }
+   MFEM_ABORT("Unknown Case '" << name << "' in params.in (lid_driven_cavity)");// | square_duct)");
+   return BoundaryConditions(pmesh);
+}
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI and HYPRE (before anything that queries the rank).
+   // Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
    Hypre::Init();
 
@@ -25,8 +32,6 @@ int main(int argc, char *argv[])
    timer.start("Total");
    timer.start("Setup");
 
-   // Only the root rank opens (and truncates) the log file; Logger only
-   // writes on the root rank.
    ofstream log_file;
    if (Mpi::Root()) { log_file.open("simulation.log"); }
    Logger logger(log_file);
@@ -71,9 +76,6 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
-   //Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::TETRAHEDRON, Lx, Ly, Lz);
-   //const char *mesh_file = "./mesh/cuboid_clustered.msh";
-   //Mesh mesh = Mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
 
    
@@ -95,11 +97,6 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   // Set ramp-up for smooth lid-BC.
-   lid_z = Lz;
-   //lid_h = Lz * (1.0 - cluster_symmetric((nz - 1.0) / nz, clusterZ));
-   //lid_h = 0.027;
-   if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.
@@ -133,43 +130,19 @@ int main(int argc, char *argv[])
    int v_space_size = velocity_fespace.GetTrueVSize();
    int p_space_size = pressure_fespace.GetTrueVSize();
 
-   // ----------------------------------------------------------------------------
-   // Define boundaries.
-   // ----------------------------------------------------------------------------
    
-   // Essential (Dirichlet) boundary conditions for square duct.
-   // Duct flow:           {z0, y0, x1 (outlet), y1, x0 (inlet), z1}
-   /*int currentD_bcs[] = {1,  1,  1,           1,  1,          1};
-   int electPot_bcs[] = {0,  0,  0,           0,  0,          0};
-   int pressure_bcs[] = {0,  0,  1,           0,  0,          0};
-   int velocity_bcs[] = {1,  1,  0,           1,  1,          1};*/
+   // Define boundaries.
+   BoundaryConditions bcs = MakeBoundaryConditions(input.GetString("Case"), pmesh, input);
+   if (Mpi::Root()) { std::cout << "Boundary conditions: " << bcs.description << std::endl; }
+   Array<Array<int> *> ess_bdr = bcs.EssentialMarkers();
 
-   // Essential (Dirichlet) boundary conditions for lid-driven cavity 
-   // (lid at z = Lz, see BoundaryConditions.hpp).
-   //                     {z0, y0, x1, y1, x0, z1}
-   int currentD_bcs[] = {0,  0,  0,  0,  0,  0};
-   int electPot_bcs[] = {0,  0,  0,  0,  0,  0};   // L2 space: no boundary dofs
-   int pressure_bcs[] = {0,  0,  0,  0,  0,  0};
-   int velocity_bcs[] = {1,  1,  1,  1,  1,  1};
 
-   Array<int> ess_boundary_marker_currentD(currentD_bcs, pmesh.bdr_attributes.Max());
-   Array<int> ess_boundary_marker_electPot(electPot_bcs, pmesh.bdr_attributes.Max());
-   Array<int> ess_boundary_marker_pressure(pressure_bcs, pmesh.bdr_attributes.Max());
-   Array<int> ess_boundary_marker_velocity(velocity_bcs, pmesh.bdr_attributes.Max());
-
-   Array<Array<int> *> ess_bdr(4);
-   ess_bdr[0] = &ess_boundary_marker_currentD;
-   ess_bdr[1] = &ess_boundary_marker_electPot;
-   ess_bdr[2] = &ess_boundary_marker_velocity;
-   ess_bdr[3] = &ess_boundary_marker_pressure;
-
+   // Print mesh statistics.
    const HYPRE_BigInt j_glob   = currentD_fespace.GlobalTrueVSize();
    const HYPRE_BigInt phi_glob = electPot_fespace.GlobalTrueVSize();
    const HYPRE_BigInt u_glob   = velocity_fespace.GlobalTrueVSize();
    const HYPRE_BigInt p_glob   = pressure_fespace.GlobalTrueVSize();
    const HYPRE_BigInt total_dofs_glob = j_glob + phi_glob + u_glob + p_glob; 
-
-   // Print mesh statistics.
    if (Mpi::Root()) PrintFESpaces(j_glob, phi_glob, u_glob, p_glob);
 
    // Create save directory if auto option chosen.
@@ -189,8 +162,9 @@ int main(int argc, char *argv[])
    block_trueOffsets[4] = p_space_size;
    block_trueOffsets.PartialSum();
 
+
    // Initialise liquid-metal MHD operator.
-   LmmhdOperator oper(spaces, ess_bdr, block_trueOffsets, dim, p, logger);
+   LmmhdOperator oper(spaces, bcs, block_trueOffsets, dim, p, logger);
 
    ParGridFunction *j_gf = oper.GetCurrentDPointer();
    ParGridFunction *phi_gf = oper.GetPotentialPointer();

@@ -22,3 +22,5 @@ tests/test_convection_skew
 
 stdout*
 stderr*
+
+include/BoundaryConditions.hpp_backup
