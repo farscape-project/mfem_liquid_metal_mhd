@@ -50,10 +50,10 @@ public:
 class Logger
 {
 private:
-    std::ofstream &file;
+    std::ostream &file;
 
 public:
-    Logger(std::ofstream &file_) : file(file_) {}
+    Logger(std::ostream &file_) : file(file_) {}
 
     template <typename T>
     Logger &operator<<(const T &value)

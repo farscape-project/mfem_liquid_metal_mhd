@@ -3,6 +3,7 @@ data*
 old
 old_data
 scripts
+baseline_data_17708_kappa_1_Re_1
 
 # Simulation files
 lmmhd_solver
