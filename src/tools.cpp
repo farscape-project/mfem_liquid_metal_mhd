@@ -1,9 +1,11 @@
 #include "tools.hpp"
 
+using namespace mfem;
+
 // Print all parameter read in from input file.
-void PrintParams(int nx, int ny, int nz, real_t Lx, real_t Ly, real_t Lz,
-                 real_t clusterX, real_t clusterY, real_t clusterZ,
-                 real_t t_final, real_t dt, int vis_steps, real_t Re, real_t N, real_t Ha)
+void PrintParams(int nx, int ny, int nz, mfem::real_t Lx, mfem::real_t Ly, mfem::real_t Lz,
+                 mfem::real_t clusterX, mfem::real_t clusterY, mfem::real_t clusterZ,
+                 mfem::real_t t_final, mfem::real_t dt, int vis_steps, mfem::real_t Re, mfem::real_t N, mfem::real_t Ha)
 {
    std::cout << " " << std::endl;
    std::cout << "================ Simulation Parameters ================" << std::endl;
@@ -50,37 +52,37 @@ void PrintFESpaces(int j_space_size, int phi_space_size, int v_space_size, int p
 }
 
 // Clustering function (symmetric around center).
-real_t cluster_symmetric(real_t xi, real_t factor)
+mfem::real_t cluster_symmetric(mfem::real_t xi, mfem::real_t factor)
 {
     // xi in [0,1], cluster away from 0.5
-    real_t x_shifted = xi - 0.5;
+    mfem::real_t x_shifted = xi - 0.5;
     return 0.5 + 0.5 * tanh(factor * x_shifted) / tanh(factor / 2.0);
 }
 
 void checkpoint(int num)
 {
-   cout << "**********************************************" << endl;
-   cout << "**************** CHECKPOINT " << num << " ****************" << endl;
-   cout << "**********************************************" << endl;
-   cout << endl;
+   std::cout << "**********************************************" << std::endl;
+   std::cout << "**************** CHECKPOINT " << num << " ****************" << std::endl;
+   std::cout << "**********************************************" << std::endl;
+   std::cout << std::endl;
 }
 
 // Relative change ||gf - gfN_1|| / ||gf|| between time levels, using the
 // global Euclidean norm of the true-dof vectors (collective over the
 // communicator of fespace).
-real_t rel_L2_norm(const ParGridFunction &gf, const ParGridFunction &gfN_1, ParFiniteElementSpace *fespace)
+mfem::real_t rel_L2_norm(const mfem::ParGridFunction &gf, const mfem::ParGridFunction &gfN_1, ParFiniteElementSpace *fespace)
 {
-   ParGridFunction diff_gf(fespace);
+   mfem::ParGridFunction diff_gf(fespace);
    diff_gf = gf;
    diff_gf -= gfN_1;
 
-   Vector diff_t, gf_t;
+   mfem::Vector diff_t, gf_t;
    diff_gf.GetTrueDofs(diff_t);
    gf.GetTrueDofs(gf_t);
 
    // Vector::Norml2() is rank-local; ParNormlp reduces over all ranks.
-   const real_t l2_diff = ParNormlp(diff_t, 2.0, fespace->GetComm());
-   const real_t l2 = ParNormlp(gf_t, 2.0, fespace->GetComm());
+   const mfem::real_t l2_diff = ParNormlp(diff_t, 2.0, fespace->GetComm());
+   const mfem::real_t l2 = ParNormlp(gf_t, 2.0, fespace->GetComm());
 
    return l2_diff / (l2 + 1e-16);
 }
@@ -99,7 +101,7 @@ RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
    delete tmp;
 
    // True-dof representation of the constant function 1.
-   ParGridFunction one_gf(&fes);
+   mfem::ParGridFunction one_gf(&fes);
    one_gf.ProjectCoefficient(onecoeff);
    one_gf.GetTrueDofs(one_vec);
 
@@ -107,12 +109,12 @@ RemoveMeanProjector::RemoveMeanProjector(ParFiniteElementSpace &fes)
    volume = InnerProduct(comm, mass_vec, one_vec);
 }
 
-void RemoveMeanProjector::RemoveMean(Vector &v) const
+void RemoveMeanProjector::RemoveMean(mfem::Vector &v) const
 {
    // Global integral: using the rank-local InnerProduct here subtracted a
    // different constant on every rank.
-   const real_t integral = InnerProduct(comm, mass_vec, v);
-   const real_t mean = integral / volume;
+   const mfem::real_t integral = InnerProduct(comm, mass_vec, v);
+   const mfem::real_t mean = integral / volume;
 
    v.Add(-mean, one_vec);
 }

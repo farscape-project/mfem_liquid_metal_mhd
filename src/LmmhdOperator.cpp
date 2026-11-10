@@ -1,5 +1,7 @@
 #include "LmmhdOperator.hpp"
 
+using namespace mfem;
+
 LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
                             BoundaryConditions &bcs_,
                             Array<int> &offsets,

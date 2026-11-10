@@ -3,29 +3,27 @@
 
 #include "mfem.hpp"
 
-using namespace mfem;
-
 // $\alpha (Q \cdot \nabla u, v)$
-class VectorConvectionIntegrator : public BilinearFormIntegrator
+class VectorConvectionIntegrator : public mfem::BilinearFormIntegrator
 {
 private:
-   VectorCoefficient &velocity_coeff;
-   real_t alpha;
+   mfem::VectorCoefficient &velocity_coeff;
+   mfem::real_t alpha;
 
 public:
-   VectorConvectionIntegrator(VectorCoefficient &v, real_t a = 1.0);
+   VectorConvectionIntegrator(mfem::VectorCoefficient &v, mfem::real_t a = 1.0);
 
-   virtual void AssembleElementMatrix(const FiniteElement &el,
-                                      ElementTransformation &Trans,
-                                      DenseMatrix &elmat) override;
+   virtual void AssembleElementMatrix(const mfem::FiniteElement &el,
+                                      mfem::ElementTransformation &Trans,
+                                      mfem::DenseMatrix &elmat) override;
 };
 
 
 // $-\alpha (v, Q \cdot \nabla v)$, negative transpose of VectorConvectionIntegrator
-class ConservativeVectorConvectionIntegrator : public TransposeIntegrator
+class ConservativeVectorConvectionIntegrator : public mfem::TransposeIntegrator
 {
 public:
-   ConservativeVectorConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
+   ConservativeVectorConvectionIntegrator(mfem::VectorCoefficient &q, mfem::real_t a = 1.0)
       : TransposeIntegrator(new VectorConvectionIntegrator(q, -a)) { }
 };
 

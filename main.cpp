@@ -99,7 +99,6 @@ int main(int argc, char *argv[])
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-
    // Finite Element Spaces.
    Discretisation disc(pmesh, p.discretisation);
    Array<ParFiniteElementSpace *> &spaces = disc.Spaces();
@@ -109,12 +108,10 @@ int main(int argc, char *argv[])
    int v_space_size = spaces[2]->GetTrueVSize();
    int p_space_size = spaces[3]->GetTrueVSize();
 
-
    // Define boundary conditions.
    BoundaryConditions bcs = MakeBoundaryConditions(input.GetString("Case"), pmesh, input);
    //if (Mpi::Root()) { std::cout << "Boundary conditions: " << bcs.description << std::endl; }
    Array<Array<int> *> ess_bdr = bcs.EssentialMarkers();
-
 
    // Print mesh statistics.
    const HYPRE_BigInt j_glob   = spaces[0]->GlobalTrueVSize();

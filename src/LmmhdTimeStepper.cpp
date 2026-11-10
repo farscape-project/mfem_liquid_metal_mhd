@@ -19,16 +19,6 @@ LmmhdTimeStepper::LmmhdTimeStepper(mfem::Array<mfem::ParFiniteElementSpace *> &s
    oper->SetGridFunctionsFromTrueDofs();
 }
 
-HYPRE_BigInt LmmhdTimeStepper::GlobalTrueVSize() const
-{
-   HYPRE_BigInt n = 0;
-   for (int i = 0; i < 4; i++)
-   {
-      n += spaces[i]->GlobalTrueVSize();
-   }
-   return n;
-}
-
 mfem::real_t LmmhdTimeStepper::SolveTimeStep()
 {
    const mfem::real_t dt = params.time.dt;

@@ -20,8 +20,6 @@ public:
    mfem::ParGridFunction &Velocity()       { return *oper->GetVelocityPointer(); }
    mfem::ParGridFunction &Pressure()       { return *oper->GetPressurePointer(); }
 
-   HYPRE_BigInt GlobalTrueVSize() const;
-
    // Take one complete time step.  Returns the residual from CalcNorms().
    mfem::real_t SolveTimeStep();
    mfem::real_t Time() const { return t; }

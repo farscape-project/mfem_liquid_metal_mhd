@@ -8,8 +8,6 @@
 #include <unordered_map>
 #include <stdexcept>
 
-using namespace mfem;
-
 /// Simple text input parser for MFEM solvers.
 /// Supports lines of the form: key  value  // optional comment
 /// Ignores section headers and comment lines (starting with *, #, or //).
