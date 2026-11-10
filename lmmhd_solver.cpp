@@ -6,6 +6,7 @@
 
 #include "LmmhdOperator.hpp"
 #include "parameters.hpp"
+#include "Discretisation.hpp"
 #include "InputParser.hpp"
 #include "tools.hpp"
 #include "scaling_timer.hpp"
@@ -98,50 +99,27 @@ int main(int argc, char *argv[])
    mesh.Clear();
 
 
-   // ----------------------------------------------------------------------------
    // Finite Element Spaces.
-   // ----------------------------------------------------------------------------
-   // HDiv finite elements for current density.
-   RT_FECollection currentD_fec(p.discretisation.order_current_density, dim);
-   ParFiniteElementSpace currentD_fespace(&pmesh, &currentD_fec);
+   Discretisation disc(pmesh, p.discretisation);
+   Array<ParFiniteElementSpace *> &spaces = disc.Spaces();
 
-   // L2 finite elements for electric scalar potential.
-   L2_FECollection electPot_fec(p.discretisation.OrderPotential(), dim);
-   ParFiniteElementSpace electPot_fespace(&pmesh, &electPot_fec);
-
-   // H1 continuous Lagrange finite elements (order_pressure + 1)
-   // for velocity.
-   H1_FECollection velocity_fec(p.discretisation.OrderVelocity(), dim);
-   ParFiniteElementSpace velocity_fespace(&pmesh, &velocity_fec, dim);
-
-   // H1 continuous Lagrange finite elements for pressure.
-   H1_FECollection pressure_fec(p.discretisation.order_pressure, dim);
-   ParFiniteElementSpace pressure_fespace(&pmesh, &pressure_fec);
+   int j_space_size = spaces[0]->GetTrueVSize();
+   int phi_space_size = spaces[1]->GetTrueVSize();
+   int v_space_size = spaces[2]->GetTrueVSize();
+   int p_space_size = spaces[3]->GetTrueVSize();
 
 
-   Array<ParFiniteElementSpace *> spaces(4);
-   spaces[0] = &currentD_fespace;
-   spaces[1] = &electPot_fespace;
-   spaces[2] = &velocity_fespace;
-   spaces[3] = &pressure_fespace;
-
-   int j_space_size = currentD_fespace.GetTrueVSize();
-   int phi_space_size = electPot_fespace.GetTrueVSize();
-   int v_space_size = velocity_fespace.GetTrueVSize();
-   int p_space_size = pressure_fespace.GetTrueVSize();
-
-   
    // Define boundaries.
    BoundaryConditions bcs = MakeBoundaryConditions(input.GetString("Case"), pmesh, input);
-   if (Mpi::Root()) { std::cout << "Boundary conditions: " << bcs.description << std::endl; }
+   //if (Mpi::Root()) { std::cout << "Boundary conditions: " << bcs.description << std::endl; }
    Array<Array<int> *> ess_bdr = bcs.EssentialMarkers();
 
 
    // Print mesh statistics.
-   const HYPRE_BigInt j_glob   = currentD_fespace.GlobalTrueVSize();
-   const HYPRE_BigInt phi_glob = electPot_fespace.GlobalTrueVSize();
-   const HYPRE_BigInt u_glob   = velocity_fespace.GlobalTrueVSize();
-   const HYPRE_BigInt p_glob   = pressure_fespace.GlobalTrueVSize();
+   const HYPRE_BigInt j_glob   = spaces[0]->GlobalTrueVSize();
+   const HYPRE_BigInt phi_glob = spaces[1]->GlobalTrueVSize();
+   const HYPRE_BigInt u_glob   = spaces[2]->GlobalTrueVSize();
+   const HYPRE_BigInt p_glob   = spaces[3]->GlobalTrueVSize();
    const HYPRE_BigInt total_dofs_glob = j_glob + phi_glob + u_glob + p_glob; 
    if (Mpi::Root()) PrintFESpaces(j_glob, phi_glob, u_glob, p_glob);
 
@@ -189,8 +167,7 @@ int main(int argc, char *argv[])
 
    timer.stop("Setup");
 
-   // Time loop.  An integer step count avoids an extra step from
-   // floating-point accumulation of t.
+   // Time loop.
    const int num_steps = static_cast<int>(std::ceil(t_final / p.time.dt - 1e-8));
    real_t t = 0.0;
 
