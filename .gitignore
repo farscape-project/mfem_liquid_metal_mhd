@@ -2,6 +2,7 @@
 data*
 old
 old_data
+scripts
 
 # Simulation files
 lmmhd_solver

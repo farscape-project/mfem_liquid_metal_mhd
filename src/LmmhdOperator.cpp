@@ -360,7 +360,7 @@ void LmmhdOperator::SetGridFunctionsFromTrueDofs()
 
 void LmmhdOperator::ReconstructPhysicalVelocityFromUBar(int step)
 {
-   if (step == 0 && theta == 0.5)
+   if (step == 0)
    {
       u_gf = ubar_gf; 
       return; 

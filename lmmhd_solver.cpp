@@ -148,8 +148,9 @@ int main(int argc, char *argv[])
 
    // Set ramp-up for smooth lid-BC.
    lid_z = Lz;
-   lid_h = Lz * (1.0 - cluster_symmetric((nz - 1.0) / nz, clusterZ));
-   //if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
+   //lid_h = Lz * (1.0 - cluster_symmetric((nz - 1.0) / nz, clusterZ));
+   //lid_h = 0.027;
+   if (Mpi::Root()) { std::cout << "Lid ramp height h = " << lid_h << std::endl; }
 
    // ----------------------------------------------------------------------------
    // Finite Element Spaces.

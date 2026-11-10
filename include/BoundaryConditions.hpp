@@ -84,16 +84,18 @@ inline real_t outflow_term_func(const Vector & x)
    //}
 }*/
 
-inline void velocity_dbc_vec_func(const Vector & x, Vector & f)
+inline real_t lid_ramp(real_t z)
+{
+   const real_t s = (z - (lid_z - lid_h)) / lid_h;   // 0 at z = 1-h, 1 at z = 1
+   if (s <= 0.0) { return 0.0; }
+   if (s >= 1.0) { return 1.0; }
+   return s * s * (3.0 - 2.0 * s);                    // C1.  Smoothly transition from 0 to 1.
+}
+
+inline void velocity_dbc_vec_func(const Vector &x, Vector &f)
 {
    f = 0.0;
-
-   // Lid-driven cavity: lid at z = Lz (lid_z is set in constants.cpp).
-   const real_t s = (x(2) - (lid_z - lid_h)) / lid_h;   // 0 at z = 1-h, 1 at z = 1
-   if (s >= 1.0)
-   { 
-      f(0) = 1.0; 
-   }
+   f(0) = lid_ramp(x(2));   // same function on EVERY wall, x-walls included
 }
 
 inline void currentD_dbc_vec_func(const Vector & x, Vector & f)

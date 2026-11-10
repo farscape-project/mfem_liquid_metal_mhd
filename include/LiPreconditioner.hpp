@@ -166,8 +166,6 @@ public:
 
         FkSolver = new GMRESSolver(MPI_COMM_WORLD);
         FkSolver->SetRelTol(1e-3);
-        // MFEM's default is 10 iterations, which may stop short
-        // of the 1e-3 tolerance used in Algorithm 4.1.
         FkSolver->SetMaxIter(200);
         FkSolver->SetKDim(50);
         FkSolver->SetPrintLevel(IterativeSolver::PrintLevel().Errors());
