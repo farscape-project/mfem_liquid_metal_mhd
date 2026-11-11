@@ -19,6 +19,7 @@ tests/test_convection_skew
 *.sh
 *.csv
 *.txt
+*.a
 
 stdout*
 stderr*
