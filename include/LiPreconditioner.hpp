@@ -1,11 +1,8 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "constants.hpp"
 #include "tools.hpp"
-
-using namespace mfem;
-using namespace std;
+#include "parameters.hpp"
 
 // Solves algorithm 4.1 from Li et al. 2019, where the matrix P acts as the 
 // preconditioner s.t. Py = r where P is given by
@@ -41,7 +38,7 @@ using namespace std;
 //
 //  4. Solve Dj y_j = r_j - 2 G^T y_phi - 2 K^T y_u by 5 iterations of CG solver with 
 //     the HX preconditioner.
-//     [here: MUMPS by default, or CG + HypreADS with UseADSForCurrentDensity(true)]
+//     [here: MUMPS by default, or CG + HypreADS with use_ads_for_currentdensity = true]
 //
 // Scaling: the paper writes the J and phi rows of the system (and of P)
 // multiplied by kappa.  LmmhdOperator assembles those rows unscaled (Mj, G^T,
@@ -51,37 +48,38 @@ using namespace std;
 //
 
 
-class LiPreconditioner : public Solver
+class LiPreconditioner : public mfem::Solver
 {
 protected:
-    Array<ParFiniteElementSpace *> spaces;
+    mfem::Array<mfem::ParFiniteElementSpace *> spaces;
     int nBlocks;
-    Array<int> offsets;
-    real_t dt;
-    real_t theta;
+    mfem::Array<int> offsets;
+    mfem::real_t dt;
+    mfem::real_t theta;
+    mfem::real_t alpha1;
 
     // Pressure preconditioner solvers.
-    CGSolver *MpSolver = nullptr;
-    HypreSmoother *MpPrec = nullptr;
-    HypreBoomerAMG *SpSolver = nullptr;
-    OrthoSolver *SpOrthoSolver = nullptr;
+    mfem::CGSolver *MpSolver = nullptr;
+    mfem::HypreSmoother *MpPrec = nullptr;
+    mfem::HypreBoomerAMG *SpSolver = nullptr;
+    mfem::OrthoSolver *SpOrthoSolver = nullptr;
 
     // Electric potential preconditioner solvers.
-    CGSolver *MphiSolver = nullptr;
-    HypreSmoother *MphiPrec = nullptr;
+    mfem::CGSolver *MphiSolver = nullptr;
+    mfem::HypreSmoother *MphiPrec = nullptr;
 
     // Velocity preconditioner solvers (rebuilt every time step).
-    GMRESSolver *FkSolver = nullptr;
-    HypreBoomerAMG *FkPrec = nullptr;
-    HypreParMatrix *Bt = nullptr;   // not owned
+    mfem::GMRESSolver *FkSolver = nullptr;
+    mfem::HypreBoomerAMG *FkPrec = nullptr;
+    mfem::HypreParMatrix *Bt = nullptr;   // not owned
 
     // Current density preconditioner solvers.
-    Solver *DjSolver = nullptr;     // MUMPSSolver or CGSolver
-    HypreADS *DjPrec = nullptr;     // only used with the CG + ADS option
-    bool dj_use_ads = false;
+    mfem::Solver *DjSolver = nullptr;     // MUMPSSolver or CGSolver
+    mfem::HypreADS *DjPrec = nullptr;     // only used with the CG + ADS option
+    bool dj_use_ads;
 
-    HypreParMatrix *Gt = nullptr;   // not owned
-    HypreParMatrix *Kt = nullptr;   // not owned
+    mfem::HypreParMatrix *Gt = nullptr;   // not owned
+    mfem::HypreParMatrix *Kt = nullptr;   // not owned
 
     Logger &logger;
 
@@ -89,19 +87,23 @@ protected:
     // costs several global reductions per preconditioner application).
     bool verbose = false;
 
-    real_t GNorm(const Vector &v) const { return ParNormlp(v, 2.0, MPI_COMM_WORLD); }
+    mfem::real_t GNorm(const mfem::Vector &v) const { return ParNormlp(v, 2.0, spaces[0]->GetComm()); }
 
 public:
-    LiPreconditioner(Array<ParFiniteElementSpace *> &fes,
-        const Array<int> &offsets_,
-        real_t &dt_,
-        real_t &theta_,
+    LiPreconditioner(mfem::Array<mfem::ParFiniteElementSpace *> &fes,
+        const mfem::Array<int> &offsets_,
+        mfem::real_t &dt_,
+        mfem::real_t &theta_,
+        mfem::real_t alpha1_,
+        bool dj_use_ads_,
         Logger &logger_)
         : Solver(offsets_.Last()),
             nBlocks(offsets_.Size()-1),
             offsets(0),
             dt(dt_),
             theta(theta_),
+            alpha1(alpha1_),
+            dj_use_ads(dj_use_ads_),
             logger(logger_)
     {
         fes.Copy(spaces);
@@ -110,30 +112,24 @@ public:
 
     void SetVerbose(bool v) { verbose = v; }
 
-    /// Select the current-density block solver: false = MUMPS (direct),
-    /// true = 5 CG iterations preconditioned by Hiptmair-Xu (HypreADS), as in
-    /// Algorithm 4.1 of Li et al. (2019).  Call before
-    /// SetCurrentDensityPreconditioner().
-    void UseADSForCurrentDensity(bool use_ads) { dj_use_ads = use_ads; }
-
-    void SetPressurePreconditioner(HypreParMatrix *MpMat, HypreParMatrix *SpMat)
+    void SetPressurePreconditioner(mfem::HypreParMatrix *MpMat, mfem::HypreParMatrix *SpMat)
     {
         delete MpSolver; delete MpPrec; delete SpOrthoSolver; delete SpSolver;
 
-        MpSolver = new CGSolver(MPI_COMM_WORLD);
+        MpSolver = new mfem::CGSolver(spaces[0]->GetComm());
         MpSolver->SetOperator(*MpMat);
         MpSolver->SetRelTol(1e-8);
         MpSolver->SetAbsTol(1e-12);
         MpSolver->SetMaxIter(10);
-        MpSolver->SetPrintLevel(IterativeSolver::PrintLevel().None());
+        MpSolver->SetPrintLevel(mfem::IterativeSolver::PrintLevel().None());
 
-        MpPrec = new HypreSmoother(*MpMat);
-        MpPrec->SetType(HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
+        MpPrec = new mfem::HypreSmoother(*MpMat);
+        MpPrec->SetType(mfem::HypreSmoother::GS, 6); // Symmetric Gauss-Seidel
         MpSolver->SetPreconditioner(*MpPrec);
 
         // Pure-Neumann pressure Laplacian: 2 AMG V-cycles, wrapped in an
         // OrthoSolver to remove the constant null space.
-        SpSolver = new HypreBoomerAMG(*SpMat);
+        SpSolver = new mfem::HypreBoomerAMG(*SpMat);
         SpSolver->SetMaxIter(2);
         SpSolver->SetCycleType(1);
         SpSolver->SetRelaxType(6); // Symmetric Gauss-Seidel
@@ -141,39 +137,39 @@ public:
         SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
         SpSolver->SetPrintLevel(0);
 
-        SpOrthoSolver = new OrthoSolver(spaces[3]->GetComm());
+        SpOrthoSolver = new mfem::OrthoSolver(spaces[3]->GetComm());
         SpOrthoSolver->SetSolver(*SpSolver);
     }
 
-    void SetElectricPotentialPreconditioner(HypreParMatrix *MphiMat)
+    void SetElectricPotentialPreconditioner(mfem::HypreParMatrix *MphiMat)
     {
         delete MphiSolver; delete MphiPrec;
 
-        MphiSolver = new CGSolver(MPI_COMM_WORLD);
+        MphiSolver = new mfem::CGSolver(spaces[0]->GetComm());
         MphiSolver->SetOperator(*MphiMat);
         MphiSolver->SetRelTol(1e-8);
         MphiSolver->SetMaxIter(10);
-        MphiSolver->SetPrintLevel(IterativeSolver::PrintLevel().None());
+        MphiSolver->SetPrintLevel(mfem::IterativeSolver::PrintLevel().None());
 
-        MphiPrec = new HypreSmoother(*MphiMat);
-        MphiPrec->SetType(HypreSmoother::GS, 6);
+        MphiPrec = new mfem::HypreSmoother(*MphiMat);
+        MphiPrec->SetType(mfem::HypreSmoother::GS, 6);
         MphiSolver->SetPreconditioner(*MphiPrec);
     }
 
-    void SetVelocityPreconditioner(HypreParMatrix *FkMat, HypreParMatrix *BtMat)
+    void SetVelocityPreconditioner(mfem::HypreParMatrix *FkMat, mfem::HypreParMatrix *BtMat)
     {
         delete FkSolver; delete FkPrec;
 
-        FkSolver = new GMRESSolver(MPI_COMM_WORLD);
+        FkSolver = new mfem::GMRESSolver(spaces[0]->GetComm());
         FkSolver->SetRelTol(1e-3);
         FkSolver->SetMaxIter(200);
         FkSolver->SetKDim(50);
-        FkSolver->SetPrintLevel(IterativeSolver::PrintLevel().Errors());
+        FkSolver->SetPrintLevel(mfem::IterativeSolver::PrintLevel().Errors());
 
         // Algorithm 4.1 uses additive Schwarz; BoomerAMG is used here.  The
         // velocity is a vector H1 field ordered byNODES, so use systems AMG.
-        FkPrec = new HypreBoomerAMG(*FkMat);
-        FkPrec->SetSystemsOptions(spaces[2]->GetVDim(), spaces[2]->GetOrdering() == Ordering::byNODES);
+        FkPrec = new mfem::HypreBoomerAMG(*FkMat);
+        FkPrec->SetSystemsOptions(spaces[2]->GetVDim(), spaces[2]->GetOrdering() == mfem::Ordering::byNODES);
         FkPrec->SetPrintLevel(0);
         FkPrec->SetCycleType(2);
         FkPrec->SetRelaxType(6);
@@ -184,20 +180,21 @@ public:
         Bt = BtMat;
     }
 
-    void SetCurrentDensityPreconditioner(HypreParMatrix *DjMat, HypreParMatrix *GtMat, HypreParMatrix *KtMat)
+    void SetCurrentDensityPreconditioner(mfem::HypreParMatrix *DjMat, mfem::HypreParMatrix *GtMat, mfem::HypreParMatrix *KtMat)
     {
         delete DjSolver; delete DjPrec;
         DjSolver = nullptr; DjPrec = nullptr;
 
+        // Option set in parameters.hpp.
         if (dj_use_ads)
         {
             // Algorithm 4.1: 5 CG iterations with the HX (ADS) preconditioner.
-            auto *cg = new CGSolver(MPI_COMM_WORLD);
+            auto *cg = new mfem::CGSolver(spaces[0]->GetComm());
             cg->SetOperator(*DjMat);
             cg->SetRelTol(1e-12);
             cg->SetMaxIter(5);
-            cg->SetPrintLevel(IterativeSolver::PrintLevel().None());
-            DjPrec = new HypreADS(*DjMat, spaces[0]);
+            cg->SetPrintLevel(mfem::IterativeSolver::PrintLevel().None());
+            DjPrec = new mfem::HypreADS(*DjMat, spaces[0]);
             DjPrec->SetPrintLevel(0);
             cg->SetPreconditioner(*DjPrec);
             DjSolver = cg;
@@ -205,7 +202,7 @@ public:
         else
         {
 #ifdef MFEM_USE_MUMPS
-            auto *mumps = new MUMPSSolver(MPI_COMM_WORLD);
+            auto *mumps = new mfem::MUMPSSolver(spaces[0]->GetComm());
             mumps->SetPrintLevel(0);
             mumps->SetOperator(*DjMat);
             DjSolver = mumps;
@@ -221,16 +218,16 @@ public:
     int GetVelocityIterations() const { return FkSolver ? FkSolver->GetNumIterations() : 0; }
 
     // Apply the preconditioner as definied in algorithm 4.1 of Li et al. 2019.
-    virtual void Mult(const Vector &x, Vector &y) const override
+    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const override
     {
         // Create block views of the input and output vectors
-        BlockVector xblock(const_cast<Vector&>(x), offsets);
-        BlockVector yblock(y, offsets);
+        mfem::BlockVector xblock(const_cast<mfem::Vector&>(x), offsets);
+        mfem::BlockVector yblock(y, offsets);
 
         // Pressure solve.
-        Vector &yp = yblock.GetBlock(3);
-        Vector rp = xblock.GetBlock(3);
-        Vector xi(rp.Size()), eta(rp.Size());
+        mfem::Vector &yp = yblock.GetBlock(3);
+        mfem::Vector rp = xblock.GetBlock(3);
+        mfem::Vector xi(rp.Size()), eta(rp.Size());
         xi = 0.0, eta = 0.0;
 
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
@@ -238,8 +235,8 @@ public:
 
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1,
         // but it is required.
-        Vector eta2tau(rp.Size());
-        real_t spCoeff = 1.0 / (theta * dt);
+        mfem::Vector eta2tau(rp.Size());
+        mfem::real_t spCoeff = 1.0 / (theta * dt);
         eta2tau = eta;
         eta2tau *= spCoeff;
         yp = xi;
@@ -252,32 +249,32 @@ public:
         if (verbose) { logger << "||yp|| = " << GNorm(yp) << std::endl; }
 
         // Electric potential solve.
-        Vector &yphi = yblock.GetBlock(1);
-        Vector rphi = xblock.GetBlock(1);
+        mfem::Vector &yphi = yblock.GetBlock(1);
+        mfem::Vector rphi = xblock.GetBlock(1);
         MphiSolver->Mult(rphi, yphi);  // y_phi = Mphi^-1 (-r_phi)
         yphi *= -1.0;
 
         if (verbose) { logger << "||yphi|| = " << GNorm(yphi) << std::endl; }
 
         // Velocity solve.
-        Vector ru = xblock.GetBlock(2);
+        mfem::Vector ru = xblock.GetBlock(2);
 
-        Vector BtYp(ru.Size());
+        mfem::Vector BtYp(ru.Size());
         Bt->Mult(yp, BtYp);
         ru -= BtYp; // Get right hand side of Fk yu = ru - Bt * yp
 
         if (verbose) { logger << "||BtYp|| = " << GNorm(BtYp) << std::endl; }
         if (verbose) { logger << "||ru|| = " << GNorm(ru) << std::endl; }
 
-        Vector &yu = yblock.GetBlock(2);
+        mfem::Vector &yu = yblock.GetBlock(2);
         yu = 0.0;
         FkSolver->Mult(ru, yu); // Solve yu = Fk^-1 (ru - Bt * yp)
 
         if (verbose) { logger << "||yu|| = " << GNorm(yu) << std::endl; }
 
         // Current density solve.
-        Vector rj = xblock.GetBlock(0);
-        Vector GtYphi(rj.Size()), KtYu(rj.Size());
+        mfem::Vector rj = xblock.GetBlock(0);
+        mfem::Vector GtYphi(rj.Size()), KtYu(rj.Size());
 
         Gt->Mult(yphi, GtYphi);
         GtYphi *= 2.0;
@@ -291,7 +288,7 @@ public:
         rj -= KtYu;
         if (verbose) { logger << "||rj|| = " << GNorm(rj) << std::endl; }
 
-        Vector &yj = yblock.GetBlock(0);
+        mfem::Vector &yj = yblock.GetBlock(0);
         yj = 0.0;
         DjSolver->Mult(rj, yj); // yj = Dj^-1 (rj - 2 Gt * y_phi - 2 Kt * y_u)
 
@@ -303,7 +300,7 @@ public:
         if (verbose) { logger << "||y|| = " << GNorm(y) << std::endl; }
     }
 
-    virtual void SetOperator(const Operator &op) override { }
+    virtual void SetOperator(const mfem::Operator &op) override { }
 
     virtual ~LiPreconditioner()
     {

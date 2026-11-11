@@ -3,28 +3,25 @@
 #include "mfem.hpp"
 #include "BoundaryConditions.hpp"
 #include "VectorConvectionIntegrator.hpp"
-#include "constants.hpp"
+#include "parameters.hpp"
 #include "CrossProductMatrixCoefficient.hpp"
 #include "LiPreconditioner.hpp"
-
-using namespace std;
-using namespace mfem;
 
 struct MagneticBlock
 {
    // Current operator
-   ParBilinearForm mj;
+   mfem::ParBilinearForm mj;
 
    // Divergence operators
-   ParMixedBilinearForm g;
-   ParMixedBilinearForm gt;
+   mfem::ParMixedBilinearForm g;
+   mfem::ParMixedBilinearForm gt;
 
    // Matrix handles
-   OperatorHandle MjMat_h;
-   OperatorHandle GMat_h;
-   OperatorHandle GtMat_h;
+   mfem::OperatorHandle MjMat_h;
+   mfem::OperatorHandle GMat_h;
+   mfem::OperatorHandle GtMat_h;
 
-   MagneticBlock(ParFiniteElementSpace *j_fes, ParFiniteElementSpace *phi_fes)
+   MagneticBlock(mfem::ParFiniteElementSpace *j_fes, mfem::ParFiniteElementSpace *phi_fes)
         :
          mj(j_fes),
          g(j_fes, phi_fes),
@@ -35,21 +32,21 @@ struct MagneticBlock
 struct NavierBlock
 {
    // Velocity operator
-   ParBilinearForm fu;
+   mfem::ParBilinearForm fu;
 
    // Divergence operators
-   ParMixedBilinearForm b;
-   ParMixedBilinearForm bt;
+   mfem::ParMixedBilinearForm b;
+   mfem::ParMixedBilinearForm bt;
 
-   ParBilinearForm smallPressure;
+   mfem::ParBilinearForm smallPressure;
 
    // Matrix handles
-   OperatorHandle FuMat_h;
-   OperatorHandle BMat_h;
-   OperatorHandle BtMat_h;
-   OperatorHandle smallPressureMat_h;
+   mfem::OperatorHandle FuMat_h;
+   mfem::OperatorHandle BMat_h;
+   mfem::OperatorHandle BtMat_h;
+   mfem::OperatorHandle smallPressureMat_h;
 
-   NavierBlock(ParFiniteElementSpace *u_fes, ParFiniteElementSpace *p_fes)
+   NavierBlock(mfem::ParFiniteElementSpace *u_fes, mfem::ParFiniteElementSpace *p_fes)
          :
          fu(u_fes),
          b(u_fes, p_fes),
@@ -60,12 +57,12 @@ struct NavierBlock
 
 struct CouplingBlock
 {
-   ParMixedBilinearForm k;
+   mfem::ParMixedBilinearForm k;
 
    // Matrix handles
-   OperatorHandle KMat_h;
+   mfem::OperatorHandle KMat_h;
 
-   CouplingBlock(ParFiniteElementSpace *j_fes, ParFiniteElementSpace *u_fes)
+   CouplingBlock(mfem::ParFiniteElementSpace *j_fes, mfem::ParFiniteElementSpace *u_fes)
         :
          k(j_fes, u_fes)
    {}
@@ -73,19 +70,19 @@ struct CouplingBlock
 
 struct LiPrecForms
 {
-   ParBilinearForm dj, mphi, mp, sp, fk;
+   mfem::ParBilinearForm dj, mphi, mp, sp, fk;
 
    // Matrix handles
-   OperatorHandle DjMat_h;
-   OperatorHandle MphiMat_h;
-   OperatorHandle MpMat_h;
-   OperatorHandle SpMat_h;
-   OperatorHandle FkMat_h;
+   mfem::OperatorHandle DjMat_h;
+   mfem::OperatorHandle MphiMat_h;
+   mfem::OperatorHandle MpMat_h;
+   mfem::OperatorHandle SpMat_h;
+   mfem::OperatorHandle FkMat_h;
 
-   LiPrecForms(ParFiniteElementSpace *j_fes,
-               ParFiniteElementSpace *phi_fes,
-               ParFiniteElementSpace *u_fes,
-               ParFiniteElementSpace *p_fes)
+   LiPrecForms(mfem::ParFiniteElementSpace *j_fes,
+               mfem::ParFiniteElementSpace *phi_fes,
+               mfem::ParFiniteElementSpace *u_fes,
+               mfem::ParFiniteElementSpace *p_fes)
         :
          dj(j_fes),
          mphi(phi_fes),
@@ -96,25 +93,26 @@ struct LiPrecForms
 };
 
 // Operator for solving Ax = b.
-class LmmhdOperator : public TimeDependentOperator
+class LmmhdOperator : public mfem::TimeDependentOperator
 {
 protected:
+   lmmhd::Parameters params;
 
-   real_t theta;
+   mfem::real_t theta;
    // Size of the Operator
-   int OperatorSize(const Array<ParFiniteElementSpace *> spaces);
+   int OperatorSize(const mfem::Array<mfem::ParFiniteElementSpace *> spaces);
 
    // Block problem FE-Spaces and offsets
-   Array<ParFiniteElementSpace *> spaces;
-   Array<int> &block_trueOffsets;
+   mfem::Array<mfem::ParFiniteElementSpace *> spaces;
+   mfem::Array<int> &block_trueOffsets;
 
    //std::unique_ptr<Solver> lmmhd_solver;
    //std::unique_ptr<Operator> A;
-   FGMRESSolver *lmmhd_solver = nullptr;
-   BlockOperator *A = nullptr;
+   mfem::FGMRESSolver *lmmhd_solver = nullptr;
+   mfem::BlockOperator *A = nullptr;
 
-   BlockVector *X = nullptr, *Xn_1 = nullptr;
-   BlockVector *RHS = nullptr;
+   mfem::BlockVector *X = nullptr, *Xn_1 = nullptr;
+   mfem::BlockVector *RHS = nullptr;
 
    LiPreconditioner *P = nullptr;
 
@@ -126,86 +124,84 @@ protected:
    CouplingBlock coupling;
    LiPrecForms liprec;
 
-   ParLinearForm rj, rphi, ru, rp;
-   ParBilinearForm *rhs_mu = nullptr;
+   mfem::ParLinearForm rj, rphi, ru, rp;
+   mfem::ParBilinearForm *rhs_mu = nullptr;
 
    // Vectors and numbers used for bilinear form coefficients.
-   Vector *B = nullptr;
-   Vector *kCoeffVec = nullptr;
-   real_t massCoeffValue;
+   mfem::Vector *B = nullptr;
+   mfem::Vector *kCoeffVec = nullptr;
+   mfem::real_t massCoeffValue;
 
    // Coefficients used in bilinear forms.
-   ConstantCoefficient *bCoeff = nullptr;
-   ConstantCoefficient *bTCoeff = nullptr;
-   ConstantCoefficient *mjCoeff = nullptr;
-   ConstantCoefficient *gCoeff = nullptr;
-   ConstantCoefficient *gTCoeff = nullptr;
+   mfem::ConstantCoefficient *bCoeff = nullptr;
+   mfem::ConstantCoefficient *bTCoeff = nullptr;
+   mfem::ConstantCoefficient *mjCoeff = nullptr;
+   mfem::ConstantCoefficient *gCoeff = nullptr;
+   mfem::ConstantCoefficient *gTCoeff = nullptr;
    CrossProductMatrixCoefficient *kCoeff = nullptr;
-   ConstantCoefficient *djCoeff = nullptr;
-   ConstantCoefficient *mphiCoeff = nullptr;
-   ConstantCoefficient *mpCoeff = nullptr;
-   ConstantCoefficient *spCoeff = nullptr;
-   MatrixConstantCoefficient *fkBxVBxVcoeff = nullptr;
-   ConstantCoefficient *fReciprocalReCoeff = nullptr;
-   ConstantCoefficient *alphaCoeff = nullptr;
-   ConstantCoefficient *fMassCoeff = nullptr;
-   ConstantCoefficient *smallPressureCoeff = nullptr;
+   mfem::ConstantCoefficient *djCoeff = nullptr;
+   mfem::ConstantCoefficient *mphiCoeff = nullptr;
+   mfem::ConstantCoefficient *mpCoeff = nullptr;
+   mfem::ConstantCoefficient *spCoeff = nullptr;
+   mfem::MatrixConstantCoefficient *fkBxVBxVcoeff = nullptr;
+   mfem::ConstantCoefficient *fReciprocalReCoeff = nullptr;
+   mfem::ConstantCoefficient *alphaCoeff = nullptr;
+   mfem::ConstantCoefficient *fMassCoeff = nullptr;
+   mfem::ConstantCoefficient *smallPressureCoeff = nullptr;
 
-   ConstantCoefficient *mpCoeffNorm = nullptr;
-   ConstantCoefficient *spCoeffNorm = nullptr;
+   mfem::ConstantCoefficient *mpCoeffNorm = nullptr;
+   mfem::ConstantCoefficient *spCoeffNorm = nullptr;
 
-   Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
-   ParGridFunction *ustar_gf, j_gf, phi_gf, u_gf, p_gf;
-   ParGridFunction ubar_gf;
-   ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
-   ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
-   std::unique_ptr<VectorGridFunctionCoefficient> ustar_coef;
+   mfem::Array<int> ess_tdof_j, ess_tdof_phi, ess_tdof_u, ess_tdof_p;
+   mfem::ParGridFunction *ustar_gf, j_gf, phi_gf, u_gf, p_gf;
+   mfem::ParGridFunction ubar_gf;
+   mfem::ParGridFunction u_gf_n_1, u_gf_n_2; // Solution history.
+   mfem::ParGridFunction j_gf_n_1, phi_gf_n_1, p_gf_n_1; // Solution history.
+   std::unique_ptr<mfem::VectorGridFunctionCoefficient> ustar_coef;
 
    // Discrete divergence RT_k -> L2_k, used to monitor charge conservation.
-   std::unique_ptr<ParDiscreteLinearOperator> div_j;
-   Vector ustar_vec;
+   std::unique_ptr<mfem::ParDiscreteLinearOperator> div_j;
+   mfem::Vector ustar_vec;
 
    // HypreParMatrices for operator blocks.
-   HypreParMatrix *FuMat = nullptr;
-   HypreParMatrix *FkMat = nullptr;
-   HypreParMatrix *BMat = nullptr;
-   HypreParMatrix *BtMat = nullptr;
-   HypreParMatrix *MpMat = nullptr;
-   HypreParMatrix *SpMat = nullptr;
-   HypreParMatrix *MphiMat = nullptr;
-   HypreParMatrix *DjMat = nullptr;
+   mfem::HypreParMatrix *FuMat = nullptr;
+   mfem::HypreParMatrix *FkMat = nullptr;
+   mfem::HypreParMatrix *BMat = nullptr;
+   mfem::HypreParMatrix *BtMat = nullptr;
+   mfem::HypreParMatrix *MpMat = nullptr;
+   mfem::HypreParMatrix *SpMat = nullptr;
+   mfem::HypreParMatrix *MphiMat = nullptr;
+   mfem::HypreParMatrix *DjMat = nullptr;
 
-   HypreParMatrix *MjMat = nullptr;
-   HypreParMatrix *GMat = nullptr;
-   HypreParMatrix *GtMat = nullptr;
-   HypreParMatrix *KMat = nullptr;
-   HypreParMatrix *KtMat = nullptr;
-   HypreParMatrix *KtFullMat = nullptr; // K^T without essential-dof elimination (for BC on RHS).
-   HypreParMatrix *KMatScaled = nullptr; // -kappa K (momentum-row coupling block).
-   HypreParMatrix *MuMat = nullptr;      // (2/tau) velocity mass matrix for the RHS.
-   HypreParMatrix *BFullMat = nullptr;
+   mfem::HypreParMatrix *MjMat = nullptr;
+   mfem::HypreParMatrix *GMat = nullptr;
+   mfem::HypreParMatrix *GtMat = nullptr;
+   mfem::HypreParMatrix *KMat = nullptr;
+   mfem::HypreParMatrix *KtMat = nullptr;
+   mfem::HypreParMatrix *KtFullMat = nullptr; // K^T without essential-dof elimination (for BC on RHS).
+   mfem::HypreParMatrix *KMatScaled = nullptr; // -kappa K (momentum-row coupling block).
+   mfem::HypreParMatrix *MuMat = nullptr;      // (2/tau) velocity mass matrix for the RHS.
+   mfem::HypreParMatrix *BFullMat = nullptr;
 
-   HypreParMatrix *MpMatNorm = nullptr;
-   HypreParMatrix *SpMatNorm = nullptr;
+   mfem::HypreParMatrix *MpMatNorm = nullptr;
+   mfem::HypreParMatrix *SpMatNorm = nullptr;
 
    // Boundary conditions.
-   Array<Array<int> *> ess_bdr_marker, nat_bdr_marker;
-   VectorFunctionCoefficient *currentD_DBC = nullptr;
-   FunctionCoefficient *electPot_DBC = nullptr;
-   VectorFunctionCoefficient *velocity_DBC = nullptr;
-   VectorFunctionCoefficient *magnetic_field_coef = nullptr;
-   FunctionCoefficient *pressure_DBC = nullptr;
-   VectorGridFunctionCoefficient *velocity_n_1_Coeff = nullptr;
-   VectorSumCoefficient *velocity_bar_DBC = nullptr;
+   mfem::Array<mfem::Array<int> *> ess_bdr_marker, nat_bdr_marker;
+   mfem::VectorFunctionCoefficient *currentD_DBC = nullptr;
+   mfem::FunctionCoefficient *electPot_DBC = nullptr;
+   mfem::VectorCoefficient *velocity_DBC = nullptr;
+   mfem::VectorFunctionCoefficient *magnetic_field_coef = nullptr;
+   mfem::FunctionCoefficient *pressure_DBC = nullptr;
+   mfem::VectorGridFunctionCoefficient *velocity_n_1_Coeff = nullptr;
+   mfem::VectorSumCoefficient *velocity_bar_DBC = nullptr;
 
    // Coefficients for zero RHS terms.
-   ConstantCoefficient *zeroCoeff = nullptr;
-   ConstantCoefficient *oneCoeff = nullptr;
-   VectorFunctionCoefficient *vectorZeroCoeff = nullptr;
+   mfem::ConstantCoefficient *zeroCoeff = nullptr;
+   mfem::ConstantCoefficient *oneCoeff = nullptr;
+   mfem::VectorFunctionCoefficient *vectorZeroCoeff = nullptr;
 
    int dim;
-   real_t dt;
-   int debug;
    Logger &logger;
    FGMRESLogMonitor *fgmres_monitor = nullptr;
 
@@ -213,32 +209,35 @@ protected:
    RemoveMeanProjector pressure_mean_remover;
 
 public:
-   LmmhdOperator(Array<ParFiniteElementSpace *> &fes, Array<Array<int> *>&ess_bdr,
-                  Array<int> &block_trueOffsets, int dim, real_t dt, int debug, 
+   LmmhdOperator(mfem::Array<mfem::ParFiniteElementSpace *> &fes,
+                  BoundaryConditions &bcs,
+                  mfem::Array<int> &block_trueOffsets,
+                  int dim, 
+                  const lmmhd::Parameters &params, 
                   Logger &logger);
 
-   void Step(real_t &time, real_t dt);
+   void Step(mfem::real_t &time);
 
    void UpdateUStar(int step);
 
    void UpdateHistory();
 
-   ParGridFunction *GetCurrentDPointer() { return &j_gf; }
-   ParGridFunction *GetPotentialPointer() { return &phi_gf; }
-   ParGridFunction *GetVelocityPointer() { return &u_gf; }
-   ParGridFunction *GetPressurePointer() { return &p_gf; }
+   mfem::ParGridFunction *GetCurrentDPointer() { return &j_gf; }
+   mfem::ParGridFunction *GetPotentialPointer() { return &phi_gf; }
+   mfem::ParGridFunction *GetVelocityPointer() { return &u_gf; }
+   mfem::ParGridFunction *GetPressurePointer() { return &p_gf; }
 
    void UpdateIntegrators();
 
    /// Current-density block solver in the preconditioner: MUMPS (default) or
    /// CG + HypreADS as in Algorithm 4.1.  Call before the first Step().
-   void UseADSForCurrentDensity(bool use_ads) { P->UseADSForCurrentDensity(use_ads); }
+   //void UseADSForCurrentDensity(bool use_ads) { P->UseADSForCurrentDensity(use_ads); }
 
    void SetGridFunctionsFromTrueDofs();
 
    void ReconstructPhysicalVelocityFromUBar(int step);
 
-   real_t CalcNorms();
+   mfem::real_t CalcNorms();
 
    void RemoveMeans();
 

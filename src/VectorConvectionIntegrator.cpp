@@ -1,5 +1,7 @@
 #include "VectorConvectionIntegrator.hpp"
 
+using namespace mfem;
+
 VectorConvectionIntegrator::VectorConvectionIntegrator(VectorCoefficient &v, real_t a)
    : velocity_coeff(v), alpha(a) { }
 

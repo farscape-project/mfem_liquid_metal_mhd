@@ -3,6 +3,7 @@ data*
 old
 old_data
 scripts
+baseline_*
 
 # Simulation files
 lmmhd_solver
@@ -18,6 +19,9 @@ tests/test_convection_skew
 *.sh
 *.csv
 *.txt
+*.a
 
 stdout*
 stderr*
+
+include/BoundaryConditions.hpp_backup
