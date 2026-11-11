@@ -19,7 +19,7 @@ using namespace mfem;
 static BoundaryConditions MakeBoundaryConditions(const std::string &name, ParMesh &pmesh, const InputParser &input)
 {
    if (name == "lid_driven_cavity") { return LidDrivenCavity(pmesh, input.GetReal("Lz")); }
-   //if (name == "square_duct") { return SquareDuct(pmesh); }
+   if (name == "shercliff") { return Shercliff(pmesh, input.GetReal("Ly"), input.GetReal("Lz")); }
    MFEM_ABORT("Unknown Case '" << name << "' in params.in (lid_driven_cavity)");// | square_duct)");
    return BoundaryConditions(pmesh);
 }

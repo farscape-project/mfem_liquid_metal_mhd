@@ -235,9 +235,18 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //    O(u*; v, v') = 1/2 (u*.grad v, v') - 1/2 (u*.grad v', v).
    // ConservativeVectorConvectionIntegrator(q, a) represents -a (v, q.grad v'),
    // so a = +0.5 gives the required -1/2 (u*.grad v', v).
-   // TODO: outflow boundary term for open (duct) configurations.
    fluids.fu.AddDomainIntegrator(new VectorConvectionIntegrator(*ustar_coef, 0.5));
    fluids.fu.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
+   
+   // Outflow convection term, only turn on if there is an outlet.
+   outlet_marker = bcs_.outlet;
+   spaces[3]->GetEssentialTrueDofs(bcs_.outlet, ess_tdof_p_outlet);
+   if (outlet_marker.Sum() > 0)
+   {
+      ustar_x_coeff = new GridFunctionCoefficient(ustar_gf, 1);
+      outflowCoeff = new TransformedCoefficient(ustar_x_coeff, [](real_t ux) { return 0.5 * std::max(ux, 0.0); });
+      fluids.fu.AddBoundaryIntegrator(new VectorMassIntegrator(*outflowCoeff), outlet_marker);
+   }
 
    smallPressureCoeff = new ConstantCoefficient(1e-12);
    fluids.smallPressure.AddDomainIntegrator(new MassIntegrator(*smallPressureCoeff));
@@ -291,6 +300,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    liprec.fk.AddDomainIntegrator(new ConservativeVectorConvectionIntegrator(*ustar_coef, 0.5));
    liprec.fk.AddDomainIntegrator(new VectorMassIntegrator(*fkBxVBxVcoeff));
 
+   if (bcs_.outlet.Sum() > 0) { liprec.fk.AddBoundaryIntegrator(new VectorMassIntegrator(*outflowCoeff), outlet_marker); }
+
    P = new LiPreconditioner(spaces, block_trueOffsets, params.time.dt, params.time.theta, 
                      params.physics.alpha1(), params.solver.use_ads_for_current_density, logger);
    P->SetVerbose(params.solver.debug > 0);
@@ -305,6 +316,10 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //*****************************************************************************************************//
    //**************************************** Preconditioner *********************************************//
    //*****************************************************************************************************//
+
+   // Read flags for whether to remove means from pressure and potential.
+   remove_pressure_mean  = bcs_.remove_pressure_mean;
+   remove_potential_mean = bcs_.remove_potential_mean;
 
 }
 
@@ -352,8 +367,8 @@ void LmmhdOperator::RemoveMeans()
 {
    // Remove mean from pressure and potential.  Only do this if nullspace
    // needs removing from the problem (i.e. all Neumann BCs).
-   //potential_mean_remover.RemoveMean(X->GetBlock(1));
-   pressure_mean_remover.RemoveMean(X->GetBlock(3));
+   if (remove_potential_mean)  { potential_mean_remover.RemoveMean(X->GetBlock(1)); }
+   if (remove_pressure_mean)  { pressure_mean_remover.RemoveMean(X->GetBlock(3)); }
 }
 
 void LmmhdOperator::SetGridFunctionsFromTrueDofs()
@@ -531,7 +546,7 @@ void LmmhdOperator::FormPSystem()
   liprec.dj.FormSystemMatrix(ess_tdof_j, liprec.DjMat_h);
   liprec.mphi.FormSystemMatrix(ess_tdof_phi, liprec.MphiMat_h);
   liprec.mp.FormSystemMatrix(ess_tdof_p, liprec.MpMat_h);
-  liprec.sp.FormSystemMatrix(ess_tdof_p, liprec.SpMat_h);
+  liprec.sp.FormSystemMatrix(ess_tdof_p_outlet, liprec.SpMat_h);
   liprec.fk.FormSystemMatrix(ess_tdof_u, liprec.FkMat_h);
 }
 
@@ -572,7 +587,8 @@ void LmmhdOperator::SetupConstantBlocks()
 
    FormPSystem();
    P->SetPressurePreconditioner(liprec.MpMat_h.As<HypreParMatrix>(),
-                                liprec.SpMat_h.As<HypreParMatrix>());
+                                liprec.SpMat_h.As<HypreParMatrix>(),
+                                remove_pressure_mean);
    P->SetElectricPotentialPreconditioner(liprec.MphiMat_h.As<HypreParMatrix>());
    P->SetCurrentDensityPreconditioner(liprec.DjMat_h.As<HypreParMatrix>(),
                                       GtMat, KtMat);
@@ -676,4 +692,7 @@ LmmhdOperator::~LmmhdOperator()
    delete KMatScaled;
    delete MuMat;
    delete BFullMat;
+
+   delete outflowCoeff;
+   delete ustar_x_coeff;
 }

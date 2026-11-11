@@ -205,8 +205,16 @@ protected:
    Logger &logger;
    FGMRESLogMonitor *fgmres_monitor = nullptr;
 
+   bool remove_pressure_mean, remove_potential_mean;
    RemoveMeanProjector potential_mean_remover;
    RemoveMeanProjector pressure_mean_remover;
+
+   // Outflow BC
+   mfem::Array<int> outlet_marker;
+   mfem::Array<int> ess_tdof_p_outlet;
+   mfem::GridFunctionCoefficient *ustar_x_coeff = nullptr; // x-component of velocity for outflow BC
+   mfem::TransformedCoefficient *outflowCoeff = nullptr;
+   bool has_outlet = false;
 
 public:
    LmmhdOperator(mfem::Array<mfem::ParFiniteElementSpace *> &fes,

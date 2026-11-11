@@ -1,16 +1,16 @@
 ******** Case *********
-Case          lid_driven_cavity
+Case          shercliff
 
 ******** Mesh parameters *********
-nx              8    // mesh points in x-direction
+nx              12    // mesh points in x-direction
 ny              8    // mesh points in y-direction
 nz              8    // mesh points in z-direction
 
-Lx            1.0    // domain size in x-direction
+Lx            2.0    // domain size in x-direction
 Ly            1.0    // domain size in y-direction
 Lz            1.0    // domain size in z-direction
 
-clusterX      1.8    // mesh clustering in x-direction
+clusterX      1.0    // mesh clustering in x-direction
 clusterY      1.8    // mesh clustering in y-direction
 clusterZ      1.8    // mesh clustering in z-direction
 

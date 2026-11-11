@@ -63,6 +63,8 @@ protected:
     mfem::HypreSmoother *MpPrec = nullptr;
     mfem::HypreBoomerAMG *SpSolver = nullptr;
     mfem::OrthoSolver *SpOrthoSolver = nullptr;
+    mfem::Solver *SpActual = nullptr;
+    bool sp_ortho = false;
 
     // Electric potential preconditioner solvers.
     mfem::CGSolver *MphiSolver = nullptr;
@@ -112,7 +114,7 @@ public:
 
     void SetVerbose(bool v) { verbose = v; }
 
-    void SetPressurePreconditioner(mfem::HypreParMatrix *MpMat, mfem::HypreParMatrix *SpMat)
+    void SetPressurePreconditioner(mfem::HypreParMatrix *MpMat, mfem::HypreParMatrix *SpMat, bool sp_nullspace)
     {
         delete MpSolver; delete MpPrec; delete SpOrthoSolver; delete SpSolver;
 
@@ -137,8 +139,21 @@ public:
         SpSolver->SetStrengthThresh(0.7);  // Value of 0.7 automatically assigned by MOOSE for 3D problems
         SpSolver->SetPrintLevel(0);
 
-        SpOrthoSolver = new mfem::OrthoSolver(spaces[3]->GetComm());
-        SpOrthoSolver->SetSolver(*SpSolver);
+        if (sp_nullspace)
+        {
+            auto *ortho = new mfem::OrthoSolver(spaces[3]->GetComm());
+            ortho->SetSolver(*SpSolver);
+            SpActual = ortho;
+            sp_ortho = true;
+        }
+        else
+        {
+            SpActual = SpSolver;
+            sp_ortho = false;
+        }
+        
+        //SpOrthoSolver = new mfem::OrthoSolver(spaces[3]->GetComm());
+        //SpOrthoSolver->SetSolver(*SpSolver);
     }
 
     void SetElectricPotentialPreconditioner(mfem::HypreParMatrix *MphiMat)
@@ -231,7 +246,8 @@ public:
         xi = 0.0, eta = 0.0;
 
         MpSolver->Mult(rp, xi);  // xi = Mp^-1 (rp)
-        SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        SpActual->Mult(rp, eta);  // eta = Sp^-1 (rp)
+        //SpOrthoSolver->Mult(rp, eta);  // eta = Sp^-1 (rp)
 
         // Note: this multiplication of eta by 2/tau is NOT described in algorithm 4.1,
         // but it is required.
@@ -306,7 +322,7 @@ public:
     {
         delete MpSolver;
         delete MpPrec;
-        delete SpOrthoSolver;
+        if (sp_ortho) { delete SpActual; }
         delete SpSolver;
         delete MphiSolver;
         delete MphiPrec;

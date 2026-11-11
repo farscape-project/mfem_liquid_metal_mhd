@@ -21,6 +21,10 @@ struct BoundaryConditions
    // Dirichlet data for the velocity on velocity_ess.
    std::unique_ptr<mfem::VectorCoefficient> velocity;
 
+   bool remove_pressure_mean  = true; // default (lid-driven cavity)
+   bool remove_potential_mean = false; // default (lid-driven cavity)
+   mfem::Array<int> outlet; // natural-outflow faces (empty = none)        
+
    explicit BoundaryConditions(const mfem::ParMesh &pmesh)
    {
       const int n = pmesh.bdr_attributes.Size() ? pmesh.bdr_attributes.Max() : 0;
@@ -29,6 +33,8 @@ struct BoundaryConditions
          m->SetSize(n);
          *m = 0;
       }
+      outlet.SetSize(n);
+      outlet = 0;
    }
 
    // Mark the listed faces as essential, e.g. SetEssential(velocity_ess, {BoxFace::XMin}).
@@ -98,23 +104,39 @@ inline BoundaryConditions LidDrivenCavity(mfem::ParMesh &pmesh, mfem::real_t lid
          f = 0.0;
          f(0) = LidRamp(x(2), lid_z, lid_h);
       });
+
+   bc.remove_pressure_mean  = true;
+   bc.remove_potential_mean = false;
+
    return bc;
 }
 
-/*inline BoundaryConditions SquareDuct(const ParMesh &pmesh)
+inline BoundaryConditions Shercliff(const mfem::ParMesh &pmesh, mfem::real_t Ly, mfem::real_t Lz)
 {
    using namespace BoxFace;
    BoundaryConditions bc(pmesh);
-   bc.description = "square duct, inlet x = 0, outlet x = Lx";
+   bc.description = "Shercliff flow in a square duct, inlet x = 0, outlet x = Lx";
 
-   bc.currentD_ess = 1;                                          // insulating walls
-   BoundaryConditions::SetEssential(bc.pressure_ess, {XMax});    // outlet
-   BoundaryConditions::SetEssential(bc.velocity_ess,
-                                    {ZMin, YMin, YMax, XMin, ZMax}); // all but outlet
+   const mfem::real_t u_avg = 1.0;
+   const mfem::real_t y_mid = 0.5 * Ly;
+   const mfem::real_t z_mid = 0.5 * Lz;
 
-   bc.velocity = std::make_unique<VectorFunctionCoefficient>(pmesh.Dimension(),
-      [](const Vector &x, Vector &f) { f(0) = (9. / 4.) * u_avg * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
-                     (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid)); });
+   bc.currentD_ess = 1; // insulating walls
+   BoundaryConditions::SetEssential(bc.velocity_ess, {ZMin, YMin, YMax, XMin, ZMax});
+   BoundaryConditions::SetEssential(bc.outlet, {XMax});
+   // Note: The outlet is currently hardcoded to be at XMax, normal to the YZ plane.
+
+   bc.velocity = std::make_unique<mfem::VectorFunctionCoefficient>(pmesh.Dimension(),
+      [=](const mfem::Vector &x, mfem::Vector &f)
+      {
+         f = 0.0;
+         f(0) = (9. / 4.) * u_avg * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
+                     (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid)); 
+      }
+   );
+
+   bc.remove_pressure_mean  = false;
+   bc.remove_potential_mean = true;
 
    return bc;
-}*/
+}
