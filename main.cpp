@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
+   mesh.Save("box_clustered.mesh"); // Save mesh to file.
    int dim = mesh.Dimension();
 
    
