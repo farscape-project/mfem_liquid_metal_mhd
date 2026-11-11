@@ -87,7 +87,7 @@ protected:
     // costs several global reductions per preconditioner application).
     bool verbose = false;
 
-    mfem::real_t GNorm(const mfem::Vector &v) const { return ParNormlp(v, 2.0, MPI_COMM_WORLD); }
+    mfem::real_t GNorm(const mfem::Vector &v) const { return ParNormlp(v, 2.0, spaces[0]->GetComm()); }
 
 public:
     LiPreconditioner(mfem::Array<mfem::ParFiniteElementSpace *> &fes,
@@ -116,7 +116,7 @@ public:
     {
         delete MpSolver; delete MpPrec; delete SpOrthoSolver; delete SpSolver;
 
-        MpSolver = new mfem::CGSolver(MPI_COMM_WORLD);
+        MpSolver = new mfem::CGSolver(spaces[0]->GetComm());
         MpSolver->SetOperator(*MpMat);
         MpSolver->SetRelTol(1e-8);
         MpSolver->SetAbsTol(1e-12);
@@ -145,7 +145,7 @@ public:
     {
         delete MphiSolver; delete MphiPrec;
 
-        MphiSolver = new mfem::CGSolver(MPI_COMM_WORLD);
+        MphiSolver = new mfem::CGSolver(spaces[0]->GetComm());
         MphiSolver->SetOperator(*MphiMat);
         MphiSolver->SetRelTol(1e-8);
         MphiSolver->SetMaxIter(10);
@@ -160,7 +160,7 @@ public:
     {
         delete FkSolver; delete FkPrec;
 
-        FkSolver = new mfem::GMRESSolver(MPI_COMM_WORLD);
+        FkSolver = new mfem::GMRESSolver(spaces[0]->GetComm());
         FkSolver->SetRelTol(1e-3);
         FkSolver->SetMaxIter(200);
         FkSolver->SetKDim(50);
@@ -189,7 +189,7 @@ public:
         if (dj_use_ads)
         {
             // Algorithm 4.1: 5 CG iterations with the HX (ADS) preconditioner.
-            auto *cg = new mfem::CGSolver(MPI_COMM_WORLD);
+            auto *cg = new mfem::CGSolver(spaces[0]->GetComm());
             cg->SetOperator(*DjMat);
             cg->SetRelTol(1e-12);
             cg->SetMaxIter(5);
@@ -202,7 +202,7 @@ public:
         else
         {
 #ifdef MFEM_USE_MUMPS
-            auto *mumps = new mfem::MUMPSSolver(MPI_COMM_WORLD);
+            auto *mumps = new mfem::MUMPSSolver(spaces[0]->GetComm());
             mumps->SetPrintLevel(0);
             mumps->SetOperator(*DjMat);
             DjSolver = mumps;

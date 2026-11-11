@@ -38,7 +38,9 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    //   - Fk    : velocity bilinear form: 2/Tau (v, v') + O(u*_n; v, v') + A_AL(v, v')
    //   - B     : coupling between velocity and pressure: -(div v, q)
 
-   lmmhd_solver = new FGMRESSolver(MPI_COMM_WORLD);
+   fes.Copy(spaces);
+
+   lmmhd_solver = new FGMRESSolver(spaces[0]->GetComm());
    lmmhd_solver->SetRelTol(params.solver.rel_tol);
    lmmhd_solver->SetAbsTol(params.solver.abs_tol);
    lmmhd_solver->SetMaxIter(params.solver.max_iter);
@@ -50,9 +52,8 @@ LmmhdOperator::LmmhdOperator(Array<ParFiniteElementSpace *> &fes,
    fgmres_monitor = new FGMRESLogMonitor(logger);
    lmmhd_solver->SetMonitor(*fgmres_monitor);
 
-   //prec_ortho_solver = new OrthoSolver(MPI_COMM_WORLD);
+   //prec_ortho_solver = new OrthoSolver(spaces[0]->GetComm());
 
-   fes.Copy(spaces);
    //ess_bdr.Copy(ess_bdr_marker);
    Array<Array<int> *> markers = bcs_.EssentialMarkers();
    markers.Copy(ess_bdr_marker);
@@ -408,7 +409,7 @@ real_t LmmhdOperator::CalcNorms()
       Vector ut, Bu(spaces[3]->GetTrueVSize());
       u_gf.GetTrueDofs(ut);            // u^n including the Dirichlet values
       BFullMat->Mult(ut, Bu);
-      const real_t Bu_norm = ParNormlp(Bu, 2.0, MPI_COMM_WORLD);
+      const real_t Bu_norm = ParNormlp(Bu, 2.0, spaces[0]->GetComm());
       if (Mpi::Root()) { std::cout << "Weak divergence check: ||B u^n|| = " << Bu_norm << std::endl; }
 
 
@@ -619,7 +620,7 @@ void LmmhdOperator::Step(real_t &time)
    A->Mult(*X, residual);
    residual.Neg();
    residual += *RHS;
-   //const real_t global_norm = ParNormlp(residual, 2.0, MPI_COMM_WORLD);
+   //const real_t global_norm = ParNormlp(residual, 2.0, spaces[0]->GetComm());
    //if (Mpi::Root()) std::cout << "global_norm = " << global_norm << std::endl;
    logger << "FGMRES iterations: " << lmmhd_solver->GetNumIterations() << std::endl;
 }
