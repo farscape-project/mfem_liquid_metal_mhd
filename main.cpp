@@ -18,7 +18,7 @@ using namespace mfem;
 // Select case, e.g. lid-driven cavity or square duct.
 static BoundaryConditions MakeBoundaryConditions(const std::string &name, ParMesh &pmesh, const InputParser &input)
 {
-   if (name == "lid_driven_cavity") { return LidDrivenCavity(pmesh, input.GetReal("Lx")); }
+   if (name == "lid_driven_cavity") { return LidDrivenCavity(pmesh, input.GetReal("Lz")); }
    //if (name == "square_duct") { return SquareDuct(pmesh); }
    MFEM_ABORT("Unknown Case '" << name << "' in params.in (lid_driven_cavity)");// | square_duct)");
    return BoundaryConditions(pmesh);
@@ -78,7 +78,6 @@ int main(int argc, char *argv[])
 
    // Generate mesh.
    Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, mfem::Element::Type::HEXAHEDRON, Lx, Ly, Lz);
-   mesh.Save("box_clustered.mesh"); // Save mesh to file.
    int dim = mesh.Dimension();
 
    
@@ -95,6 +94,8 @@ int main(int argc, char *argv[])
       v[1] = cluster_symmetric(yi, clusterY) * Ly;
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
    }
+
+   mesh.Save("box_clustered.mesh"); // Save mesh to file.
 
    //ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
