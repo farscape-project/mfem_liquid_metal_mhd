@@ -20,6 +20,7 @@ tests/test_convection_skew
 *.csv
 *.txt
 *.a
+*.mesh
 
 stdout*
 stderr*

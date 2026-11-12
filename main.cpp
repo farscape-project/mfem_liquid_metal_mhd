@@ -96,8 +96,6 @@ int main(int argc, char *argv[])
       v[2] = cluster_symmetric(zi, clusterZ) * Lz;
    }
 
-   mesh.Save("box_clustered.mesh"); // Save mesh to file.
-
    //ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
