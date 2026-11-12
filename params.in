@@ -1,12 +1,12 @@
 ******** Case *********
-Case          shercliff
+Case          hunt
 
 ******** Mesh parameters *********
-nx              12    // mesh points in x-direction
-ny              8    // mesh points in y-direction
-nz              8    // mesh points in z-direction
+nx              40    // mesh points in x-direction
+ny              30    // mesh points in y-direction
+nz              30    // mesh points in z-direction
 
-Lx            2.0    // domain size in x-direction
+Lx            4.0    // domain size in x-direction
 Ly            1.0    // domain size in y-direction
 Lz            1.0    // domain size in z-direction
 
@@ -15,19 +15,19 @@ clusterY      1.8    // mesh clustering in y-direction
 clusterZ      1.8    // mesh clustering in z-direction
 
 ******** Timestepping parameters ********
-t_final       0.2     // final time-step
+t_final       20.0     // final time-step
 dt            0.01    // time-step
 theta         0.6     // Theta-scheme parameter (0.5 to match Crank-Nicolson scheme in Li et al. (2019)).
-vis_steps       5     // visualisation step frequency
+vis_steps      5     // visualisation step frequency
 
 ******** Dimensionless parameters ********
-Re            1.0    // Reynolds number
-kappa         1.0      // Coupling number, kappa = Ha^2 / Re (often called N).
+Re            10.0    // Reynolds number
+kappa         40.0      // Coupling number, kappa = Ha^2 / Re (often called N).
 
-Bx            1.0     // Magnetic field (x-component)
+Bx            0.0     // Magnetic field (x-component)
 By            0.0     // Magnetic field (y-component)
-Bz            0.0     // Magnetic field (z-component)
+Bz            1.0     // Magnetic field (z-component)
 
-alpha         1.0     // Grad-div (augmented Lagrangian) parameter
+alpha         0.0     // Grad-div (augmented Lagrangian) parameter
 
 SaveDirectory auto   // Name of output directory (auto results in automatically generated name).

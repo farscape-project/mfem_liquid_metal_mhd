@@ -20,7 +20,8 @@ static BoundaryConditions MakeBoundaryConditions(const std::string &name, ParMes
 {
    if (name == "lid_driven_cavity") { return LidDrivenCavity(pmesh, input.GetReal("Lz")); }
    if (name == "shercliff") { return Shercliff(pmesh, input.GetReal("Ly"), input.GetReal("Lz")); }
-   MFEM_ABORT("Unknown Case '" << name << "' in params.in (lid_driven_cavity)");// | square_duct)");
+   if (name == "hunt") { return Hunt(pmesh, input.GetReal("Ly"), input.GetReal("Lz")); }
+   MFEM_ABORT("Unknown Case '" << name << "' in params.in (lid_driven_cavity | shercliff | hunt)");
    return BoundaryConditions(pmesh);
 }
 

@@ -92,6 +92,18 @@ inline mfem::real_t LidRamp(mfem::real_t z, mfem::real_t lid_z, mfem::real_t lid
    return s * s * (3.0 - 2.0 * s);                    // C1.  Smoothly transition from 0 to 1.
 }
 
+inline mfem::real_t VelocityInletProfile(mfem::real_t y, mfem::real_t z, mfem::real_t Ly, mfem::real_t Lz)
+{
+   // Not u_avg is hardcoded here to 1 and this assumes that the duct starts at the origin (fine with 
+   // MFEM generated mesh but might cause issues with externally generated meshes).
+   const mfem::real_t u_avg = 1.0;
+   const mfem::real_t y_mid = 0.5 * Ly;
+   const mfem::real_t z_mid = 0.5 * Lz;
+
+   return (9. / 4.) * u_avg * (1. - ((y - y_mid)*(y - y_mid)) / (y_mid * y_mid)) * 
+                     (1. - ((z - z_mid)*(z - z_mid)) / (z_mid * z_mid));
+}
+
 inline BoundaryConditions LidDrivenCavity(mfem::ParMesh &pmesh, mfem::real_t lid_z)
 {
    BoundaryConditions bc(pmesh);
@@ -127,16 +139,43 @@ inline BoundaryConditions Shercliff(const mfem::ParMesh &pmesh, mfem::real_t Ly,
    // Note: The outlet is currently hardcoded to be at XMax, normal to the YZ plane.
 
    bc.velocity = std::make_unique<mfem::VectorFunctionCoefficient>(pmesh.Dimension(),
-      [=](const mfem::Vector &x, mfem::Vector &f)
-      {
-         f = 0.0;
-         f(0) = (9. / 4.) * u_avg * (1. - ((x(1) - y_mid)*(x(1) - y_mid)) / (y_mid * y_mid)) * 
-                     (1. - ((x(2) - z_mid)*(x(2) - z_mid)) / (z_mid * z_mid)); 
-      }
-   );
+   [=](const mfem::Vector &x, mfem::Vector &f)
+   {
+      f = 0.0;
+      f(0) = VelocityInletProfile(x(1), x(2), Ly, Lz);
+   });
 
    bc.remove_pressure_mean  = false;
    bc.remove_potential_mean = true;
+
+   return bc;
+}
+
+inline BoundaryConditions Hunt(const mfem::ParMesh &pmesh, mfem::real_t Ly, mfem::real_t Lz)
+{
+   using namespace BoxFace;
+   BoundaryConditions bc(pmesh);
+   bc.description = "Hunt flow in a square duct, inlet x = 0, outlet x = Lx";
+
+   const mfem::real_t u_avg = 1.0;
+   const mfem::real_t y_mid = 0.5 * Ly;
+   const mfem::real_t z_mid = 0.5 * Lz;
+
+   // Conducting walls, J.n = 0.
+   BoundaryConditions::SetEssential(bc.currentD_ess, {YMin, YMax, XMin, XMax});
+   BoundaryConditions::SetEssential(bc.velocity_ess, {ZMin, YMin, YMax, XMin, ZMax});
+   BoundaryConditions::SetEssential(bc.outlet, {XMax});
+   // Note: The outlet is currently hardcoded to be at XMax, normal to the YZ plane.
+
+   bc.velocity = std::make_unique<mfem::VectorFunctionCoefficient>(pmesh.Dimension(),
+   [=](const mfem::Vector &x, mfem::Vector &f)
+   {
+      f = 0.0;
+      f(0) = VelocityInletProfile(x(1), x(2), Ly, Lz);
+   });
+
+   bc.remove_pressure_mean  = false;
+   bc.remove_potential_mean = false;
 
    return bc;
 }
